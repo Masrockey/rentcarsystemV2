@@ -23,19 +23,16 @@ class BookingController extends Controller
     {
         $user = $request->user();
 
-        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci'])->latest();
+        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user'])->latest();
 
-        if (! $user->isAdmin() && ! $user->isMarketing()) {
-            if ($user->isPeluncur() && $user->isPetugasCuci()) {
-                $query->where(function ($q) use ($user) {
-                    $q->where('peluncur_id', $user->id)
-                        ->orWhere('petugas_cuci_id', $user->id);
-                });
-            } elseif ($user->isPeluncur()) {
-                $query->where('peluncur_id', $user->id);
-            } elseif ($user->isPetugasCuci()) {
-                $query->where('petugas_cuci_id', $user->id);
-            }
+        // Isolate booking data per user: Only Super Admin and Admin Unit can see ALL bookings.
+        // Other users (e.g. Marketing, Peluncur, Petugas Cuci) can only see their own created/assigned bookings.
+        if (! $user->isAdmin()) {
+            $query->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)
+                    ->orWhere('peluncur_id', $user->id)
+                    ->orWhere('petugas_cuci_id', $user->id);
+            });
         }
 
         return Inertia::render('bookings/index', [
@@ -60,7 +57,16 @@ class BookingController extends Controller
         $validated = $request->validate([
             'customer_id' => ['nullable', 'exists:customers,id'],
             'new_customer_name' => ['nullable', 'string', 'max:255'],
-            'new_customer_phone' => ['nullable', 'string', 'max:255'],
+            'new_customer_nik' => ['nullable', 'string', 'max:50'],
+            'new_customer_phone' => ['nullable', 'string', 'max:50'],
+            'new_customer_email' => ['nullable', 'string', 'email', 'max:255'],
+            'new_customer_emergency_contact' => ['nullable', 'string', 'max:50'],
+            'new_customer_address' => ['nullable', 'string'],
+            'new_customer_sim_number' => ['nullable', 'string', 'max:50'],
+            'new_customer_sim_expiry' => ['nullable', 'date'],
+            'new_customer_ktp_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'new_customer_sim_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'new_customer_selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'car_type' => ['required', 'string', 'max:255'],
             'booking_date' => ['required', 'date'],
             'return_date' => ['nullable', 'date', 'after_or_equal:booking_date'],
@@ -74,9 +80,30 @@ class BookingController extends Controller
         }
 
         if (! empty($validated['new_customer_name'])) {
+            $ktpPhotoPath = $request->hasFile('new_customer_ktp_photo')
+                ? $request->file('new_customer_ktp_photo')->store('customers', 'public')
+                : null;
+
+            $simPhotoPath = $request->hasFile('new_customer_sim_photo')
+                ? $request->file('new_customer_sim_photo')->store('customers', 'public')
+                : null;
+
+            $selfiePhotoPath = $request->hasFile('new_customer_selfie_photo')
+                ? $request->file('new_customer_selfie_photo')->store('customers', 'public')
+                : null;
+
             $customer = Customer::create([
                 'name' => $validated['new_customer_name'],
+                'nik' => $validated['new_customer_nik'] ?? null,
                 'phone' => $validated['new_customer_phone'] ?? null,
+                'email' => $validated['new_customer_email'] ?? null,
+                'address' => $validated['new_customer_address'] ?? null,
+                'emergency_contact' => $validated['new_customer_emergency_contact'] ?? null,
+                'sim_number' => $validated['new_customer_sim_number'] ?? null,
+                'sim_expiry' => $validated['new_customer_sim_expiry'] ?? null,
+                'ktp_photo' => $ktpPhotoPath,
+                'sim_photo' => $simPhotoPath,
+                'selfie_photo' => $selfiePhotoPath,
             ]);
             $customerId = $customer->id;
         } else {
@@ -85,6 +112,7 @@ class BookingController extends Controller
 
         $bookingNumber = 'BK-'.date('Ymd').'-'.strtoupper(Str::random(6));
         Booking::create([
+            'user_id' => $request->user()->id,
             'customer_id' => $customerId,
             'car_type' => $validated['car_type'],
             'booking_date' => $validated['booking_date'],
@@ -105,10 +133,31 @@ class BookingController extends Controller
     }
 
     /**
+     * Authorize access to a specific booking record.
+     */
+    private function authorizeBookingAccess(Request $request, Booking $booking): void
+    {
+        $user = $request->user();
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        if (
+            $booking->user_id !== $user->id &&
+            $booking->peluncur_id !== $user->id &&
+            $booking->petugas_cuci_id !== $user->id
+        ) {
+            abort(403, 'Akses ditolak. Anda tidak memiliki hak akses ke data booking ini.');
+        }
+    }
+
+    /**
      * Update the specified resource in storage. (Allocation / Assignment)
      */
     public function update(Request $request, Booking $booking): RedirectResponse
     {
+        $this->authorizeBookingAccess($request, $booking);
+
         $validated = $request->validate([
             'customer_id' => ['nullable', 'exists:customers,id'],
             'car_type' => ['nullable', 'string', 'max:255'],
@@ -141,8 +190,10 @@ class BookingController extends Controller
     /**
      * Show checklist page for a specific booking.
      */
-    public function showChecklist(Booking $booking): Response
+    public function showChecklist(Request $request, Booking $booking): Response
     {
+        $this->authorizeBookingAccess($request, $booking);
+
         $booking->load(['customer', 'car']);
 
         return Inertia::render('bookings/checklist', [
@@ -155,6 +206,8 @@ class BookingController extends Controller
      */
     public function submitDelivery(Request $request, Booking $booking): RedirectResponse
     {
+        $this->authorizeBookingAccess($request, $booking);
+
         $validated = $request->validate([
             'checklist' => ['required', 'array'],
             'latitude' => ['nullable', 'string'],
@@ -215,6 +268,8 @@ class BookingController extends Controller
      */
     public function submitReturn(Request $request, Booking $booking): RedirectResponse
     {
+        $this->authorizeBookingAccess($request, $booking);
+
         $validated = $request->validate([
             'checklist' => ['required', 'array'],
             'notes' => ['nullable', 'string'],
@@ -242,8 +297,10 @@ class BookingController extends Controller
     /**
      * Complete Washing Process.
      */
-    public function completeWash(Booking $booking): RedirectResponse
+    public function completeWash(Request $request, Booking $booking): RedirectResponse
     {
+        $this->authorizeBookingAccess($request, $booking);
+
         $booking->update([
             'status' => 'Completed',
         ]);
@@ -267,8 +324,10 @@ class BookingController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Booking $booking): RedirectResponse
+    public function destroy(Request $request, Booking $booking): RedirectResponse
     {
+        $this->authorizeBookingAccess($request, $booking);
+
         $booking->delete();
 
         Inertia::flash('toast', [

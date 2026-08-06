@@ -16,8 +16,12 @@ class PaymentController extends Controller
     /**
      * Display a listing of payments.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Menu Payments hanya dapat diakses oleh Admin Unit dan Super Admin.');
+        }
+
         return Inertia::render('payments/index', [
             'payments' => Payment::with('booking.customer')
                 ->latest()
@@ -33,6 +37,10 @@ class PaymentController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Menu Payments hanya dapat diakses oleh Admin Unit dan Super Admin.');
+        }
+
         $validated = $request->validate([
             'booking_id' => ['required', 'exists:bookings,id'],
             'payment_method' => ['required', 'string', Rule::in(['Cash', 'Transfer', 'DP'])],
@@ -66,6 +74,10 @@ class PaymentController extends Controller
      */
     public function update(Request $request, Payment $payment): RedirectResponse
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Menu Payments hanya dapat diakses oleh Admin Unit dan Super Admin.');
+        }
+
         $validated = $request->validate([
             'booking_id' => ['required', 'exists:bookings,id'],
             'payment_method' => ['required', 'string', Rule::in(['Cash', 'Transfer', 'DP'])],
@@ -116,8 +128,12 @@ class PaymentController extends Controller
     /**
      * Remove the specified payment.
      */
-    public function destroy(Payment $payment): RedirectResponse
+    public function destroy(Request $request, Payment $payment): RedirectResponse
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Menu Payments hanya dapat diakses oleh Admin Unit dan Super Admin.');
+        }
+
         $payment->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Payment deleted successfully.']);

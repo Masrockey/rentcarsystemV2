@@ -18,6 +18,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect } from 'react';
 import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2 } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
@@ -54,6 +55,8 @@ type UserType = {
 
 type Booking = {
     id: number;
+    user_id?: number | null;
+    user?: UserType;
     customer_id: number;
     customer?: Customer;
     car_type: string;
@@ -121,19 +124,32 @@ export default function BookingsIndex({
     const [washConfirmId, setWashConfirmId] = useState<number | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
-    const availableCarTypeNames = Array.from(
-        new Set([
-            ...(carTypes?.map(c => c.name) || []),
-            ...readyCars.map(c => c.name),
-            ...cars.map(c => c.name),
-            ...DEFAULT_CAR_TYPES
-        ])
-    );
+    const availableCarTypeNames = DEFAULT_CAR_TYPES;
+
+    const customerOptions = customers.map((c) => ({
+        value: c.id.toString(),
+        label: c.name,
+        sublabel: c.phone ? `HP: ${c.phone}` : undefined,
+    }));
+
+    const carTypeOptions = DEFAULT_CAR_TYPES.map((name) => ({
+        value: name,
+        label: name,
+    }));
 
     const { data: createData, setData: setCreateData, post: postCreate, reset: resetCreate, processing: processingCreate, errors: errorsCreate } = useForm({
         customer_id: '',
         new_customer_name: '',
+        new_customer_nik: '',
         new_customer_phone: '',
+        new_customer_email: '',
+        new_customer_emergency_contact: '',
+        new_customer_address: '',
+        new_customer_sim_number: '',
+        new_customer_sim_expiry: '',
+        new_customer_ktp_photo: null as File | null,
+        new_customer_sim_photo: null as File | null,
+        new_customer_selfie_photo: null as File | null,
         car_type: '',
         booking_date: '',
         return_date: '',
@@ -312,6 +328,9 @@ export default function BookingsIndex({
                                             <div><span className="font-semibold text-foreground">Dates:</span> Start: {booking.booking_date} {booking.return_date ? `| End: ${booking.return_date}` : ''}</div>
                                             <div><span className="font-semibold text-foreground">Payment:</span> {formatCurrency(booking.amount)} ({booking.payment_status} via {booking.payment_method})</div>
                                             <div><span className="font-semibold text-foreground">Staff Duties:</span> Peluncur: {booking.peluncur?.name ?? 'None'}, Wash: {booking.petugas_cuci?.name ?? 'None'}</div>
+                                            {(hasRole('Admin') || hasRole('Super Admin')) && (
+                                                <div><span className="font-semibold text-foreground">Created By:</span> <span className="font-medium text-foreground">{booking.user?.name ?? 'Admin / System'}</span></div>
+                                            )}
                                         </div>
                                         <div className="flex justify-end gap-2 pt-2 border-t mt-1">
                                             {(hasRole('Admin') || hasRole('Super Admin')) && (
@@ -372,6 +391,9 @@ export default function BookingsIndex({
                                         <th className="px-4 py-3">Dates</th>
                                         <th className="px-4 py-3">Payment</th>
                                         <th className="px-4 py-3">Staff Duties</th>
+                                        {(hasRole('Admin') || hasRole('Super Admin')) && (
+                                            <th className="px-4 py-3">Created By</th>
+                                        )}
                                         <th className="px-4 py-3">Status</th>
                                         <th className="px-4 py-3 text-right">Actions</th>
                                     </tr>
@@ -379,7 +401,7 @@ export default function BookingsIndex({
                                 <tbody className="divide-y">
                                     {bookings.length === 0 ? (
                                         <tr>
-                                            <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                                            <td colSpan={(hasRole('Admin') || hasRole('Super Admin')) ? 9 : 8} className="px-4 py-8 text-center text-muted-foreground">
                                                 No bookings found.
                                             </td>
                                         </tr>
@@ -407,6 +429,13 @@ export default function BookingsIndex({
                                                     <div>Peluncur: {booking.peluncur ? booking.peluncur.name : <span className="text-muted-foreground italic">None</span>}</div>
                                                     <div className="mt-1">Wash: {booking.petugas_cuci ? booking.petugas_cuci.name : <span className="text-muted-foreground italic">None</span>}</div>
                                                 </td>
+                                                {(hasRole('Admin') || hasRole('Super Admin')) && (
+                                                    <td className="px-4 py-4 text-xs">
+                                                        <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
+                                                            {booking.user ? booking.user.name : <span className="text-muted-foreground italic">Admin / System</span>}
+                                                        </span>
+                                                    </td>
+                                                )}
                                                 <td className="px-4 py-4">
                                                     <Badge variant="outline" className={getStatusColor(booking.status)}>
                                                         {booking.status}
@@ -466,7 +495,7 @@ export default function BookingsIndex({
 
                 {/* CREATE BOOKING DIALOG */}
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogContent className="max-w-md">
+                    <DialogContent className={isNewCustomer ? "max-w-xl max-h-[90vh] overflow-y-auto" : "max-w-md"}>
                         <DialogHeader>
                             <h2 className="text-lg font-semibold">New Rental Booking</h2>
                         </DialogHeader>
@@ -484,7 +513,16 @@ export default function BookingsIndex({
                                                 setCreateData('customer_id', '');
                                             } else {
                                                 setCreateData('new_customer_name', '');
+                                                setCreateData('new_customer_nik', '');
                                                 setCreateData('new_customer_phone', '');
+                                                setCreateData('new_customer_email', '');
+                                                setCreateData('new_customer_emergency_contact', '');
+                                                setCreateData('new_customer_address', '');
+                                                setCreateData('new_customer_sim_number', '');
+                                                setCreateData('new_customer_sim_expiry', '');
+                                                setCreateData('new_customer_ktp_photo', null);
+                                                setCreateData('new_customer_sim_photo', null);
+                                                setCreateData('new_customer_selfie_photo', null);
                                                 if (customers.length > 0) {
                                                     setCreateData('customer_id', customers[0].id.toString());
                                                 }
@@ -496,35 +534,164 @@ export default function BookingsIndex({
                                 </div>
 
                                 {!isNewCustomer ? (
-                                    <Select
+                                    <SearchableSelect
+                                        options={customerOptions}
                                         value={createData.customer_id}
                                         onValueChange={(val) => setCreateData('customer_id', val)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Pilih customer terdaftar..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {customers.length === 0 ? (
-                                                <div className="px-3 py-2 text-xs text-muted-foreground">Belum ada customer terdaftar.</div>
-                                            ) : (
-                                                customers.map((c) => (
-                                                    <SelectItem key={c.id} value={c.id.toString()}>
-                                                        {c.name}
-                                                    </SelectItem>
-                                                ))
-                                            )}
-                                        </SelectContent>
-                                    </Select>
+                                        placeholder="Pilih customer terdaftar..."
+                                        searchPlaceholder="Cari nama / HP customer..."
+                                        emptyText="Customer tidak ditemukan."
+                                    />
                                 ) : (
-                                    <div className="p-3 border rounded-md bg-muted/30 space-y-1">
-                                        <Label className="text-xs">Nama Customer Baru</Label>
-                                        <Input
-                                            type="text"
-                                            placeholder="Masukkan nama lengkap customer..."
-                                            value={createData.new_customer_name}
-                                            onChange={(e) => setCreateData('new_customer_name', e.target.value)}
-                                            required={isNewCustomer}
-                                        />
+                                    <div className="p-3.5 border rounded-lg bg-muted/20 space-y-4">
+                                        {/* Data Pribadi */}
+                                        <div>
+                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
+                                                Data Pribadi
+                                            </p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_name" className="text-xs">Nama Lengkap *</Label>
+                                                    <Input
+                                                        id="new_customer_name"
+                                                        type="text"
+                                                        placeholder="Masukkan nama lengkap..."
+                                                        value={createData.new_customer_name}
+                                                        onChange={(e) => setCreateData('new_customer_name', e.target.value)}
+                                                        required={isNewCustomer}
+                                                    />
+                                                    {errorsCreate.new_customer_name && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_name}</p>}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_nik" className="text-xs">NIK (KTP)</Label>
+                                                    <Input
+                                                        id="new_customer_nik"
+                                                        type="text"
+                                                        placeholder="Masukkan 16 digit NIK..."
+                                                        value={createData.new_customer_nik}
+                                                        onChange={(e) => setCreateData('new_customer_nik', e.target.value)}
+                                                    />
+                                                    {errorsCreate.new_customer_nik && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_nik}</p>}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_phone" className="text-xs">No. HP</Label>
+                                                    <Input
+                                                        id="new_customer_phone"
+                                                        type="text"
+                                                        placeholder="081234567890..."
+                                                        value={createData.new_customer_phone}
+                                                        onChange={(e) => setCreateData('new_customer_phone', e.target.value)}
+                                                    />
+                                                    {errorsCreate.new_customer_phone && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_phone}</p>}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_email" className="text-xs">Email</Label>
+                                                    <Input
+                                                        id="new_customer_email"
+                                                        type="email"
+                                                        placeholder="email@example.com..."
+                                                        value={createData.new_customer_email}
+                                                        onChange={(e) => setCreateData('new_customer_email', e.target.value)}
+                                                    />
+                                                    {errorsCreate.new_customer_email && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_email}</p>}
+                                                </div>
+
+                                                <div className="space-y-1 md:col-span-2">
+                                                    <Label htmlFor="new_customer_emergency_contact" className="text-xs">Kontak Darurat (Opsional)</Label>
+                                                    <Input
+                                                        id="new_customer_emergency_contact"
+                                                        type="text"
+                                                        placeholder="Nama & No HP kontak darurat..."
+                                                        value={createData.new_customer_emergency_contact}
+                                                        onChange={(e) => setCreateData('new_customer_emergency_contact', e.target.value)}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1 md:col-span-2">
+                                                    <Label htmlFor="new_customer_address" className="text-xs">Alamat Lengkap</Label>
+                                                    <Input
+                                                        id="new_customer_address"
+                                                        type="text"
+                                                        placeholder="Alamat lengkap domisili..."
+                                                        value={createData.new_customer_address}
+                                                        onChange={(e) => setCreateData('new_customer_address', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Data SIM */}
+                                        <div className="pt-2 border-t">
+                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
+                                                Data SIM
+                                            </p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_sim_number" className="text-xs">No. SIM</Label>
+                                                    <Input
+                                                        id="new_customer_sim_number"
+                                                        type="text"
+                                                        placeholder="Nomor SIM A..."
+                                                        value={createData.new_customer_sim_number}
+                                                        onChange={(e) => setCreateData('new_customer_sim_number', e.target.value)}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_sim_expiry" className="text-xs">Masa Berlaku SIM</Label>
+                                                    <Input
+                                                        id="new_customer_sim_expiry"
+                                                        type="date"
+                                                        value={createData.new_customer_sim_expiry}
+                                                        onChange={(e) => setCreateData('new_customer_sim_expiry', e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Upload Foto Dokumen */}
+                                        <div className="pt-2 border-t">
+                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
+                                                Upload Foto Dokumen
+                                            </p>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_ktp_photo" className="text-xs">Foto KTP</Label>
+                                                    <Input
+                                                        id="new_customer_ktp_photo"
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="text-xs h-9 cursor-pointer"
+                                                        onChange={(e) => setCreateData('new_customer_ktp_photo', e.target.files ? e.target.files[0] : null)}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_sim_photo" className="text-xs">Foto SIM</Label>
+                                                    <Input
+                                                        id="new_customer_sim_photo"
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="text-xs h-9 cursor-pointer"
+                                                        onChange={(e) => setCreateData('new_customer_sim_photo', e.target.files ? e.target.files[0] : null)}
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label htmlFor="new_customer_selfie_photo" className="text-xs">Foto Selfie (Opsional)</Label>
+                                                    <Input
+                                                        id="new_customer_selfie_photo"
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="text-xs h-9 cursor-pointer"
+                                                        onChange={(e) => setCreateData('new_customer_selfie_photo', e.target.files ? e.target.files[0] : null)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                                 {errorsCreate.customer_id && <p className="text-xs text-red-500">{errorsCreate.customer_id}</p>}
@@ -551,21 +718,15 @@ export default function BookingsIndex({
                                 </div>
 
                                 {!isCustomCarType ? (
-                                    <Select
+                                    <SearchableSelect
+                                        id="car_type"
+                                        options={carTypeOptions}
                                         value={createData.car_type}
                                         onValueChange={(val) => setCreateData('car_type', val)}
-                                    >
-                                        <SelectTrigger id="car_type">
-                                            <SelectValue placeholder="Pilih type kendaraan..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {availableCarTypeNames.map((name) => (
-                                                <SelectItem key={name} value={name}>
-                                                    {name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                        placeholder="Pilih type kendaraan..."
+                                        searchPlaceholder="Cari type kendaraan (Avanza, Innova, etc)..."
+                                        emptyText="Type kendaraan tidak ditemukan."
+                                    />
                                 ) : (
                                     <Input
                                         id="car_type"
@@ -662,29 +823,28 @@ export default function BookingsIndex({
 
                                 <div className="space-y-1">
                                     <Label htmlFor="car_id">Assign Car Fleet</Label>
-                                    <Select
+                                    <SearchableSelect
+                                        options={[
+                                            ...(selectedBooking?.car
+                                                ? [{
+                                                    value: selectedBooking.car_id!.toString(),
+                                                    label: `${selectedBooking.car.name} (${selectedBooking.car.plate_number}) - [Current]`,
+                                                }]
+                                                : []),
+                                            ...readyCars
+                                                .filter(c => c.id !== selectedBooking?.car_id)
+                                                .map(c => ({
+                                                    value: c.id.toString(),
+                                                    label: `${c.name} (${c.plate_number})`,
+                                                    sublabel: c.daily_price ? `Rp ${Number(c.daily_price).toLocaleString('id-ID')}/hari` : undefined,
+                                                })),
+                                        ]}
                                         value={assignData.car_id}
                                         onValueChange={(val) => setAssignData('car_id', val)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Choose a ready vehicle" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {/* Show currently assigned car even if it is not ready, plus all other ready cars */}
-                                            {selectedBooking.car && (
-                                                <SelectItem value={selectedBooking.car_id!.toString()}>
-                                                    {selectedBooking.car.name} ({selectedBooking.car.plate_number}) - [Current]
-                                                </SelectItem>
-                                            )}
-                                            {readyCars
-                                                .filter(c => c.id !== selectedBooking.car_id)
-                                                .map((c) => (
-                                                    <SelectItem key={c.id} value={c.id.toString()}>
-                                                        {c.name} ({c.plate_number})
-                                                    </SelectItem>
-                                                ))}
-                                        </SelectContent>
-                                    </Select>
+                                        placeholder="Choose a ready vehicle..."
+                                        searchPlaceholder="Cari mobil / no. polisi..."
+                                        emptyText="Mobil tidak ditemukan."
+                                    />
                                 </div>
 
                                 <div className="space-y-1">
@@ -780,27 +940,27 @@ export default function BookingsIndex({
                         <form onSubmit={handleEditSubmit} className="space-y-4 py-2">
                             <div className="space-y-1">
                                 <Label htmlFor="edit_customer_id">Customer</Label>
-                                <Select
+                                <SearchableSelect
+                                    id="edit_customer_id"
+                                    options={customerOptions}
                                     value={editData.customer_id}
                                     onValueChange={(val) => setEditData('customer_id', val)}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select Customer" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {customers.map((c) => (
-                                            <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                    placeholder="Select Customer..."
+                                    searchPlaceholder="Cari customer..."
+                                    emptyText="Customer tidak ditemukan."
+                                />
                             </div>
 
                             <div className="space-y-1">
                                 <Label htmlFor="edit_car_type">Requested Car Type</Label>
-                                <Input
+                                <SearchableSelect
                                     id="edit_car_type"
+                                    options={carTypeOptions}
                                     value={editData.car_type}
-                                    onChange={(e) => setEditData('car_type', e.target.value)}
+                                    onValueChange={(val) => setEditData('car_type', val)}
+                                    placeholder="Select Car Type..."
+                                    searchPlaceholder="Cari type kendaraan..."
+                                    emptyText="Type kendaraan tidak ditemukan."
                                 />
                             </div>
 

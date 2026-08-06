@@ -58,7 +58,6 @@ export default function AppSidebarLayout({
         allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
         allItems.push({ title: 'Bookings', href: bookingsIndex(), icon: CalendarDays });
         allItems.push({ title: 'Customers', href: customersIndex(), icon: UserSquare2 });
-        allItems.push({ title: 'Payments', href: paymentsIndex(), icon: CreditCard });
     } else if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
         allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
         allItems.push({ title: 'Worklist', href: bookingsIndex(), icon: CalendarDays });

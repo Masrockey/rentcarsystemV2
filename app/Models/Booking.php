@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
+    'user_id',
     'booking_number',
     'customer_id',
     'car_type',
@@ -36,6 +37,16 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Booking extends Model
 {
     use HasFactory;
+
+    /**
+     * Get the user that created the booking.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     /**
      * Get the attributes that should be cast.

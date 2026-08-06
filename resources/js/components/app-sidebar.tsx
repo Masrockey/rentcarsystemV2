@@ -70,7 +70,6 @@ export function AppSidebar() {
 
     if (hasRole('Marketing')) {
         operationalItems.push({ title: 'Bookings', href: bookingsIndex(), icon: CalendarDays });
-        operationalItems.push({ title: 'Payments', href: paymentsIndex(), icon: CreditCard });
         adminItems.push({ title: 'Customers', href: customersIndex(), icon: UserSquare2 });
     }
 

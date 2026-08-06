@@ -10,6 +10,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState } from 'react';
 import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send } from 'lucide-react';
 import { index as rentalsIndex } from '@/routes/rentals';
@@ -414,7 +415,12 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Booking</Label>
-                                    <Select
+                                    <SearchableSelect
+                                        options={bookings.map(b => ({
+                                            value: String(b.id),
+                                            label: `${b.booking_number ?? `#${b.id}`} — ${b.customer?.name ?? 'Customer'}`,
+                                            sublabel: b.car_type ? `Mobil: ${b.car_type}` : undefined,
+                                        }))}
                                         value={String(data.booking_id)}
                                         onValueChange={(val) => {
                                             const bookingId = Number(val);
@@ -437,33 +443,54 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                 setData('booking_id', bookingId);
                                             }
                                         }}
-                                    >
-                                        <SelectTrigger><SelectValue placeholder="Pilih booking..." /></SelectTrigger>
-                                        <SelectContent>{bookings.map(b => <SelectItem key={b.id} value={String(b.id)}>{b.booking_number ?? `#${b.id}`} — {b.customer?.name}</SelectItem>)}</SelectContent>
-                                    </Select>
+                                        placeholder="Pilih booking..."
+                                        searchPlaceholder="Cari no. booking / nama customer..."
+                                        emptyText="Booking tidak ditemukan."
+                                    />
                                     {errors.booking_id && <p className="text-xs text-red-500">{errors.booking_id}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Kendaraan</Label>
-                                    <Select value={String(data.car_id)} onValueChange={val => setData('car_id', Number(val))}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih mobil..." /></SelectTrigger>
-                                        <SelectContent>{cars.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name} — {c.plate_number}</SelectItem>)}</SelectContent>
-                                    </Select>
+                                    <SearchableSelect
+                                        options={cars.map(c => ({
+                                            value: String(c.id),
+                                            label: `${c.name} — ${c.plate_number}`,
+                                        }))}
+                                        value={String(data.car_id)}
+                                        onValueChange={val => setData('car_id', Number(val))}
+                                        placeholder="Pilih mobil..."
+                                        searchPlaceholder="Cari nama mobil / no. polisi..."
+                                        emptyText="Mobil tidak ditemukan."
+                                    />
                                     {errors.car_id && <p className="text-xs text-red-500">{errors.car_id}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Penyewa</Label>
-                                    <Select value={String(data.customer_id)} onValueChange={val => setData('customer_id', Number(val))}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih customer..." /></SelectTrigger>
-                                        <SelectContent>{customers.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
-                                    </Select>
+                                    <SearchableSelect
+                                        options={customers.map(c => ({
+                                            value: String(c.id),
+                                            label: c.name,
+                                        }))}
+                                        value={String(data.customer_id)}
+                                        onValueChange={val => setData('customer_id', Number(val))}
+                                        placeholder="Pilih customer..."
+                                        searchPlaceholder="Cari customer..."
+                                        emptyText="Customer tidak ditemukan."
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Petugas</Label>
-                                    <Select value={String(data.officer_id)} onValueChange={val => setData('officer_id', Number(val))}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih petugas..." /></SelectTrigger>
-                                        <SelectContent>{officers.map(o => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}</SelectContent>
-                                    </Select>
+                                    <SearchableSelect
+                                        options={officers.map(o => ({
+                                            value: String(o.id),
+                                            label: o.name,
+                                        }))}
+                                        value={String(data.officer_id)}
+                                        onValueChange={val => setData('officer_id', Number(val))}
+                                        placeholder="Pilih petugas..."
+                                        searchPlaceholder="Cari petugas..."
+                                        emptyText="Petugas tidak ditemukan."
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Tanggal Keluar</Label>
