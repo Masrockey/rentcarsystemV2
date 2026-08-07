@@ -47,6 +47,15 @@ type CarTypeRef = {
     monthly_price?: string | null;
 };
 
+type DriverType = {
+    id: number;
+    name: string;
+    phone?: string;
+    sim?: string;
+    status: string;
+    daily_rate: number;
+};
+
 type UserType = {
     id: number;
     name: string;
@@ -60,8 +69,11 @@ type Booking = {
     customer_id: number;
     customer?: Customer;
     car_type: string;
+    rental_type?: 'Lepas Kunci' | 'With Driver' | string;
     car_id: number | null;
     car?: CarType;
+    driver_id?: number | null;
+    driver?: DriverType;
     peluncur_id: number | null;
     peluncur?: UserType;
     petugas_cuci_id: number | null;
@@ -79,6 +91,7 @@ type Props = {
     customers: Customer[];
     cars: CarType[];
     readyCars: CarType[];
+    readyDrivers?: DriverType[];
     carTypes?: CarTypeRef[];
     peluncurOfficers: UserType[];
     washOfficers: UserType[];
@@ -106,6 +119,7 @@ export default function BookingsIndex({
     customers,
     cars,
     readyCars,
+    readyDrivers = [],
     carTypes,
     peluncurOfficers,
     washOfficers
@@ -151,6 +165,7 @@ export default function BookingsIndex({
         new_customer_sim_photo: null as File | null,
         new_customer_selfie_photo: null as File | null,
         car_type: '',
+        rental_type: 'Lepas Kunci' as 'Lepas Kunci' | 'With Driver',
         booking_date: '',
         return_date: '',
         payment_method: 'Cash',
@@ -161,6 +176,7 @@ export default function BookingsIndex({
     const { data: editData, setData: setEditData, put: putEdit, processing: processingEdit, errors: errorsEdit } = useForm({
         customer_id: '',
         car_type: '',
+        rental_type: 'Lepas Kunci' as 'Lepas Kunci' | 'With Driver',
         booking_date: '',
         return_date: '',
         payment_method: 'Cash',
@@ -171,6 +187,7 @@ export default function BookingsIndex({
 
     const { data: assignData, setData: setAssignData, put: putAssign, processing: processingAssign } = useForm({
         car_id: '',
+        driver_id: '',
         peluncur_id: '',
         petugas_cuci_id: '',
         amount: '',
@@ -191,6 +208,7 @@ export default function BookingsIndex({
         setEditData({
             customer_id: booking.customer_id ? booking.customer_id.toString() : '',
             car_type: booking.car_type || '',
+            rental_type: (booking.rental_type as any) || 'Lepas Kunci',
             booking_date: booking.booking_date || '',
             return_date: booking.return_date || '',
             payment_method: booking.payment_method || 'Cash',
@@ -205,6 +223,7 @@ export default function BookingsIndex({
         setSelectedBooking(booking);
         setAssignData({
             car_id: booking.car_id ? booking.car_id.toString() : '',
+            driver_id: booking.driver_id ? booking.driver_id.toString() : '',
             peluncur_id: booking.peluncur_id ? booking.peluncur_id.toString() : '',
             petugas_cuci_id: booking.petugas_cuci_id ? booking.petugas_cuci_id.toString() : '',
             amount: booking.amount ? booking.amount.toString() : '',
@@ -323,11 +342,21 @@ export default function BookingsIndex({
                                             </Badge>
                                         </div>
                                         <div className="text-xs text-muted-foreground space-y-1">
-                                            <div><span className="font-semibold text-foreground">Requested Car:</span> {booking.car_type}</div>
+                                            <div>
+                                                <span className="font-semibold text-foreground">Requested Car:</span> {booking.car_type}{' '}
+                                                <Badge variant="outline" className="ml-1 text-[10px] bg-primary/5 font-medium">
+                                                    {booking.rental_type ?? 'Lepas Kunci'}
+                                                </Badge>
+                                            </div>
                                             <div><span className="font-semibold text-foreground">Assigned Fleet:</span> {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="italic text-muted-foreground text-xs">Unallocated</span>}</div>
                                             <div><span className="font-semibold text-foreground">Dates:</span> Start: {booking.booking_date} {booking.return_date ? `| End: ${booking.return_date}` : ''}</div>
                                             <div><span className="font-semibold text-foreground">Payment:</span> {formatCurrency(booking.amount)} ({booking.payment_status} via {booking.payment_method})</div>
-                                            <div><span className="font-semibold text-foreground">Staff Duties:</span> Peluncur: {booking.peluncur?.name ?? 'None'}, Wash: {booking.petugas_cuci?.name ?? 'None'}</div>
+                                            <div>
+                                                <span className="font-semibold text-foreground">Staff Duties:</span> Peluncur: {booking.peluncur?.name ?? 'None'}, Wash: {booking.petugas_cuci?.name ?? 'None'}
+                                                {booking.rental_type === 'With Driver' && (
+                                                    <span>, Driver: {booking.driver?.name ?? <span className="text-red-500 font-semibold italic">Unallocated</span>}</span>
+                                                )}
+                                            </div>
                                             {(hasRole('Admin') || hasRole('Super Admin')) && (
                                                 <div><span className="font-semibold text-foreground">Created By:</span> <span className="font-medium text-foreground">{booking.user?.name ?? 'Admin / System'}</span></div>
                                             )}
@@ -361,8 +390,6 @@ export default function BookingsIndex({
                                                     </Button>
                                                 </>
                                             )}
-
-
 
                                             {(hasRole('Petugas Cuci') || hasRole('Admin')) && booking.status === 'Returned' && (
                                                 <Button
@@ -411,7 +438,12 @@ export default function BookingsIndex({
                                                 <td className="px-4 py-4">
                                                     <span className="font-semibold">{booking.customer?.name}</span>
                                                 </td>
-                                                <td className="px-4 py-4">{booking.car_type}</td>
+                                                <td className="px-4 py-4">
+                                                    <div className="font-medium">{booking.car_type}</div>
+                                                    <Badge variant="outline" className="mt-1 text-[10px] bg-primary/5 font-medium">
+                                                        {booking.rental_type ?? 'Lepas Kunci'}
+                                                    </Badge>
+                                                </td>
                                                 <td className="px-4 py-4 font-mono font-medium">
                                                     {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="text-muted-foreground text-xs italic">Unallocated</span>}
                                                 </td>
@@ -426,6 +458,11 @@ export default function BookingsIndex({
                                                     </Badge>
                                                 </td>
                                                 <td className="px-4 py-4 text-xs">
+                                                    {booking.rental_type === 'With Driver' && (
+                                                        <div className="mb-1 font-medium">
+                                                            Driver: {booking.driver ? <span className="font-semibold text-foreground">{booking.driver.name}</span> : <span className="text-red-500 italic font-semibold">Unallocated</span>}
+                                                        </div>
+                                                    )}
                                                     <div>Peluncur: {booking.peluncur ? booking.peluncur.name : <span className="text-muted-foreground italic">None</span>}</div>
                                                     <div className="mt-1">Wash: {booking.petugas_cuci ? booking.petugas_cuci.name : <span className="text-muted-foreground italic">None</span>}</div>
                                                 </td>
@@ -780,18 +817,17 @@ export default function BookingsIndex({
                                     </Select>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="payment_status">Payment Status</Label>
+                                    <Label htmlFor="rental_type">Type Sewa</Label>
                                     <Select
-                                        value={createData.payment_status}
-                                        onValueChange={(val: any) => setCreateData('payment_status', val)}
+                                        value={createData.rental_type}
+                                        onValueChange={(val: any) => setCreateData('rental_type', val)}
                                     >
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Pending">Pending</SelectItem>
-                                            <SelectItem value="Paid">Paid</SelectItem>
-                                            <SelectItem value="Down Payment">Down Payment</SelectItem>
+                                            <SelectItem value="Lepas Kunci">Lepas Kunci</SelectItem>
+                                            <SelectItem value="With Driver">With Driver</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -815,6 +851,7 @@ export default function BookingsIndex({
                                 <div className="rounded-lg bg-muted p-3 text-xs space-y-1">
                                     <div><span className="font-semibold">Customer:</span> {selectedBooking.customer?.name}</div>
                                     <div><span className="font-semibold">Requested Car Type:</span> {selectedBooking.car_type}</div>
+                                    <div><span className="font-semibold">Type Sewa:</span> <Badge variant="outline" className="text-[10px] ml-1">{selectedBooking.rental_type ?? 'Lepas Kunci'}</Badge></div>
                                     <div><span className="font-semibold">Tanggal Sewa:</span> {selectedBooking.booking_date}</div>
                                     {selectedBooking.return_date && (
                                         <div><span className="font-semibold">Tanggal Balik:</span> {selectedBooking.return_date}</div>
@@ -846,6 +883,34 @@ export default function BookingsIndex({
                                         emptyText="Mobil tidak ditemukan."
                                     />
                                 </div>
+
+                                {selectedBooking?.rental_type === 'With Driver' && (
+                                    <div className="space-y-1">
+                                        <Label htmlFor="driver_id" className="text-xs font-semibold text-primary">Assign Driver / Supir (Pilih Driver Ready)</Label>
+                                        <SearchableSelect
+                                            options={[
+                                                ...(selectedBooking?.driver
+                                                    ? [{
+                                                        value: selectedBooking.driver_id!.toString(),
+                                                        label: `${selectedBooking.driver.name} - [Current]`,
+                                                    }]
+                                                    : []),
+                                                ...readyDrivers
+                                                    .filter(d => d.id !== selectedBooking?.driver_id)
+                                                    .map(d => ({
+                                                        value: d.id.toString(),
+                                                        label: `${d.name} (${d.phone ?? 'No HP N/A'})`,
+                                                        sublabel: d.daily_rate ? `Tarif: Rp ${Number(d.daily_rate).toLocaleString('id-ID')}/hari` : undefined,
+                                                    })),
+                                            ]}
+                                            value={assignData.driver_id}
+                                            onValueChange={(val) => setAssignData('driver_id', val)}
+                                            placeholder="Pilih driver yang ready..."
+                                            searchPlaceholder="Cari nama / no. HP supir..."
+                                            emptyText="Driver ready tidak ditemukan."
+                                        />
+                                    </div>
+                                )}
 
                                 <div className="space-y-1">
                                     <Label htmlFor="peluncur_id">Assign Peluncur Officer (Field delivery)</Label>
@@ -1001,16 +1066,15 @@ export default function BookingsIndex({
                                     </Select>
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_payment_status">Payment Status</Label>
+                                    <Label htmlFor="edit_rental_type">Type Sewa</Label>
                                     <Select
-                                        value={editData.payment_status}
-                                        onValueChange={(val) => setEditData('payment_status', val)}
+                                        value={editData.rental_type}
+                                        onValueChange={(val: any) => setEditData('rental_type', val)}
                                     >
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Pending">Pending</SelectItem>
-                                            <SelectItem value="Down Payment">Down Payment</SelectItem>
-                                            <SelectItem value="Paid">Paid</SelectItem>
+                                            <SelectItem value="Lepas Kunci">Lepas Kunci</SelectItem>
+                                            <SelectItem value="With Driver">With Driver</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

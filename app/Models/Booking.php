@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'booking_number',
     'customer_id',
     'car_type',
+    'rental_type',
     'car_id',
     'peluncur_id',
     'petugas_cuci_id',

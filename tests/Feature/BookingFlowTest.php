@@ -21,6 +21,7 @@ test('full rent car booking workflow', function () {
     $bookingData = [
         'customer_id' => $customer->id,
         'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
         'booking_date' => '2026-07-12',
         'return_date' => '2026-07-15',
         'payment_method' => 'DP',
@@ -133,6 +134,7 @@ test('marketing can create booking with new customer on the fly', function () {
         'new_customer_name' => 'Alice New Client',
         'new_customer_phone' => '0899887766',
         'car_type' => 'Innova',
+        'rental_type' => 'Lepas Kunci',
         'booking_date' => '2026-07-25',
         'return_date' => '2026-07-28',
         'payment_method' => 'Cash',

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Car;
 use App\Models\Customer;
+use App\Models\Driver;
 use App\Models\Rental;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -23,7 +24,7 @@ class BookingController extends Controller
     {
         $user = $request->user();
 
-        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user'])->latest();
+        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
 
         // Isolate booking data per user: Only Super Admin and Admin Unit can see ALL bookings.
         // Other users (e.g. Marketing, Peluncur, Petugas Cuci) can only see their own created/assigned bookings.
@@ -40,6 +41,7 @@ class BookingController extends Controller
             'customers' => Customer::orderBy('name')->get(),
             'cars' => Car::orderBy('name')->get(),
             'readyCars' => Car::where('status', 'Ready')->orderBy('name')->get(),
+            'readyDrivers' => Driver::where('status', 'Active')->orderBy('name')->get(),
             'carTypes' => Car::select('name', 'type', 'daily_price', 'weekly_price', 'monthly_price')
                 ->get()
                 ->unique('name')
@@ -68,10 +70,11 @@ class BookingController extends Controller
             'new_customer_sim_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'new_customer_selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'car_type' => ['required', 'string', 'max:255'],
+            'rental_type' => ['required', Rule::in(['Lepas Kunci', 'With Driver'])],
             'booking_date' => ['required', 'date'],
             'return_date' => ['nullable', 'date', 'after_or_equal:booking_date'],
             'payment_method' => ['required', Rule::in(['Cash', 'Transfer', 'DP'])],
-            'payment_status' => ['required', Rule::in(['Pending', 'Paid', 'Down Payment'])],
+            'payment_status' => ['nullable', Rule::in(['Pending', 'Paid', 'Down Payment'])],
             'amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
@@ -115,10 +118,11 @@ class BookingController extends Controller
             'user_id' => $request->user()->id,
             'customer_id' => $customerId,
             'car_type' => $validated['car_type'],
+            'rental_type' => $validated['rental_type'] ?? 'Lepas Kunci',
             'booking_date' => $validated['booking_date'],
             'return_date' => $validated['return_date'],
             'payment_method' => $validated['payment_method'],
-            'payment_status' => $validated['payment_status'],
+            'payment_status' => $validated['payment_status'] ?? 'Pending',
             'amount' => $validated['amount'] ?? 0,
             'booking_number' => $bookingNumber,
             'status' => 'Pending',
@@ -161,10 +165,12 @@ class BookingController extends Controller
         $validated = $request->validate([
             'customer_id' => ['nullable', 'exists:customers,id'],
             'car_type' => ['nullable', 'string', 'max:255'],
+            'rental_type' => ['nullable', Rule::in(['Lepas Kunci', 'With Driver'])],
             'booking_date' => ['nullable', 'date'],
             'return_date' => ['nullable', 'date', 'after_or_equal:booking_date'],
             'payment_method' => ['nullable', Rule::in(['Cash', 'Transfer', 'DP'])],
             'car_id' => ['nullable', 'exists:cars,id'],
+            'driver_id' => ['nullable', 'exists:drivers,id'],
             'peluncur_id' => ['nullable', 'exists:users,id'],
             'petugas_cuci_id' => ['nullable', 'exists:users,id'],
             'amount' => ['nullable', 'numeric', 'min:0'],
