@@ -27,6 +27,7 @@ import { index as usersIndex } from '@/routes/users';
 type User = {
     id: number;
     name: string;
+    username?: string;
     email: string;
     roles: ('Super Admin' | 'Admin' | 'Marketing' | 'Peluncur' | 'Petugas Cuci')[];
 };
@@ -42,6 +43,7 @@ export default function UsersIndex({ users }: Props) {
 
     const { data, setData, post, put, reset, processing, errors, clearErrors } = useForm({
         name: '',
+        username: '',
         email: '',
         password: '',
         roles: [] as string[],
@@ -59,6 +61,7 @@ export default function UsersIndex({ users }: Props) {
         clearErrors();
         setData({
             name: user.name,
+            username: user.username || '',
             email: user.email,
             password: '',
             roles: user.roles || [],
@@ -130,6 +133,7 @@ export default function UsersIndex({ users }: Props) {
                                 <thead className="bg-muted text-xs uppercase text-muted-foreground">
                                     <tr>
                                         <th className="px-6 py-3">Name</th>
+                                        <th className="px-6 py-3">Username</th>
                                         <th className="px-6 py-3">Email</th>
                                         <th className="px-6 py-3">Role</th>
                                         <th className="px-6 py-3 text-right">Actions</th>
@@ -138,7 +142,7 @@ export default function UsersIndex({ users }: Props) {
                                 <tbody className="divide-y">
                                     {users.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">
+                                            <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
                                                 No users found.
                                             </td>
                                         </tr>
@@ -146,6 +150,7 @@ export default function UsersIndex({ users }: Props) {
                                         users.map((user) => (
                                             <tr key={user.id} className="hover:bg-muted/50">
                                                 <td className="px-6 py-4 font-medium">{user.name}</td>
+                                                <td className="px-6 py-4 font-mono text-xs font-semibold text-primary">{user.username ?? '-'}</td>
                                                 <td className="px-6 py-4">{user.email}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-wrap gap-1">
@@ -198,6 +203,17 @@ export default function UsersIndex({ users }: Props) {
                                     required
                                 />
                                 {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="username">Username</Label>
+                                <Input
+                                    id="username"
+                                    value={data.username}
+                                    onChange={(e) => setData('username', e.target.value)}
+                                    placeholder="Enter username (e.g. admin)"
+                                />
+                                {errors.username && <p className="text-xs text-red-500">{errors.username}</p>}
                             </div>
 
                             <div className="space-y-2">

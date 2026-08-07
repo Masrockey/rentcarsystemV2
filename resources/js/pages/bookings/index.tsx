@@ -19,8 +19,8 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useState, useEffect } from 'react';
-import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
 
 type Customer = {
@@ -64,6 +64,7 @@ type UserType = {
 
 type Booking = {
     id: number;
+    booking_number?: string;
     user_id?: number | null;
     user?: UserType;
     customer_id: number;
@@ -135,8 +136,28 @@ export default function BookingsIndex({
     const [deleteBookingId, setDeleteBookingId] = useState<number | null>(null);
     const [isNewCustomer, setIsNewCustomer] = useState(false);
     const [isCustomCarType, setIsCustomCarType] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const [washConfirmId, setWashConfirmId] = useState<number | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+
+    const filteredBookings = useMemo(() => {
+        if (!searchQuery.trim()) return bookings;
+        const q = searchQuery.toLowerCase();
+        return bookings.filter((b) => {
+            const customerName = b.customer?.name?.toLowerCase() || '';
+            const bookingNumber = (b as any).booking_number?.toLowerCase() || '';
+            const carType = b.car_type?.toLowerCase() || '';
+            const carName = b.car?.name?.toLowerCase() || '';
+            const plateNumber = b.car?.plate_number?.toLowerCase() || '';
+            return (
+                customerName.includes(q) ||
+                bookingNumber.includes(q) ||
+                carType.includes(q) ||
+                carName.includes(q) ||
+                plateNumber.includes(q)
+            );
+        });
+    }, [bookings, searchQuery]);
 
     const availableCarTypeNames = DEFAULT_CAR_TYPES;
 
@@ -322,21 +343,36 @@ export default function BookingsIndex({
                 </div>
 
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <CardTitle>Rent Car Bookings</CardTitle>
+                        <div className="relative w-full sm:w-72">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                placeholder="Cari customer / no. booking..."
+                                className="pl-9 h-9 text-xs"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {/* Mobile Cards View */}
                         <div className="space-y-3 md:hidden">
-                            {bookings.length === 0 ? (
+                            {filteredBookings.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
-                                    No bookings found.
+                                    {searchQuery ? 'Tidak ada booking yang cocok dengan pencarian.' : 'No bookings found.'}
                                 </div>
                             ) : (
-                                bookings.map((booking) => (
+                                filteredBookings.map((booking) => (
                                     <div key={booking.id} className="flex flex-col gap-2 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
                                         <div className="flex items-center justify-between">
-                                            <span className="font-semibold text-sm">{booking.customer?.name}</span>
+                                            <div>
+                                                <span className="font-semibold text-sm">{booking.customer?.name}</span>
+                                                {booking.booking_number && (
+                                                    <div className="text-[11px] font-mono text-muted-foreground">{booking.booking_number}</div>
+                                                )}
+                                            </div>
                                             <Badge variant="outline" className={getStatusColor(booking.status)}>
                                                 {booking.status}
                                             </Badge>
@@ -426,17 +462,20 @@ export default function BookingsIndex({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {bookings.length === 0 ? (
+                                    {filteredBookings.length === 0 ? (
                                         <tr>
                                             <td colSpan={(hasRole('Admin') || hasRole('Super Admin')) ? 9 : 8} className="px-4 py-8 text-center text-muted-foreground">
-                                                No bookings found.
+                                                {searchQuery ? 'Tidak ada booking yang cocok dengan pencarian.' : 'No bookings found.'}
                                             </td>
                                         </tr>
                                     ) : (
-                                        bookings.map((booking) => (
+                                        filteredBookings.map((booking) => (
                                             <tr key={booking.id} className="hover:bg-muted/50">
                                                 <td className="px-4 py-4">
-                                                    <span className="font-semibold">{booking.customer?.name}</span>
+                                                    <div className="font-semibold">{booking.customer?.name}</div>
+                                                    {booking.booking_number && (
+                                                        <div className="text-[11px] font-mono text-muted-foreground">{booking.booking_number}</div>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <div className="font-medium">{booking.car_type}</div>

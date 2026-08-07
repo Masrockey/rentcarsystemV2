@@ -27,8 +27,9 @@ class PaymentController extends Controller
                 ->latest()
                 ->get(),
             'bookings' => Booking::with('customer')
+                ->where('payment_status', '!=', 'Paid')
                 ->orderBy('id', 'desc')
-                ->get(['id', 'booking_number', 'customer_id']),
+                ->get(['id', 'booking_number', 'customer_id', 'payment_status']),
         ]);
     }
 

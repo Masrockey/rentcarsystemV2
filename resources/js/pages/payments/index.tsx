@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { Plus, Edit, Trash2, CreditCard } from 'lucide-react';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { index as paymentsIndex } from '@/routes/payments';
 
 type Payment = {
@@ -72,6 +73,17 @@ export default function PaymentsIndex({ payments, bookings }: Props) {
         if (s === 'DP Dibayar') return 'bg-yellow-500/15 text-yellow-600 border-yellow-500/25';
         return 'bg-neutral-500/15 text-neutral-500 border-neutral-500/25';
     };
+
+    const availableBookings = editingPayment
+        ? bookings.some((b) => b.id === editingPayment.booking_id)
+            ? bookings
+            : [
+                ...(editingPayment.booking
+                    ? [{ id: editingPayment.booking_id, booking_number: editingPayment.booking.booking_number, customer: editingPayment.booking.customer }]
+                    : []),
+                ...bookings,
+            ]
+        : bookings;
 
     return (
         <>
@@ -137,16 +149,17 @@ export default function PaymentsIndex({ payments, bookings }: Props) {
                         <form onSubmit={handleSubmit} className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label>Booking</Label>
-                                <Select value={String(data.booking_id)} onValueChange={val => setData('booking_id', Number(val))}>
-                                    <SelectTrigger><SelectValue placeholder="Pilih booking..." /></SelectTrigger>
-                                    <SelectContent>
-                                        {bookings.map(b => (
-                                            <SelectItem key={b.id} value={String(b.id)}>
-                                                {b.booking_number ?? `#${b.id}`} — {b.customer?.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <SearchableSelect
+                                    options={availableBookings.map((b) => ({
+                                        value: String(b.id),
+                                        label: `${b.booking_number ?? `#${b.id}`} — ${b.customer?.name ?? ''}`,
+                                    }))}
+                                    value={data.booking_id ? String(data.booking_id) : ''}
+                                    onValueChange={(val) => setData('booking_id', Number(val))}
+                                    placeholder="Pilih booking..."
+                                    searchPlaceholder="Cari no. booking / nama customer..."
+                                    emptyText="Booking tidak ditemukan."
+                                />
                                 {errors.booking_id && <p className="text-xs text-red-500">{errors.booking_id}</p>}
                             </div>
                             <div className="grid grid-cols-2 gap-4">

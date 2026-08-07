@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,11 +30,16 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'username' => ['nullable', 'string', 'max:255', 'alpha_dash', 'unique:users'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8'],
             'roles' => ['required', 'array'],
             'roles.*' => ['string', Rule::in(['Super Admin', 'Admin', 'Marketing', 'Peluncur', 'Petugas Cuci'])],
         ]);
+
+        if (empty($validated['username'])) {
+            $validated['username'] = Str::before($validated['email'], '@');
+        }
 
         $validated['password'] = Hash::make($validated['password']);
 
@@ -54,11 +60,16 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'username' => ['nullable', 'string', 'max:255', 'alpha_dash', Rule::unique('users')->ignore($user->id)],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:8'],
             'roles' => ['required', 'array'],
             'roles.*' => ['string', Rule::in(['Super Admin', 'Admin', 'Marketing', 'Peluncur', 'Petugas Cuci'])],
         ]);
+
+        if (empty($validated['username'])) {
+            $validated['username'] = Str::before($validated['email'], '@');
+        }
 
         if (! empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);

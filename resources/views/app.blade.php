@@ -30,8 +30,8 @@
             }
         </style>
 
-        <link rel="icon" href="/rsm-logo.svg" type="image/svg+xml">
-        <link rel="apple-touch-icon" href="/rsm-logo.svg">
+        <link rel="icon" href="/logo.svg" type="image/svg+xml">
+        <link rel="apple-touch-icon" href="/logo.svg">
 
         @fonts
 

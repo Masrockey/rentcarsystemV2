@@ -219,6 +219,12 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
         setWashBookingId(bookingId);
     };
 
+    const formatCompactDateTime = (dtStr: string | null) => {
+        if (!dtStr) return '-';
+        const cleaned = dtStr.replace('T', ' ').replace('Z', '').split('.')[0];
+        return cleaned.substring(0, 16);
+    };
+
     const formatCurrency = (val: string | number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(val));
 
@@ -296,7 +302,7 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                         <div className="text-xs text-muted-foreground space-y-1">
                                             <div><span className="font-semibold text-foreground">Penyewa:</span> {r.customer?.name}</div>
                                             <div><span className="font-semibold text-foreground">Kendaraan:</span> {r.car?.name} ({r.car?.plate_number})</div>
-                                            <div><span className="font-semibold text-foreground">Checkout:</span> {r.checkout_datetime?.replace('T', ' ') ?? '-'}</div>
+                                            <div><span className="font-semibold text-foreground">Checkout:</span> {formatCompactDateTime(r.checkout_datetime)}</div>
                                             <div>
                                                 <span className="font-semibold text-foreground">KM / BBM Keluar:</span> {r.km_out.toLocaleString('id-ID')} km | {r.fuel_out}%
                                             </div>
@@ -360,7 +366,7 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                 <div className="font-medium">{r.car?.name}</div>
                                                 <div className="text-xs font-mono text-muted-foreground">{r.car?.plate_number}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-xs">{r.checkout_datetime?.replace('T', ' ') ?? '-'}</td>
+                                            <td className="px-6 py-4 text-xs font-mono">{formatCompactDateTime(r.checkout_datetime)}</td>
                                             <td className="px-6 py-4 text-xs">
                                                 <div className="flex items-center gap-1"><Gauge className="h-3 w-3" /> {r.km_out.toLocaleString('id-ID')} km</div>
                                                 <div className="flex items-center gap-1"><Fuel className="h-3 w-3" /> {r.fuel_out}%</div>

@@ -7,8 +7,8 @@ export default function AppLogoIcon(props: ImgHTMLAttributes<HTMLImageElement>) 
         <img
             {...rest}
             className={`block object-contain ${className ?? ''}`.trim()}
-            src="/rsm-logo.svg"
-            alt="CDK Rent System"
+            src="/logo.svg"
+            alt="Rent A Car System"
             width={32}
             height={32}
         />
