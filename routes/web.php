@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AllocationController;
+use App\Http\Controllers\BlacklistController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CarController;
 use App\Http\Controllers\CustomerController;
@@ -63,6 +64,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Unit Kembali / Pengembalian Unit
     Route::get('returns', [ReturnController::class, 'index'])->name('returns.index');
     Route::post('returns', [ReturnController::class, 'store'])->name('returns.store');
+
+    // Blacklist Konsumen CRUD
+    Route::post('blacklists/import', [BlacklistController::class, 'import'])->name('blacklists.import');
+    Route::resource('blacklists', BlacklistController::class)->only(['index', 'store', 'update', 'destroy']);
 
     // Monthly Report
     Route::get('reports', ReportController::class)->name('reports');

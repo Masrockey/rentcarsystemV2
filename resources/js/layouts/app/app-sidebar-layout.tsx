@@ -6,7 +6,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import {
     LayoutGrid, CalendarDays, ClipboardList, Car, UserSquare2, CreditCard,
-    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings, RotateCcw
+    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings, RotateCcw, ShieldAlert
 } from 'lucide-react';
 import {
     Sheet,
@@ -18,6 +18,7 @@ import {
 import { dashboard, reports, logout } from '@/routes';
 import { edit as editProfile } from '@/routes/profile';
 import { index as allocationsIndex } from '@/routes/allocations';
+import { index as blacklistsIndex } from '@/routes/blacklists';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { index as rentalsIndex } from '@/routes/rentals';
 import { index as returnsIndex } from '@/routes/returns';
@@ -57,6 +58,7 @@ export default function AppSidebarLayout({
         allItems.push({ title: 'Asuransi', href: insurancesIndex(), icon: Shield });
         allItems.push({ title: 'Pajak / STNK', href: vehicleTaxesIndex(), icon: FileText });
         allItems.push({ title: 'Customers', href: customersIndex(), icon: UserSquare2 });
+        allItems.push({ title: 'Blacklist', href: blacklistsIndex(), icon: ShieldAlert });
         if (roles.includes('Super Admin')) {
             allItems.push({ title: 'Users', href: usersIndex(), icon: Users });
         }

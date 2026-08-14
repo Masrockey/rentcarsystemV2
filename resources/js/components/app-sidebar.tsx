@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     LayoutGrid, CalendarDays, Car, Users, UserSquare2, BarChart3,
     Truck, CreditCard, Wrench, Shield, FileText, ClipboardList,
-    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw,
+    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw, ShieldAlert,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/collapsible';
 import { dashboard, reports } from '@/routes';
 import { index as allocationsIndex } from '@/routes/allocations';
+import { index as blacklistsIndex } from '@/routes/blacklists';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { index as carsIndex } from '@/routes/cars';
 import { index as customersIndex } from '@/routes/customers';
@@ -91,6 +92,7 @@ export function AppSidebar() {
         fleetItems.push({ title: 'Pajak & STNK', href: vehicleTaxesIndex(), icon: FileText });
 
         adminItems.push({ title: 'Data Pelanggan', href: customersIndex(), icon: UserSquare2 });
+        adminItems.push({ title: 'Blacklist Konsumen', href: blacklistsIndex(), icon: ShieldAlert });
         if (roles.includes('Super Admin')) {
             adminItems.push({ title: 'Manajemen User', href: usersIndex(), icon: Users });
         }
@@ -98,6 +100,7 @@ export function AppSidebar() {
     } else if (hasRole('Marketing')) {
         operationalItems.push({ title: 'Data Booking', href: bookingsIndex(), icon: CalendarDays });
         adminItems.push({ title: 'Data Pelanggan', href: customersIndex(), icon: UserSquare2 });
+        adminItems.push({ title: 'Blacklist Konsumen', href: blacklistsIndex(), icon: ShieldAlert });
     } else if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
         operationalItems.push({ title: 'Daftar Tugas Saya', href: bookingsIndex(), icon: CalendarDays });
     }
