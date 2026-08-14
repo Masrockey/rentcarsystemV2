@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,12 +37,42 @@ type CarRecord = {
     status: string;
 };
 
-type Props = { cars: CarRecord[] };
+type Props = {
+    cars: CarRecord[];
+    allCars?: CarRecord[];
+    selectedStatus?: string;
+    statusCounts?: {
+        all: number;
+        ready: number;
+        not_ready: number;
+        belum_dicuci: number;
+        service: number;
+    };
+};
 
-export default function CarsIndex({ cars }: Props) {
+export default function CarsIndex({ cars, allCars, selectedStatus = 'all', statusCounts }: Props) {
+    const page = usePage();
+    const user = page.props.auth?.user as any;
+    const roles: string[] = user?.roles || [];
+    const canManageCars = roles.includes('Admin') || roles.includes('Super Admin');
+
+    const list = allCars && allCars.length > 0 ? allCars : cars;
+    const [activeFilter, setActiveFilter] = useState<string>(selectedStatus);
     const [isOpen, setIsOpen] = useState(false);
     const [editingCar, setEditingCar] = useState<CarRecord | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
+
+    const counts = statusCounts ?? {
+        all: list.length,
+        ready: list.filter(c => c.status === 'Ready').length,
+        not_ready: list.filter(c => c.status === 'Not Ready').length,
+        belum_dicuci: list.filter(c => c.status === 'Belum Dicuci').length,
+        service: list.filter(c => c.status === 'Service').length,
+    };
+
+    const filteredCars = activeFilter === 'all'
+        ? list
+        : list.filter(c => c.status === activeFilter);
 
     const { data, setData, post, put, reset, processing, errors, clearErrors } = useForm({
         name: '',
@@ -106,43 +136,106 @@ export default function CarsIndex({ cars }: Props) {
     const formatCurrency = (val: string | number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(val));
 
+    const cardConfigs = [
+        { status: 'Ready', label: 'Mobil Ready', count: counts.ready, color: 'text-green-600 dark:text-green-400' },
+        { status: 'Not Ready', label: 'Sedang Disewa', count: counts.not_ready, color: 'text-purple-600 dark:text-purple-400' },
+        { status: 'Belum Dicuci', label: 'Perlu Dicuci', count: counts.belum_dicuci, color: 'text-amber-600 dark:text-amber-400' },
+        { status: 'Service', label: 'Sedang Service', count: counts.service, color: 'text-blue-600 dark:text-blue-400' },
+    ];
+
     return (
         <>
-            <Head title="Car Management" />
+            <Head title="Manajemen Armada" />
             <div className="flex flex-1 flex-col gap-6 p-6">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col gap-1">
                         <h1 className="text-3xl font-bold tracking-tight">Manajemen Armada</h1>
                         <p className="text-muted-foreground">Kelola data dan status semua kendaraan rental.</p>
                     </div>
-                    <Button onClick={openCreate} className="flex items-center gap-1">
-                        <Plus className="h-4 w-4" /> Tambah Mobil
-                    </Button>
+                    {canManageCars && (
+                        <Button onClick={openCreate} className="flex items-center gap-1">
+                            <Plus className="h-4 w-4" /> Tambah Mobil
+                        </Button>
+                    )}
                 </div>
 
-                {/* Summary Cards */}
+                {/* Summary Cards (Clickable) */}
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                    {['Ready', 'Not Ready', 'Belum Dicuci', 'Service'].map(s => (
-                        <Card key={s}>
+                    {cardConfigs.map(item => (
+                        <Card
+                            key={item.status}
+                            className={`cursor-pointer transition-all hover:scale-[1.02] ${activeFilter === item.status ? 'ring-2 ring-primary shadow-sm' : ''}`}
+                            onClick={() => setActiveFilter(activeFilter === item.status ? 'all' : item.status)}
+                        >
                             <CardContent className="pt-6">
-                                <div className="text-2xl font-bold">{cars.filter(c => c.status === s).length}</div>
-                                <Badge variant="outline" className={`mt-1 ${getStatusColor(s)}`}>{s}</Badge>
+                                <div className={`text-2xl font-bold ${item.color}`}>{item.count}</div>
+                                <Badge variant="outline" className={`mt-1 ${getStatusColor(item.status)}`}>
+                                    {item.label}
+                                </Badge>
                             </CardContent>
                         </Card>
                     ))}
                 </div>
 
                 <Card>
-                    <CardHeader><CardTitle>Semua Kendaraan ({cars.length})</CardTitle></CardHeader>
+                    <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <CardTitle>
+                            {activeFilter === 'all'
+                                ? `Semua Kendaraan (${filteredCars.length})`
+                                : `Kendaraan Status: ${activeFilter === 'Not Ready' ? 'Sedang Disewa' : activeFilter} (${filteredCars.length})`}
+                        </CardTitle>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <Button
+                                variant={activeFilter === 'all' ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-8 text-xs"
+                                onClick={() => setActiveFilter('all')}
+                            >
+                                Semua ({counts.all})
+                            </Button>
+                            <Button
+                                variant={activeFilter === 'Ready' ? 'default' : 'outline'}
+                                size="sm"
+                                className={`h-8 text-xs ${activeFilter === 'Ready' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                                onClick={() => setActiveFilter('Ready')}
+                            >
+                                Ready ({counts.ready})
+                            </Button>
+                            <Button
+                                variant={activeFilter === 'Not Ready' ? 'default' : 'outline'}
+                                size="sm"
+                                className={`h-8 text-xs ${activeFilter === 'Not Ready' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                                onClick={() => setActiveFilter('Not Ready')}
+                            >
+                                Disewa ({counts.not_ready})
+                            </Button>
+                            <Button
+                                variant={activeFilter === 'Belum Dicuci' ? 'default' : 'outline'}
+                                size="sm"
+                                className={`h-8 text-xs ${activeFilter === 'Belum Dicuci' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                                onClick={() => setActiveFilter('Belum Dicuci')}
+                            >
+                                Cuci ({counts.belum_dicuci})
+                            </Button>
+                            <Button
+                                variant={activeFilter === 'Service' ? 'default' : 'outline'}
+                                size="sm"
+                                className={`h-8 text-xs ${activeFilter === 'Service' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                                onClick={() => setActiveFilter('Service')}
+                            >
+                                Service ({counts.service})
+                            </Button>
+                        </div>
+                    </CardHeader>
                     <CardContent>
                         {/* Mobile Cards View */}
                         <div className="space-y-3 md:hidden">
-                            {cars.length === 0 ? (
+                            {filteredCars.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
-                                    Belum ada kendaraan.
+                                    Tidak ada kendaraan dengan status ini.
                                 </div>
                             ) : (
-                                cars.map((car) => (
+                                filteredCars.map((car) => (
                                     <div key={car.id} className="flex flex-col gap-3 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
                                         <div className="flex items-center gap-3">
                                             {car.photo ? (
@@ -165,6 +258,10 @@ export default function CarsIndex({ cars }: Props) {
                                                 <span className="font-mono font-semibold text-foreground">{car.plate_number}</span>
                                             </div>
                                             <div className="flex justify-between">
+                                                <span>Mitra / Pemilik:</span>
+                                                <span className="font-medium text-foreground">{car.owner_partner || 'Milik Sendiri'}</span>
+                                            </div>
+                                            <div className="flex justify-between">
                                                 <span>Spesifikasi:</span>
                                                 <span className="text-foreground">{car.transmission} · {car.fuel_type} · {car.passenger_capacity} Penumpang</span>
                                             </div>
@@ -178,10 +275,12 @@ export default function CarsIndex({ cars }: Props) {
                                             </div>
                                         </div>
 
-                                        <div className="flex justify-end gap-2 pt-2 border-t mt-1">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(car)}><Edit className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)}><Trash2 className="h-4 w-4" /></Button>
-                                        </div>
+                                        {canManageCars && (
+                                            <div className="flex justify-end gap-2 pt-2 border-t mt-1">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(car)}><Edit className="h-4 w-4" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)}><Trash2 className="h-4 w-4" /></Button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             )}
@@ -194,17 +293,18 @@ export default function CarsIndex({ cars }: Props) {
                                     <tr>
                                         <th className="px-6 py-3">Kendaraan</th>
                                         <th className="px-6 py-3">No. Polisi</th>
+                                        <th className="px-6 py-3">Mitra / Pemilik</th>
                                         <th className="px-6 py-3">Spesifikasi</th>
                                         <th className="px-6 py-3">Harga/Hari</th>
                                         <th className="px-6 py-3">KM Terakhir</th>
                                         <th className="px-6 py-3">Status</th>
-                                        <th className="px-6 py-3 text-right">Aksi</th>
+                                        {canManageCars && <th className="px-6 py-3 text-right">Aksi</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {cars.length === 0 ? (
-                                        <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">Belum ada kendaraan.</td></tr>
-                                    ) : cars.map((car) => (
+                                    {filteredCars.length === 0 ? (
+                                        <tr><td colSpan={canManageCars ? 8 : 7} className="px-6 py-8 text-center text-muted-foreground">Tidak ada kendaraan dengan status ini.</td></tr>
+                                    ) : filteredCars.map((car) => (
                                         <tr key={car.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
@@ -222,6 +322,13 @@ export default function CarsIndex({ cars }: Props) {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-mono font-semibold">{car.plate_number}</td>
+                                            <td className="px-6 py-4 text-xs font-medium">
+                                                {car.owner_partner ? (
+                                                    <span className="font-semibold text-foreground">{car.owner_partner}</span>
+                                                ) : (
+                                                    <span className="text-muted-foreground italic">Milik Sendiri</span>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-xs">
                                                 <div>{car.transmission} · {car.fuel_type}</div>
                                                 <div>{car.passenger_capacity} penumpang · {car.type}</div>
@@ -231,10 +338,12 @@ export default function CarsIndex({ cars }: Props) {
                                             <td className="px-6 py-4">
                                                 <Badge variant="outline" className={getStatusColor(car.status)}>{car.status}</Badge>
                                             </td>
-                                            <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
-                                                <Button variant="ghost" size="icon" onClick={() => openEdit(car)}><Edit className="h-4 w-4" /></Button>
-                                                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)}><Trash2 className="h-4 w-4" /></Button>
-                                            </td>
+                                            {canManageCars && (
+                                                <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                                                    <Button variant="ghost" size="icon" onClick={() => openEdit(car)}><Edit className="h-4 w-4" /></Button>
+                                                    <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)}><Trash2 className="h-4 w-4" /></Button>
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -389,5 +498,5 @@ export default function CarsIndex({ cars }: Props) {
 }
 
 CarsIndex.layout = {
-    breadcrumbs: [{ title: 'Car Management', href: carsIndex() }],
+    breadcrumbs: [{ title: 'Manajemen Armada', href: carsIndex() }],
 };

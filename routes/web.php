@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AllocationController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CarController;
 use App\Http\Controllers\CustomerController;
@@ -38,6 +39,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('bookings/{booking}/delivery', [BookingController::class, 'submitDelivery'])->name('bookings.delivery');
     Route::post('bookings/{booking}/return', [BookingController::class, 'submitReturn'])->name('bookings.return');
     Route::post('bookings/{booking}/wash', [BookingController::class, 'completeWash'])->name('bookings.wash');
+
+    // Dedicated Car & Staff Allocations
+    Route::get('allocations', [AllocationController::class, 'index'])->name('allocations.index');
+    Route::put('allocations/{booking}', [AllocationController::class, 'update'])->name('allocations.update');
 
     // Payments CRUD
     Route::resource('payments', PaymentController::class)->only(['index', 'store', 'update', 'destroy']);

@@ -111,15 +111,15 @@ export default function UsersIndex({ users }: Props) {
 
     return (
         <>
-            <Head title="User Management" />
+            <Head title="Manajemen User" />
             <div className="flex flex-1 flex-col gap-6 p-6">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col gap-1">
-                        <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-                        <p className="text-muted-foreground">Manage user accounts and system access roles.</p>
+                        <h1 className="text-3xl font-bold tracking-tight">Manajemen User</h1>
+                        <p className="text-muted-foreground">Kelola akun pengguna dan peran akses sistem.</p>
                     </div>
                     <Button onClick={openCreateDialog} className="flex items-center gap-1">
-                        <Plus className="h-4 w-4" /> Add User
+                        <Plus className="h-4 w-4" /> Tambah User
                     </Button>
                 </div>
 
@@ -325,7 +325,7 @@ export default function UsersIndex({ users }: Props) {
 UsersIndex.layout = {
     breadcrumbs: [
         {
-            title: 'User Management',
+            title: 'Manajemen User',
             href: usersIndex(),
         },
     ],

@@ -10,6 +10,7 @@ use App\Models\Rental;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -73,6 +74,10 @@ class BookingController extends Controller
             'rental_type' => ['required', Rule::in(['Lepas Kunci', 'With Driver'])],
             'booking_date' => ['required', 'date'],
             'return_date' => ['nullable', 'date', 'after_or_equal:booking_date'],
+            'pickup_time' => ['nullable', 'string', 'max:20'],
+            'return_time' => ['nullable', 'string', 'max:20'],
+            'pickup_location' => ['nullable', 'string', 'max:255'],
+            'dropoff_location' => ['nullable', 'string', 'max:255'],
             'payment_method' => ['required', Rule::in(['Cash', 'Transfer', 'DP'])],
             'payment_status' => ['nullable', Rule::in(['Pending', 'Paid', 'Down Payment'])],
             'amount' => ['nullable', 'numeric', 'min:0'],
@@ -121,6 +126,10 @@ class BookingController extends Controller
             'rental_type' => $validated['rental_type'] ?? 'Lepas Kunci',
             'booking_date' => $validated['booking_date'],
             'return_date' => $validated['return_date'],
+            'pickup_time' => $validated['pickup_time'] ?? null,
+            'return_time' => $validated['return_time'] ?? null,
+            'pickup_location' => $validated['pickup_location'] ?? null,
+            'dropoff_location' => $validated['dropoff_location'] ?? null,
             'payment_method' => $validated['payment_method'],
             'payment_status' => $validated['payment_status'] ?? 'Pending',
             'amount' => $validated['amount'] ?? 0,
@@ -168,6 +177,10 @@ class BookingController extends Controller
             'rental_type' => ['nullable', Rule::in(['Lepas Kunci', 'With Driver'])],
             'booking_date' => ['nullable', 'date'],
             'return_date' => ['nullable', 'date', 'after_or_equal:booking_date'],
+            'pickup_time' => ['nullable', 'string', 'max:20'],
+            'return_time' => ['nullable', 'string', 'max:20'],
+            'pickup_location' => ['nullable', 'string', 'max:255'],
+            'dropoff_location' => ['nullable', 'string', 'max:255'],
             'payment_method' => ['nullable', Rule::in(['Cash', 'Transfer', 'DP'])],
             'car_id' => ['nullable', 'exists:cars,id'],
             'driver_id' => ['nullable', 'exists:drivers,id'],
@@ -221,15 +234,42 @@ class BookingController extends Controller
             'notes' => ['nullable', 'string'],
             'km_out' => ['required', 'integer', 'min:0'],
             'fuel_out' => ['required', 'integer', 'min:0', 'max:100'],
+            'fuel_range_km' => ['nullable', 'integer', 'min:0'],
             'handover_location' => ['nullable', 'string', 'max:255'],
             'checkout_datetime' => ['nullable', 'date'],
+            'photos' => ['nullable', 'array'],
+            'photos.*' => ['nullable'],
         ]);
 
+        $checklistData = $validated['checklist'];
+
+        // Handle uploaded photos
+        $photoPaths = [];
+        if (isset($checklistData['photos']) && is_array($checklistData['photos'])) {
+            foreach ($checklistData['photos'] as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $photoPaths[] = $p;
+                }
+            }
+        }
+
+        if ($request->hasFile('photos')) {
+            foreach ($request->file('photos') as $file) {
+                if ($file && $file->isValid()) {
+                    $stored = $file->store('checklists', 'public');
+                    $photoPaths[] = Storage::url($stored);
+                }
+            }
+        }
+
+        $checklistData['photos'] = array_values(array_unique($photoPaths));
+
         $booking->update([
-            'delivery_checklist' => $validated['checklist'],
+            'delivery_checklist' => $checklistData,
             'delivery_latitude' => $validated['latitude'],
             'delivery_longitude' => $validated['longitude'],
             'delivery_notes' => $validated['notes'],
+            'fuel_range_km' => $validated['fuel_range_km'] ?? null,
             'status' => 'On Trip',
         ]);
 
@@ -254,6 +294,7 @@ class BookingController extends Controller
                     'handover_location' => $validated['handover_location'] ?? null,
                     'km_out' => $validated['km_out'],
                     'fuel_out' => $validated['fuel_out'],
+                    'fuel_range_km' => $validated['fuel_range_km'] ?? null,
                     'fine_amount' => 0,
                     'total_payment' => $booking->amount ?? 0,
                     'status' => 'Active',
@@ -279,25 +320,67 @@ class BookingController extends Controller
         $validated = $request->validate([
             'checklist' => ['required', 'array'],
             'notes' => ['nullable', 'string'],
+            'km_out' => ['nullable', 'integer', 'min:0'],
+            'fuel_out' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'fuel_range_km' => ['nullable', 'integer', 'min:0'],
+            'photos' => ['nullable', 'array'],
+            'photos.*' => ['nullable'],
         ]);
 
+        $checklistData = $validated['checklist'];
+
+        // Handle uploaded photos
+        $photoPaths = [];
+        if (isset($checklistData['photos']) && is_array($checklistData['photos'])) {
+            foreach ($checklistData['photos'] as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $photoPaths[] = $p;
+                }
+            }
+        }
+
+        if ($request->hasFile('photos')) {
+            foreach ($request->file('photos') as $file) {
+                if ($file && $file->isValid()) {
+                    $stored = $file->store('checklists', 'public');
+                    $photoPaths[] = Storage::url($stored);
+                }
+            }
+        }
+
+        $checklistData['photos'] = array_values(array_unique($photoPaths));
+
         $booking->update([
-            'return_checklist' => $validated['checklist'],
+            'return_checklist' => $checklistData,
             'return_notes' => $validated['notes'],
             'status' => 'Returned',
         ]);
 
-        // Automatically change car status to 'Belum Dicuci'
+        $kmIn = $validated['km_out'] ?? ($booking->car->last_km ?? 0);
+        $fuelIn = $validated['fuel_out'] ?? 100;
+
+        // Automatically change car status to 'Belum Dicuci' and update last_km
         if ($booking->car) {
-            $booking->car->update(['status' => 'Belum Dicuci']);
+            $booking->car->update([
+                'status' => 'Belum Dicuci',
+                'last_km' => $kmIn,
+            ]);
         }
+
+        // Automatically update rental contract record
+        Rental::where('booking_id', $booking->id)->update([
+            'km_in' => $kmIn,
+            'fuel_in' => $fuelIn,
+            'checkin_datetime' => now(),
+            'status' => 'Returned',
+        ]);
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => 'Return checklist submitted. Car requires washing.',
+            'message' => 'Checklist pengembalian mobil berhasil disimpan. Status unit kini Belum Dicuci.',
         ]);
 
-        return to_route('bookings.index');
+        return to_route('rentals.index');
     }
 
     /**

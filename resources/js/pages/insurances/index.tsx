@@ -73,7 +73,7 @@ export default function InsurancesIndex({ insurances, cars }: Props) {
 
     return (
         <>
-            <Head title="Insurance Management" />
+            <Head title="Asuransi Mobil" />
             <div className="flex flex-1 flex-col gap-6 p-6">
                 <div className="flex items-center justify-between">
                     <div>
@@ -197,5 +197,5 @@ export default function InsurancesIndex({ insurances, cars }: Props) {
 }
 
 InsurancesIndex.layout = {
-    breadcrumbs: [{ title: 'Insurance Management', href: insurancesIndex() }],
+    breadcrumbs: [{ title: 'Asuransi Mobil', href: insurancesIndex() }],
 };

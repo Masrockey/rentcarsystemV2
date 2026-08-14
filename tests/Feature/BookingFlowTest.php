@@ -170,6 +170,14 @@ test('super admin has full access to all roles and permissions', function () {
     $response->assertOk();
 });
 
+test('admin role cannot access user management', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+
+    $this->actingAs($admin);
+    $response = $this->get(route('users.index'));
+    $response->assertStatus(403);
+});
+
 test('super admin can edit and delete booking', function () {
     $superAdmin = User::factory()->create(['roles' => ['Super Admin']]);
     $customer = Customer::create([

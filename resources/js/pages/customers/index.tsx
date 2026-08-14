@@ -71,7 +71,7 @@ export default function CustomersIndex({ customers }: Props) {
 
     return (
         <>
-            <Head title="Customer Management" />
+            <Head title="Manajemen Pelanggan" />
             <div className="flex flex-1 flex-col gap-6 p-6">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col gap-1">
@@ -212,5 +212,5 @@ export default function CustomersIndex({ customers }: Props) {
 }
 
 CustomersIndex.layout = {
-    breadcrumbs: [{ title: 'Customer Management', href: customersIndex() }],
+    breadcrumbs: [{ title: 'Manajemen Pelanggan', href: customersIndex() }],
 };

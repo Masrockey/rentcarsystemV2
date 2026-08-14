@@ -62,7 +62,7 @@ export default function DriversIndex({ drivers }: Props) {
 
     return (
         <>
-            <Head title="Driver Management" />
+            <Head title="Manajemen Driver" />
             <div className="flex flex-1 flex-col gap-6 p-6">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col gap-1">
@@ -190,5 +190,5 @@ export default function DriversIndex({ drivers }: Props) {
 }
 
 DriversIndex.layout = {
-    breadcrumbs: [{ title: 'Driver Management', href: driversIndex() }],
+    breadcrumbs: [{ title: 'Manajemen Driver', href: driversIndex() }],
 };

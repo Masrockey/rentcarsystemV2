@@ -13,11 +13,20 @@ use Inertia\Response;
 
 class UserController extends Controller
 {
+    private function authorizeSuperAdmin(): void
+    {
+        if (! auth()->user()?->isSuperAdmin()) {
+            abort(403, 'Unauthorized. Only Super Admin can access User Management.');
+        }
+    }
+
     /**
      * Display a listing of the resource.
      */
     public function index(): Response
     {
+        $this->authorizeSuperAdmin();
+
         return Inertia::render('users/index', [
             'users' => User::orderBy('name')->get(),
         ]);
@@ -28,6 +37,7 @@ class UserController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        $this->authorizeSuperAdmin();
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => ['nullable', 'string', 'max:255', 'alpha_dash', 'unique:users'],
@@ -58,6 +68,8 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): RedirectResponse
     {
+        $this->authorizeSuperAdmin();
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'username' => ['nullable', 'string', 'max:255', 'alpha_dash', Rule::unique('users')->ignore($user->id)],
@@ -92,6 +104,8 @@ class UserController extends Controller
      */
     public function destroy(User $user): RedirectResponse
     {
+        $this->authorizeSuperAdmin();
+
         if (auth()->id() === $user->id) {
             Inertia::flash('toast', [
                 'type' => 'error',

@@ -67,7 +67,7 @@ export default function ServicesIndex({ services, cars }: Props) {
 
     return (
         <>
-            <Head title="Service Management" />
+            <Head title="Servis Mobil" />
             <div className="flex flex-1 flex-col gap-6 p-6">
                 <div className="flex items-center justify-between">
                     <div>
@@ -193,5 +193,5 @@ export default function ServicesIndex({ services, cars }: Props) {
 }
 
 ServicesIndex.layout = {
-    breadcrumbs: [{ title: 'Service Management', href: servicesIndex() }],
+    breadcrumbs: [{ title: 'Servis Mobil', href: servicesIndex() }],
 };

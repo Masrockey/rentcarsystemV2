@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable([
     'contract_number', 'booking_id', 'car_id', 'customer_id', 'officer_id',
     'checkout_datetime', 'checkin_datetime', 'handover_location',
-    'km_out', 'fuel_out', 'km_in', 'fuel_in',
+    'km_out', 'fuel_out', 'fuel_range_km', 'km_in', 'fuel_in',
     'fine_amount', 'total_payment', 'status',
     'tenant_signature', 'officer_signature',
 ])]
@@ -32,6 +32,7 @@ class Rental extends Model
             'total_payment' => 'decimal:2',
             'km_out' => 'integer',
             'fuel_out' => 'integer',
+            'fuel_range_km' => 'integer',
             'km_in' => 'integer',
             'fuel_in' => 'integer',
         ];

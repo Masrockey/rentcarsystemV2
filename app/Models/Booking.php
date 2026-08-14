@@ -22,6 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'booking_date',
     'start_date',
     'return_date',
+    'pickup_time',
+    'return_time',
     'pickup_location',
     'dropoff_location',
     'payment_method',
@@ -34,6 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'delivery_notes',
     'return_checklist',
     'return_notes',
+    'fuel_range_km',
 ])]
 class Booking extends Model
 {
@@ -63,6 +66,7 @@ class Booking extends Model
             'delivery_checklist' => 'array',
             'return_checklist' => 'array',
             'amount' => 'decimal:2',
+            'fuel_range_km' => 'integer',
         ];
     }
 

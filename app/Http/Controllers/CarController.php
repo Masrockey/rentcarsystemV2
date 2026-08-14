@@ -14,10 +14,30 @@ class CarController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $allCars = Car::orderBy('brand')->orderBy('name')->get();
+
+        $selectedStatus = $request->query('status', 'all');
+
+        $filteredCars = $allCars;
+        if ($selectedStatus && $selectedStatus !== 'all') {
+            $filteredCars = $allCars->where('status', $selectedStatus)->values();
+        }
+
+        $statusCounts = [
+            'all' => $allCars->count(),
+            'ready' => $allCars->where('status', 'Ready')->count(),
+            'not_ready' => $allCars->where('status', 'Not Ready')->count(),
+            'belum_dicuci' => $allCars->where('status', 'Belum Dicuci')->count(),
+            'service' => $allCars->where('status', 'Service')->count(),
+        ];
+
         return Inertia::render('cars/index', [
-            'cars' => Car::orderBy('brand')->orderBy('name')->get(),
+            'cars' => $filteredCars,
+            'allCars' => $allCars,
+            'selectedStatus' => $selectedStatus,
+            'statusCounts' => $statusCounts,
         ]);
     }
 

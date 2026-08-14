@@ -6,7 +6,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import {
     LayoutGrid, CalendarDays, ClipboardList, Car, UserSquare2, CreditCard,
-    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu
+    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings
 } from 'lucide-react';
 import {
     Sheet,
@@ -15,7 +15,9 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
-import { dashboard, reports } from '@/routes';
+import { dashboard, reports, logout } from '@/routes';
+import { edit as editProfile } from '@/routes/profile';
+import { index as allocationsIndex } from '@/routes/allocations';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { index as rentalsIndex } from '@/routes/rentals';
 import { index as carsIndex } from '@/routes/cars';
@@ -44,6 +46,7 @@ export default function AppSidebarLayout({
     if (hasRole('Admin')) {
         allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
         allItems.push({ title: 'Bookings', href: bookingsIndex(), icon: CalendarDays });
+        allItems.push({ title: 'Alokasi', href: allocationsIndex(), icon: KeyRound });
         allItems.push({ title: 'Serah Terima', href: rentalsIndex(), icon: ClipboardList });
         allItems.push({ title: 'Armada', href: carsIndex(), icon: Car });
         allItems.push({ title: 'Drivers', href: driversIndex(), icon: Truck });
@@ -52,15 +55,19 @@ export default function AppSidebarLayout({
         allItems.push({ title: 'Asuransi', href: insurancesIndex(), icon: Shield });
         allItems.push({ title: 'Pajak / STNK', href: vehicleTaxesIndex(), icon: FileText });
         allItems.push({ title: 'Customers', href: customersIndex(), icon: UserSquare2 });
-        allItems.push({ title: 'Users', href: usersIndex(), icon: Users });
+        if (roles.includes('Super Admin')) {
+            allItems.push({ title: 'Users', href: usersIndex(), icon: Users });
+        }
         allItems.push({ title: 'Reports', href: reports(), icon: BarChart3 });
     } else if (hasRole('Marketing')) {
         allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
         allItems.push({ title: 'Bookings', href: bookingsIndex(), icon: CalendarDays });
+        allItems.push({ title: 'Armada', href: carsIndex(), icon: Car });
         allItems.push({ title: 'Customers', href: customersIndex(), icon: UserSquare2 });
     } else if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
         allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
         allItems.push({ title: 'Worklist', href: bookingsIndex(), icon: CalendarDays });
+        allItems.push({ title: 'Armada', href: carsIndex(), icon: Car });
     }
 
     // Deduplicate items based on route URL
@@ -71,7 +78,7 @@ export default function AppSidebarLayout({
         })).values()
     );
 
-    // Split bottom tabs (max 4) and leftover items inside the 'Other' menu sheet
+    // Split bottom tabs (top 4) and leftover items inside the 'Other' menu sheet
     const bottomTabs = deduplicatedAllItems.slice(0, 4);
     const otherItems = deduplicatedAllItems.slice(4);
 
@@ -103,19 +110,27 @@ export default function AppSidebarLayout({
                     );
                 })}
 
-                {otherItems.length > 0 && (
-                    <Sheet>
-                        <SheetTrigger className="flex flex-col items-center justify-center flex-1 py-1 px-3 text-center transition-all text-muted-foreground hover:text-foreground cursor-pointer">
-                            <Menu className="h-5 w-5 mb-1" />
-                            <span className="text-[10px] tracking-wide">Other</span>
-                        </SheetTrigger>
-                        <SheetContent side="bottom" className="rounded-t-2xl max-h-[80vh] overflow-y-auto p-6 pb-8 border-t">
-                            <SheetHeader className="pb-4">
+                <Sheet>
+                    <SheetTrigger className="flex flex-col items-center justify-center flex-1 py-1 px-3 text-center transition-all text-muted-foreground hover:text-foreground cursor-pointer">
+                        <Menu className="h-5 w-5 mb-1" />
+                        <span className="text-[10px] tracking-wide">Other</span>
+                    </SheetTrigger>
+                    <SheetContent side="bottom" className="rounded-t-2xl max-h-[85vh] overflow-y-auto p-6 pb-8 border-t">
+                        <SheetHeader className="pb-3 border-b mb-4 flex flex-row items-center justify-between">
+                            <div>
                                 <SheetTitle className="text-left text-sm font-semibold uppercase tracking-wider text-muted-foreground/75">
-                                    Other Menu
+                                    Menu Lainnya
                                 </SheetTitle>
-                            </SheetHeader>
-                            <div className="grid grid-cols-3 gap-4">
+                                {user && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        {user.name} ({roles.join(', ')})
+                                    </p>
+                                )}
+                            </div>
+                        </SheetHeader>
+
+                        {otherItems.length > 0 && (
+                            <div className="grid grid-cols-3 gap-3">
                                 {otherItems.map((item) => {
                                     const active = isCurrentUrl(item.href);
                                     return (
@@ -135,9 +150,31 @@ export default function AppSidebarLayout({
                                     );
                                 })}
                             </div>
-                        </SheetContent>
-                    </Sheet>
-                )}
+                        )}
+
+                        <div className="pt-4 mt-4 border-t space-y-2">
+                            <SheetTrigger asChild>
+                                <Link
+                                    href={editProfile()}
+                                    className="flex items-center justify-center gap-2 w-full p-2.5 rounded-xl border bg-muted/40 text-foreground font-medium text-xs hover:bg-muted transition-all"
+                                >
+                                    <Settings className="h-4 w-4" />
+                                    <span>Pengaturan Akun</span>
+                                </Link>
+                            </SheetTrigger>
+                            <SheetTrigger asChild>
+                                <Link
+                                    href={logout()}
+                                    as="button"
+                                    className="flex items-center justify-center gap-2 w-full p-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 dark:bg-red-950/20 dark:border-red-900/50 font-medium text-xs hover:bg-red-100 dark:hover:bg-red-900/30 transition-all cursor-pointer"
+                                >
+                                    <LogOut className="h-4 w-4" />
+                                    <span>Keluar (Logout)</span>
+                                </Link>
+                            </SheetTrigger>
+                        </div>
+                    </SheetContent>
+                </Sheet>
             </div>
         </AppShell>
     );

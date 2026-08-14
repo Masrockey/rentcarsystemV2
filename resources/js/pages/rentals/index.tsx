@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState } from 'react';
-import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send } from 'lucide-react';
+import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare } from 'lucide-react';
 import { index as rentalsIndex } from '@/routes/rentals';
 
 type CarOption = { id: number; name: string; plate_number: string };
@@ -273,7 +273,7 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                         </div>
                                         <Link href={`/bookings/${b.id}/checklist`}>
                                             <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 text-xs font-semibold">
-                                                <Send className="h-3.5 w-3.5" /> Deliver Car (Serah Terima)
+                                                <Send className="h-3.5 w-3.5" /> Serah Terima Mobil
                                             </Button>
                                         </Link>
                                     </div>
@@ -311,16 +311,29 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                             </div>
                                             <div><span className="font-semibold text-foreground">Total Bayar:</span> {formatCurrency(r.total_payment)}</div>
                                         </div>
-                                        <div className="flex justify-end gap-2 pt-2 border-t mt-1">
+                                         <div className="flex justify-end gap-2 pt-2 border-t mt-1">
                                             {r.status === 'Active' && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
-                                                    onClick={() => openReturn(r)}
-                                                >
-                                                    Unit Kembali
-                                                </Button>
+                                                <>
+                                                    {r.booking_id ? (
+                                                        <Link href={`/bookings/${r.booking_id}/checklist`}>
+                                                            <Button
+                                                                size="sm"
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-semibold px-2.5 flex items-center gap-1"
+                                                            >
+                                                                <FileText className="h-3.5 w-3.5" /> Checklist Kembali
+                                                            </Button>
+                                                        </Link>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
+                                                            onClick={() => openReturn(r)}
+                                                        >
+                                                            Unit Kembali
+                                                        </Button>
+                                                    )}
+                                                </>
                                             )}
                                             {r.booking_id && r.status === 'Returned' && (
                                                 <Button
@@ -385,14 +398,27 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                             </td>
                                             <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                                                 {r.status === 'Active' && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
-                                                        onClick={() => openReturn(r)}
-                                                    >
-                                                        Unit Kembali
-                                                    </Button>
+                                                    <>
+                                                        {r.booking_id ? (
+                                                            <Link href={`/bookings/${r.booking_id}/checklist`}>
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-semibold px-2.5 flex items-center gap-1"
+                                                                >
+                                                                    <FileText className="h-3.5 w-3.5" /> Checklist Kembali
+                                                                </Button>
+                                                            </Link>
+                                                        ) : (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
+                                                                onClick={() => openReturn(r)}
+                                                            >
+                                                                Unit Kembali
+                                                            </Button>
+                                                        )}
+                                                    </>
                                                 )}
                                                 {r.booking_id && r.status === 'Returned' && (
                                                     <Button
@@ -559,6 +585,24 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                             <DialogTitle>Pengembalian Kendaraan (Unit Kembali)</DialogTitle>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                            {editingRental?.booking_id && (
+                                <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/30 space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                                            <FileText className="h-4 w-4" /> Checklist 5 Sisi Mobil & Foto Unit
+                                        </span>
+                                        <Link href={`/bookings/${editingRental.booking_id}/checklist`}>
+                                            <Button size="sm" type="button" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3">
+                                                Buka Form Lengkap ➔
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Ingin memeriksa diagram bodi 5 sisi, foto kondisi fisik mobil, dan ceklist kelengkapan? Klik tombol di atas.
+                                    </p>
+                                </div>
+                            )}
+
                             <div className="rounded-lg bg-muted p-3 text-xs space-y-1">
                                 <div><span className="font-semibold">No. Kontrak:</span> {editingRental?.contract_number}</div>
                                 <div><span className="font-semibold">Penyewa:</span> {editingRental?.customer?.name}</div>

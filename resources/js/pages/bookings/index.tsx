@@ -81,6 +81,10 @@ type Booking = {
     petugas_cuci?: UserType;
     booking_date: string;
     return_date: string | null;
+    pickup_time?: string | null;
+    return_time?: string | null;
+    pickup_location?: string | null;
+    dropoff_location?: string | null;
     payment_method: 'Cash' | 'Transfer' | 'DP';
     payment_status: 'Pending' | 'Paid' | 'Down Payment';
     amount: number;
@@ -149,12 +153,16 @@ export default function BookingsIndex({
             const carType = b.car_type?.toLowerCase() || '';
             const carName = b.car?.name?.toLowerCase() || '';
             const plateNumber = b.car?.plate_number?.toLowerCase() || '';
+            const pickLoc = b.pickup_location?.toLowerCase() || '';
+            const dropLoc = b.dropoff_location?.toLowerCase() || '';
             return (
                 customerName.includes(q) ||
                 bookingNumber.includes(q) ||
                 carType.includes(q) ||
                 carName.includes(q) ||
-                plateNumber.includes(q)
+                plateNumber.includes(q) ||
+                pickLoc.includes(q) ||
+                dropLoc.includes(q)
             );
         });
     }, [bookings, searchQuery]);
@@ -189,6 +197,10 @@ export default function BookingsIndex({
         rental_type: 'Lepas Kunci' as 'Lepas Kunci' | 'With Driver',
         booking_date: '',
         return_date: '',
+        pickup_time: '',
+        return_time: '',
+        pickup_location: '',
+        dropoff_location: '',
         payment_method: 'Cash',
         payment_status: 'Pending',
         amount: '0',
@@ -200,6 +212,10 @@ export default function BookingsIndex({
         rental_type: 'Lepas Kunci' as 'Lepas Kunci' | 'With Driver',
         booking_date: '',
         return_date: '',
+        pickup_time: '',
+        return_time: '',
+        pickup_location: '',
+        dropoff_location: '',
         payment_method: 'Cash',
         payment_status: 'Pending',
         amount: '0',
@@ -232,6 +248,10 @@ export default function BookingsIndex({
             rental_type: (booking.rental_type as any) || 'Lepas Kunci',
             booking_date: booking.booking_date || '',
             return_date: booking.return_date || '',
+            pickup_time: booking.pickup_time ? booking.pickup_time.substring(0, 5) : '',
+            return_time: booking.return_time ? booking.return_time.substring(0, 5) : '',
+            pickup_location: booking.pickup_location || '',
+            dropoff_location: booking.dropoff_location || '',
             payment_method: booking.payment_method || 'Cash',
             payment_status: booking.payment_status || 'Pending',
             amount: booking.amount ? booking.amount.toString() : '0',
@@ -328,23 +348,23 @@ export default function BookingsIndex({
 
     return (
         <>
-            <Head title="Rent Car Bookings" />
+            <Head title="Data Booking" />
             <div className="flex flex-1 flex-col gap-6 p-6">
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col gap-1">
-                        <h1 className="text-3xl font-bold tracking-tight">Rental Bookings</h1>
-                        <p className="text-muted-foreground">Monitor car bookings, dispatch staff, and wash updates.</p>
+                        <h1 className="text-3xl font-bold tracking-tight">Data Booking Mobil</h1>
+                        <p className="text-muted-foreground">Kelola pesanan sewa mobil, alokasi armada, dan penugasan staf.</p>
                     </div>
                     {(hasRole('Marketing') || hasRole('Admin')) && (
                         <Button onClick={openCreateDialog} className="flex items-center gap-1">
-                            <Plus className="h-4 w-4" /> New Booking
+                            <Plus className="h-4 w-4" /> Tambah Booking
                         </Button>
                     )}
                 </div>
 
                 <Card>
                     <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <CardTitle>Rent Car Bookings</CardTitle>
+                        <CardTitle>Daftar Booking Mobil</CardTitle>
                         <div className="relative w-full sm:w-72">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -361,7 +381,7 @@ export default function BookingsIndex({
                         <div className="space-y-3 md:hidden">
                             {filteredBookings.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
-                                    {searchQuery ? 'Tidak ada booking yang cocok dengan pencarian.' : 'No bookings found.'}
+                                    {searchQuery ? 'Tidak ada booking yang cocok dengan pencarian.' : 'Belum ada data booking.'}
                                 </div>
                             ) : (
                                 filteredBookings.map((booking) => (
@@ -379,22 +399,29 @@ export default function BookingsIndex({
                                         </div>
                                         <div className="text-xs text-muted-foreground space-y-1">
                                             <div>
-                                                <span className="font-semibold text-foreground">Requested Car:</span> {booking.car_type}{' '}
+                                                <span className="font-semibold text-foreground">Tipe Mobil:</span> {booking.car_type}{' '}
                                                 <Badge variant="outline" className="ml-1 text-[10px] bg-primary/5 font-medium">
                                                     {booking.rental_type ?? 'Lepas Kunci'}
                                                 </Badge>
                                             </div>
-                                            <div><span className="font-semibold text-foreground">Assigned Fleet:</span> {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="italic text-muted-foreground text-xs">Unallocated</span>}</div>
-                                            <div><span className="font-semibold text-foreground">Dates:</span> Start: {booking.booking_date} {booking.return_date ? `| End: ${booking.return_date}` : ''}</div>
-                                            <div><span className="font-semibold text-foreground">Payment:</span> {formatCurrency(booking.amount)} ({booking.payment_status} via {booking.payment_method})</div>
+                                            <div><span className="font-semibold text-foreground">Armada Alokasi:</span> {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="italic text-muted-foreground text-xs">Belum Dialokasi</span>}</div>
                                             <div>
-                                                <span className="font-semibold text-foreground">Staff Duties:</span> Peluncur: {booking.peluncur?.name ?? 'None'}, Wash: {booking.petugas_cuci?.name ?? 'None'}
+                                                <span className="font-semibold text-foreground">Tanggal & Jam:</span> Start: {booking.booking_date} {booking.pickup_time ? `(${booking.pickup_time.substring(0, 5)})` : ''} {booking.return_date ? `| End: ${booking.return_date} ${booking.return_time ? `(${booking.return_time.substring(0, 5)})` : ''}` : ''}
+                                            </div>
+                                            {(booking.pickup_location || booking.dropoff_location) && (
+                                                <div className="text-[11px] text-muted-foreground">
+                                                    <span className="font-semibold text-foreground">Lokasi:</span> {booking.pickup_location ? `Jemput: ${booking.pickup_location}` : ''} {booking.dropoff_location ? `| Antar: ${booking.dropoff_location}` : ''}
+                                                </div>
+                                            )}
+                                            <div><span className="font-semibold text-foreground">Pembayaran:</span> {formatCurrency(booking.amount)} ({booking.payment_status} via {booking.payment_method})</div>
+                                            <div>
+                                                <span className="font-semibold text-foreground">Penugasan Staf:</span> Peluncur: {booking.peluncur?.name ?? 'Belum ada'}, Wash: {booking.petugas_cuci?.name ?? 'Belum ada'}
                                                 {booking.rental_type === 'With Driver' && (
-                                                    <span>, Driver: {booking.driver?.name ?? <span className="text-red-500 font-semibold italic">Unallocated</span>}</span>
+                                                    <span>, Supir: {booking.driver?.name ?? <span className="text-red-500 font-semibold italic">Belum Dialokasi</span>}</span>
                                                 )}
                                             </div>
                                             {(hasRole('Admin') || hasRole('Super Admin')) && (
-                                                <div><span className="font-semibold text-foreground">Created By:</span> <span className="font-medium text-foreground">{booking.user?.name ?? 'Admin / System'}</span></div>
+                                                <div><span className="font-semibold text-foreground">Dibuat Oleh:</span> <span className="font-medium text-foreground">{booking.user?.name ?? 'Admin / System'}</span></div>
                                             )}
                                         </div>
                                         <div className="flex justify-end gap-2 pt-2 border-t mt-1">
@@ -406,7 +433,7 @@ export default function BookingsIndex({
                                                         className="flex items-center gap-1 h-8 text-xs"
                                                         onClick={() => openAssignDialog(booking)}
                                                     >
-                                                        <Settings className="h-3 w-3" /> Allocate
+                                                        <Settings className="h-3 w-3" /> Alokasi
                                                     </Button>
                                                     <Button
                                                         variant="ghost"
@@ -434,7 +461,7 @@ export default function BookingsIndex({
                                                     className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
                                                     onClick={() => handleCompleteWash(booking.id)}
                                                 >
-                                                    Wash Complete
+                                                    Cuci Selesai
                                                 </Button>
                                             )}
                                         </div>
@@ -448,24 +475,24 @@ export default function BookingsIndex({
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-muted text-xs uppercase text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3">Customer</th>
-                                        <th className="px-4 py-3">Requested Car</th>
-                                        <th className="px-4 py-3">Assigned Fleet</th>
-                                        <th className="px-4 py-3">Dates</th>
-                                        <th className="px-4 py-3">Payment</th>
-                                        <th className="px-4 py-3">Staff Duties</th>
+                                        <th className="px-4 py-3">Pelanggan</th>
+                                        <th className="px-4 py-3">Tipe Mobil</th>
+                                        <th className="px-4 py-3">Armada Alokasi</th>
+                                        <th className="px-4 py-3">Tanggal & Jam</th>
+                                        <th className="px-4 py-3">Pembayaran</th>
+                                        <th className="px-4 py-3">Penugasan Staf</th>
                                         {(hasRole('Admin') || hasRole('Super Admin')) && (
-                                            <th className="px-4 py-3">Created By</th>
+                                            <th className="px-4 py-3">Dibuat Oleh</th>
                                         )}
                                         <th className="px-4 py-3">Status</th>
-                                        <th className="px-4 py-3 text-right">Actions</th>
+                                        <th className="px-4 py-3 text-right">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {filteredBookings.length === 0 ? (
                                         <tr>
                                             <td colSpan={(hasRole('Admin') || hasRole('Super Admin')) ? 9 : 8} className="px-4 py-8 text-center text-muted-foreground">
-                                                {searchQuery ? 'Tidak ada booking yang cocok dengan pencarian.' : 'No bookings found.'}
+                                                {searchQuery ? 'Tidak ada booking yang cocok dengan pencarian.' : 'Belum ada data booking.'}
                                             </td>
                                         </tr>
                                     ) : (
@@ -484,11 +511,17 @@ export default function BookingsIndex({
                                                     </Badge>
                                                 </td>
                                                 <td className="px-4 py-4 font-mono font-medium">
-                                                    {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="text-muted-foreground text-xs italic">Unallocated</span>}
+                                                    {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="text-muted-foreground text-xs italic">Belum Dialokasi</span>}
                                                 </td>
-                                                <td className="px-4 py-4 text-xs whitespace-nowrap">
-                                                    <div>Start: {booking.booking_date}</div>
-                                                    {booking.return_date && <div>End: {booking.return_date}</div>}
+                                                <td className="px-4 py-4 text-xs">
+                                                    <div className="whitespace-nowrap">Start: {booking.booking_date} {booking.pickup_time ? `(${booking.pickup_time.substring(0, 5)})` : ''}</div>
+                                                    {booking.return_date && <div className="whitespace-nowrap">End: {booking.return_date} {booking.return_time ? `(${booking.return_time.substring(0, 5)})` : ''}</div>}
+                                                    {(booking.pickup_location || booking.dropoff_location) && (
+                                                        <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5 max-w-[180px] truncate">
+                                                            {booking.pickup_location && <div title={`Jemput: ${booking.pickup_location}`} className="truncate">Jemput: {booking.pickup_location}</div>}
+                                                            {booking.dropoff_location && <div title={`Antar: ${booking.dropoff_location}`} className="truncate">Antar: {booking.dropoff_location}</div>}
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <div className="font-medium text-xs">{formatCurrency(booking.amount)}</div>
@@ -499,11 +532,11 @@ export default function BookingsIndex({
                                                 <td className="px-4 py-4 text-xs">
                                                     {booking.rental_type === 'With Driver' && (
                                                         <div className="mb-1 font-medium">
-                                                            Driver: {booking.driver ? <span className="font-semibold text-foreground">{booking.driver.name}</span> : <span className="text-red-500 italic font-semibold">Unallocated</span>}
+                                                            Supir: {booking.driver ? <span className="font-semibold text-foreground">{booking.driver.name}</span> : <span className="text-red-500 italic font-semibold">Belum Dialokasi</span>}
                                                         </div>
                                                     )}
-                                                    <div>Peluncur: {booking.peluncur ? booking.peluncur.name : <span className="text-muted-foreground italic">None</span>}</div>
-                                                    <div className="mt-1">Wash: {booking.petugas_cuci ? booking.petugas_cuci.name : <span className="text-muted-foreground italic">None</span>}</div>
+                                                    <div>Peluncur: {booking.peluncur ? booking.peluncur.name : <span className="text-muted-foreground italic">Belum ada</span>}</div>
+                                                    <div className="mt-1">Wash: {booking.petugas_cuci ? booking.petugas_cuci.name : <span className="text-muted-foreground italic">Belum ada</span>}</div>
                                                 </td>
                                                 {(hasRole('Admin') || hasRole('Super Admin')) && (
                                                     <td className="px-4 py-4 text-xs">
@@ -573,12 +606,12 @@ export default function BookingsIndex({
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogContent className={isNewCustomer ? "max-w-xl max-h-[90vh] overflow-y-auto" : "max-w-md"}>
                         <DialogHeader>
-                            <h2 className="text-lg font-semibold">New Rental Booking</h2>
+                            <h2 className="text-lg font-semibold">Tambah Booking Sewa</h2>
                         </DialogHeader>
                         <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <Label htmlFor="customer_id">{isNewCustomer ? 'New Customer' : 'Select Customer'}</Label>
+                                    <Label htmlFor="customer_id">{isNewCustomer ? 'Customer Baru' : 'Pilih Customer'}</Label>
                                     <button
                                         type="button"
                                         className="text-xs text-primary hover:underline font-medium focus:outline-none"
@@ -728,10 +761,10 @@ export default function BookingsIndex({
                                             </div>
                                         </div>
 
-                                        {/* Upload Foto Dokumen */}
+                                        {/* Upload Dokumen */}
                                         <div className="pt-2 border-t">
                                             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
-                                                Upload Foto Dokumen
+                                                Upload Dokumen Identitas
                                             </p>
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                 <div className="space-y-1">
@@ -775,7 +808,7 @@ export default function BookingsIndex({
 
                             <div className="space-y-1">
                                 <div className="flex items-center justify-between">
-                                    <Label htmlFor="car_type">Requested Car Type</Label>
+                                    <Label htmlFor="car_type">Tipe Mobil yang Dipesan</Label>
                                     <button
                                         type="button"
                                         className="text-xs text-primary hover:underline font-medium focus:outline-none"
@@ -816,9 +849,9 @@ export default function BookingsIndex({
                                 {errorsCreate.car_type && <p className="text-xs text-red-500">{errorsCreate.car_type}</p>}
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <Label htmlFor="booking_date">Rent Date</Label>
+                                    <Label htmlFor="booking_date" className="text-xs">Tanggal Sewa</Label>
                                     <Input
                                         id="booking_date"
                                         type="date"
@@ -828,7 +861,16 @@ export default function BookingsIndex({
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="return_date">Return Date</Label>
+                                    <Label htmlFor="pickup_time" className="text-xs">Jam Pengambilan</Label>
+                                    <Input
+                                        id="pickup_time"
+                                        type="time"
+                                        value={createData.pickup_time}
+                                        onChange={(e) => setCreateData('pickup_time', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="return_date" className="text-xs">Tanggal Balik</Label>
                                     <Input
                                         id="return_date"
                                         type="date"
@@ -836,11 +878,43 @@ export default function BookingsIndex({
                                         onChange={(e) => setCreateData('return_date', e.target.value)}
                                     />
                                 </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="return_time" className="text-xs">Jam Pengembalian</Label>
+                                    <Input
+                                        id="return_time"
+                                        type="time"
+                                        value={createData.return_time}
+                                        onChange={(e) => setCreateData('return_time', e.target.value)}
+                                    />
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label htmlFor="payment_method">Payment Method</Label>
+                                    <Label htmlFor="pickup_location" className="text-xs">Tempat Pengambilan</Label>
+                                    <Input
+                                        id="pickup_location"
+                                        type="text"
+                                        placeholder="Contoh: Bandara, Garasi, Alamat Customer..."
+                                        value={createData.pickup_location}
+                                        onChange={(e) => setCreateData('pickup_location', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="dropoff_location" className="text-xs">Tempat Pengantaran / Pengembalian</Label>
+                                    <Input
+                                        id="dropoff_location"
+                                        type="text"
+                                        placeholder="Contoh: Bandara, Garasi, Alamat Customer..."
+                                        value={createData.dropoff_location}
+                                        onChange={(e) => setCreateData('dropoff_location', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label htmlFor="payment_method">Metode Pembayaran</Label>
                                     <Select
                                         value={createData.payment_method}
                                         onValueChange={(val: any) => setCreateData('payment_method', val)}
@@ -872,8 +946,8 @@ export default function BookingsIndex({
                                 </div>
                             </div>
                             <DialogFooter className="pt-4">
-                                <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-                                <Button type="submit" disabled={processingCreate}>Save Booking</Button>
+                                <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Batal</Button>
+                                <Button type="submit" disabled={processingCreate}>Simpan Booking</Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -883,13 +957,13 @@ export default function BookingsIndex({
                 <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
                     <DialogContent className="max-w-md">
                         <DialogHeader>
-                            <h2 className="text-lg font-semibold">Allocate Staff & Vehicle</h2>
+                            <h2 className="text-lg font-semibold">Alokasi Staf & Armada</h2>
                         </DialogHeader>
                         {selectedBooking && (
                             <form onSubmit={handleAssignSubmit} className="space-y-4 py-2">
                                 <div className="rounded-lg bg-muted p-3 text-xs space-y-1">
-                                    <div><span className="font-semibold">Customer:</span> {selectedBooking.customer?.name}</div>
-                                    <div><span className="font-semibold">Requested Car Type:</span> {selectedBooking.car_type}</div>
+                                    <div><span className="font-semibold">Pelanggan:</span> {selectedBooking.customer?.name}</div>
+                                    <div><span className="font-semibold">Tipe Mobil yang Dipesan:</span> {selectedBooking.car_type}</div>
                                     <div><span className="font-semibold">Type Sewa:</span> <Badge variant="outline" className="text-[10px] ml-1">{selectedBooking.rental_type ?? 'Lepas Kunci'}</Badge></div>
                                     <div><span className="font-semibold">Tanggal Sewa:</span> {selectedBooking.booking_date}</div>
                                     {selectedBooking.return_date && (
@@ -898,13 +972,13 @@ export default function BookingsIndex({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="car_id">Assign Car Fleet</Label>
+                                    <Label htmlFor="car_id">Alokasi Armada Mobil</Label>
                                     <SearchableSelect
                                         options={[
                                             ...(selectedBooking?.car
                                                 ? [{
                                                     value: selectedBooking.car_id!.toString(),
-                                                    label: `${selectedBooking.car.name} (${selectedBooking.car.plate_number}) - [Current]`,
+                                                    label: `${selectedBooking.car.name} (${selectedBooking.car.plate_number}) - [Saat Ini]`,
                                                 }]
                                                 : []),
                                             ...readyCars
@@ -917,7 +991,7 @@ export default function BookingsIndex({
                                         ]}
                                         value={assignData.car_id}
                                         onValueChange={(val) => setAssignData('car_id', val)}
-                                        placeholder="Choose a ready vehicle..."
+                                        placeholder="Pilih mobil yang ready..."
                                         searchPlaceholder="Cari mobil / no. polisi..."
                                         emptyText="Mobil tidak ditemukan."
                                     />
@@ -925,13 +999,13 @@ export default function BookingsIndex({
 
                                 {selectedBooking?.rental_type === 'With Driver' && (
                                     <div className="space-y-1">
-                                        <Label htmlFor="driver_id" className="text-xs font-semibold text-primary">Assign Driver / Supir (Pilih Driver Ready)</Label>
+                                        <Label htmlFor="driver_id" className="text-xs font-semibold text-primary">Alokasi Supir / Driver (Ready)</Label>
                                         <SearchableSelect
                                             options={[
                                                 ...(selectedBooking?.driver
                                                     ? [{
                                                         value: selectedBooking.driver_id!.toString(),
-                                                        label: `${selectedBooking.driver.name} - [Current]`,
+                                                        label: `${selectedBooking.driver.name} - [Saat Ini]`,
                                                     }]
                                                     : []),
                                                 ...readyDrivers
@@ -952,13 +1026,13 @@ export default function BookingsIndex({
                                 )}
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="peluncur_id">Assign Peluncur Officer (Field delivery)</Label>
+                                    <Label htmlFor="peluncur_id">Penugasan Petugas Peluncur (Serah Terima)</Label>
                                     <Select
                                         value={assignData.peluncur_id}
                                         onValueChange={(val) => setAssignData('peluncur_id', val)}
                                     >
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select Peluncur officer" />
+                                            <SelectValue placeholder="Pilih Petugas Peluncur" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {peluncurOfficers.map((p) => (
@@ -969,7 +1043,7 @@ export default function BookingsIndex({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="assign_amount">Rental Price / Amount (Rp)</Label>
+                                    <Label htmlFor="assign_amount">Harga / Tarif Sewa (Rp)</Label>
                                     <Input
                                         id="assign_amount"
                                         type="number"
@@ -981,13 +1055,13 @@ export default function BookingsIndex({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="petugas_cuci_id">Assign Wash Officer (After return)</Label>
+                                    <Label htmlFor="petugas_cuci_id">Penugasan Petugas Cuci (Pasca Kembali)</Label>
                                     <Select
                                         value={assignData.petugas_cuci_id}
                                         onValueChange={(val) => setAssignData('petugas_cuci_id', val)}
                                     >
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select Wash officer" />
+                                            <SelectValue placeholder="Pilih Petugas Cuci" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {washOfficers.map((w) => (
@@ -998,8 +1072,8 @@ export default function BookingsIndex({
                                 </div>
 
                                 <DialogFooter className="pt-4">
-                                    <Button type="button" variant="outline" onClick={() => setIsAssignOpen(false)}>Cancel</Button>
-                                    <Button type="submit" disabled={processingAssign}>Save Assignment</Button>
+                                    <Button type="button" variant="outline" onClick={() => setIsAssignOpen(false)}>Batal</Button>
+                                    <Button type="submit" disabled={processingAssign}>Simpan Alokasi</Button>
                                 </DialogFooter>
                             </form>
                         )}
@@ -1009,16 +1083,16 @@ export default function BookingsIndex({
                 <Dialog open={washConfirmId !== null} onOpenChange={(open) => !open && setWashConfirmId(null)}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Confirm Complete Wash</DialogTitle>
+                            <DialogTitle>Konfirmasi Selesai Cuci</DialogTitle>
                         </DialogHeader>
                         <div className="py-4">
                             <p className="text-sm text-muted-foreground">
-                                Are you sure you want to mark car washing as completed and set this car's availability to Ready?
+                                Apakah Anda yakin ingin menyelesaikan pencucian mobil dan mengubah status mobil menjadi Ready?
                             </p>
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setWashConfirmId(null)}>
-                                Cancel
+                                Batal
                             </Button>
                             <Button
                                 onClick={() => {
@@ -1029,7 +1103,7 @@ export default function BookingsIndex({
                                     }
                                 }}
                             >
-                                Complete Wash
+                                Selesaikan Cuci
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -1043,34 +1117,34 @@ export default function BookingsIndex({
                         </DialogHeader>
                         <form onSubmit={handleEditSubmit} className="space-y-4 py-2">
                             <div className="space-y-1">
-                                <Label htmlFor="edit_customer_id">Customer</Label>
+                                <Label htmlFor="edit_customer_id">Pelanggan</Label>
                                 <SearchableSelect
                                     id="edit_customer_id"
                                     options={customerOptions}
                                     value={editData.customer_id}
                                     onValueChange={(val) => setEditData('customer_id', val)}
-                                    placeholder="Select Customer..."
+                                    placeholder="Pilih Pelanggan..."
                                     searchPlaceholder="Cari customer..."
                                     emptyText="Customer tidak ditemukan."
                                 />
                             </div>
 
                             <div className="space-y-1">
-                                <Label htmlFor="edit_car_type">Requested Car Type</Label>
+                                <Label htmlFor="edit_car_type">Tipe Mobil yang Dipesan</Label>
                                 <SearchableSelect
                                     id="edit_car_type"
                                     options={carTypeOptions}
                                     value={editData.car_type}
                                     onValueChange={(val) => setEditData('car_type', val)}
-                                    placeholder="Select Car Type..."
+                                    placeholder="Pilih Tipe Mobil..."
                                     searchPlaceholder="Cari type kendaraan..."
                                     emptyText="Type kendaraan tidak ditemukan."
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_booking_date">Rent Date</Label>
+                                    <Label htmlFor="edit_booking_date" className="text-xs">Tanggal Sewa</Label>
                                     <Input
                                         id="edit_booking_date"
                                         type="date"
@@ -1079,7 +1153,16 @@ export default function BookingsIndex({
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_return_date">Return Date</Label>
+                                    <Label htmlFor="edit_pickup_time" className="text-xs">Jam Pengambilan</Label>
+                                    <Input
+                                        id="edit_pickup_time"
+                                        type="time"
+                                        value={editData.pickup_time}
+                                        onChange={(e) => setEditData('pickup_time', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_return_date" className="text-xs">Tanggal Balik</Label>
                                     <Input
                                         id="edit_return_date"
                                         type="date"
@@ -1087,11 +1170,43 @@ export default function BookingsIndex({
                                         onChange={(e) => setEditData('return_date', e.target.value)}
                                     />
                                 </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_return_time" className="text-xs">Jam Pengembalian</Label>
+                                    <Input
+                                        id="edit_return_time"
+                                        type="time"
+                                        value={editData.return_time}
+                                        onChange={(e) => setEditData('return_time', e.target.value)}
+                                    />
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_payment_method">Payment Method</Label>
+                                    <Label htmlFor="edit_pickup_location" className="text-xs">Tempat Pengambilan</Label>
+                                    <Input
+                                        id="edit_pickup_location"
+                                        type="text"
+                                        placeholder="Contoh: Bandara, Garasi, Alamat Customer..."
+                                        value={editData.pickup_location}
+                                        onChange={(e) => setEditData('pickup_location', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_dropoff_location" className="text-xs">Tempat Pengantaran / Pengembalian</Label>
+                                    <Input
+                                        id="edit_dropoff_location"
+                                        type="text"
+                                        placeholder="Contoh: Bandara, Garasi, Alamat Customer..."
+                                        value={editData.dropoff_location}
+                                        onChange={(e) => setEditData('dropoff_location', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_payment_method">Metode Pembayaran</Label>
                                     <Select
                                         value={editData.payment_method}
                                         onValueChange={(val) => setEditData('payment_method', val)}
@@ -1121,7 +1236,7 @@ export default function BookingsIndex({
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_amount">Rental Price (Rp)</Label>
+                                    <Label htmlFor="edit_amount">Harga / Tarif Sewa (Rp)</Label>
                                     <Input
                                         id="edit_amount"
                                         type="number"
@@ -1131,7 +1246,7 @@ export default function BookingsIndex({
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_status">Booking Status</Label>
+                                    <Label htmlFor="edit_status">Status Booking</Label>
                                     <Select
                                         value={editData.status}
                                         onValueChange={(val) => setEditData('status', val)}
@@ -1149,8 +1264,8 @@ export default function BookingsIndex({
                             </div>
 
                             <DialogFooter className="pt-4">
-                                <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-                                <Button type="submit" disabled={processingEdit}>Save Changes</Button>
+                                <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>Batal</Button>
+                                <Button type="submit" disabled={processingEdit}>Simpan Perubahan</Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -1160,16 +1275,16 @@ export default function BookingsIndex({
                 <Dialog open={deleteBookingId !== null} onOpenChange={(open) => !open && setDeleteBookingId(null)}>
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Delete Booking</DialogTitle>
+                            <DialogTitle>Hapus Booking</DialogTitle>
                         </DialogHeader>
                         <div className="py-4">
                             <p className="text-sm text-muted-foreground">
-                                Are you sure you want to delete this booking? This action cannot be undone.
+                                Apakah Anda yakin ingin menghapus booking ini? Tindakan ini tidak dapat dibatalkan.
                             </p>
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setDeleteBookingId(null)}>
-                                Cancel
+                                Batal
                             </Button>
                             <Button
                                 variant="destructive"
@@ -1181,7 +1296,7 @@ export default function BookingsIndex({
                                     }
                                 }}
                             >
-                                Delete
+                                Hapus
                             </Button>
                         </DialogFooter>
                     </DialogContent>
@@ -1194,7 +1309,7 @@ export default function BookingsIndex({
 BookingsIndex.layout = {
     breadcrumbs: [
         {
-            title: 'Bookings',
+            title: 'Data Booking',
             href: bookingsIndex(),
         },
     ],

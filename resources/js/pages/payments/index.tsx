@@ -87,7 +87,7 @@ export default function PaymentsIndex({ payments, bookings }: Props) {
 
     return (
         <>
-            <Head title="Payment Management" />
+            <Head title="Manajemen Pembayaran" />
             <div className="flex flex-1 flex-col gap-6 p-6">
                 <div className="flex items-center justify-between">
                     <div>
@@ -226,5 +226,5 @@ export default function PaymentsIndex({ payments, bookings }: Props) {
 }
 
 PaymentsIndex.layout = {
-    breadcrumbs: [{ title: 'Payment Management', href: paymentsIndex() }],
+    breadcrumbs: [{ title: 'Manajemen Pembayaran', href: paymentsIndex() }],
 };
