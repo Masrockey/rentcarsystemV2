@@ -37,6 +37,21 @@ test('users can authenticate using username', function () {
     $response->assertRedirect(route('dashboard', absolute: false));
 });
 
+test('users can authenticate using phone number', function () {
+    $user = User::factory()->create([
+        'phone' => '081234567890',
+        'email' => 'testphone@example.com',
+    ]);
+
+    $response = $this->post(route('login.store'), [
+        'email' => '081234567890',
+        'password' => 'password',
+    ]);
+
+    $this->assertAuthenticatedAs($user);
+    $response->assertRedirect(route('dashboard', absolute: false));
+});
+
 test('users with two factor enabled are redirected to two factor challenge', function () {
     $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
 
