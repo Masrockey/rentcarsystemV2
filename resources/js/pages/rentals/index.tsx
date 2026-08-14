@@ -311,42 +311,51 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                             </div>
                                             <div><span className="font-semibold text-foreground">Total Bayar:</span> {formatCurrency(r.total_payment)}</div>
                                         </div>
-                                         <div className="flex justify-end gap-2 pt-2 border-t mt-1">
-                                            {r.status === 'Active' && (
-                                                <>
-                                                    {r.booking_id ? (
-                                                        <Link href={`/bookings/${r.booking_id}/checklist`}>
-                                                            <Button
-                                                                size="sm"
-                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-semibold px-2.5 flex items-center gap-1"
-                                                            >
-                                                                <FileText className="h-3.5 w-3.5" /> Checklist Kembali
-                                                            </Button>
-                                                        </Link>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
-                                                            onClick={() => openReturn(r)}
-                                                        >
-                                                            Unit Kembali
-                                                        </Button>
-                                                    )}
-                                                </>
-                                            )}
-                                            {r.booking_id && r.status === 'Returned' && (
-                                                <Button
-                                                    size="sm"
-                                                    className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5"
-                                                    onClick={() => handleWash(r.booking_id)}
-                                                >
-                                                    Selesai Cuci
-                                                </Button>
-                                            )}
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(r.id)}><Trash2 className="h-4 w-4" /></Button>
-                                        </div>
+                                         <div className="flex flex-wrap items-center justify-end gap-1.5 pt-2 border-t mt-1">
+                                             {r.booking_id && (
+                                                 <>
+                                                     <Link href={`/bookings/${r.booking_id}/checklist?type=delivery`}>
+                                                         <Button
+                                                             size="sm"
+                                                             variant="outline"
+                                                             className="border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                         >
+                                                             <Car className="h-3.5 w-3.5" /> Checklist Jalan
+                                                         </Button>
+                                                     </Link>
+                                                     <Link href={`/bookings/${r.booking_id}/checklist?type=return`}>
+                                                         <Button
+                                                             size="sm"
+                                                             variant="outline"
+                                                             className="border-emerald-500 text-emerald-600 hover:bg-emerald-500 hover:text-white h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                         >
+                                                             <CheckSquare className="h-3.5 w-3.5" /> Checklist Kembali
+                                                         </Button>
+                                                     </Link>
+                                                 </>
+                                             )}
+                                             {r.status === 'Active' && !r.booking_id && (
+                                                 <Button
+                                                     size="sm"
+                                                     variant="outline"
+                                                     className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
+                                                     onClick={() => openReturn(r)}
+                                                 >
+                                                     Unit Kembali
+                                                 </Button>
+                                             )}
+                                             {r.booking_id && r.status === 'Returned' && (
+                                                 <Button
+                                                     size="sm"
+                                                     className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5"
+                                                     onClick={() => handleWash(r.booking_id)}
+                                                 >
+                                                     Selesai Cuci
+                                                 </Button>
+                                             )}
+                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
+                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(r.id)}><Trash2 className="h-4 w-4" /></Button>
+                                         </div>
                                     </div>
                                 ))
                             )}
@@ -396,42 +405,53 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                             <td className="px-6 py-4">
                                                 <Badge variant="outline" className={statusColor(r.status)}>{r.status}</Badge>
                                             </td>
-                                            <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
-                                                {r.status === 'Active' && (
-                                                    <>
-                                                        {r.booking_id ? (
-                                                            <Link href={`/bookings/${r.booking_id}/checklist`}>
-                                                                <Button
-                                                                    size="sm"
-                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-semibold px-2.5 flex items-center gap-1"
-                                                                >
-                                                                    <FileText className="h-3.5 w-3.5" /> Checklist Kembali
-                                                                </Button>
-                                                            </Link>
-                                                        ) : (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
-                                                                onClick={() => openReturn(r)}
-                                                            >
-                                                                Unit Kembali
-                                                            </Button>
-                                                        )}
-                                                    </>
-                                                )}
-                                                {r.booking_id && r.status === 'Returned' && (
-                                                    <Button
-                                                        size="sm"
-                                                        className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5"
-                                                        onClick={() => handleWash(r.booking_id)}
-                                                    >
-                                                        Selesai Cuci
-                                                    </Button>
-                                                )}
-                                                <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
-                                                <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => setDeleteId(r.id)}><Trash2 className="h-4 w-4" /></Button>
-                                            </td>
+                                            <td className="px-6 py-4 text-right flex items-center justify-end gap-1.5">
+                                                 {r.booking_id && (
+                                                     <>
+                                                         <Link href={`/bookings/${r.booking_id}/checklist?type=delivery`}>
+                                                             <Button
+                                                                 size="sm"
+                                                                 variant="outline"
+                                                                 className="border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                                 title="Lihat / Isi Checklist Unit Jalan"
+                                                             >
+                                                                 <Car className="h-3.5 w-3.5" /> Checklist Jalan
+                                                             </Button>
+                                                         </Link>
+                                                         <Link href={`/bookings/${r.booking_id}/checklist?type=return`}>
+                                                             <Button
+                                                                 size="sm"
+                                                                 variant="outline"
+                                                                 className="border-emerald-500 text-emerald-600 hover:bg-emerald-500 hover:text-white h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                                 title="Lihat / Isi Checklist Unit Kembali"
+                                                             >
+                                                                 <CheckSquare className="h-3.5 w-3.5" /> Checklist Kembali
+                                                             </Button>
+                                                         </Link>
+                                                     </>
+                                                 )}
+                                                 {r.status === 'Active' && !r.booking_id && (
+                                                     <Button
+                                                         size="sm"
+                                                         variant="outline"
+                                                         className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
+                                                         onClick={() => openReturn(r)}
+                                                     >
+                                                         Unit Kembali
+                                                     </Button>
+                                                 )}
+                                                 {r.booking_id && r.status === 'Returned' && (
+                                                     <Button
+                                                         size="sm"
+                                                         className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5"
+                                                         onClick={() => handleWash(r.booking_id)}
+                                                     >
+                                                         Selesai Cuci
+                                                     </Button>
+                                                 )}
+                                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
+                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(r.id)}><Trash2 className="h-4 w-4" /></Button>
+                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>

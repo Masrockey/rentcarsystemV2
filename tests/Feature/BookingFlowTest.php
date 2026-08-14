@@ -105,7 +105,7 @@ test('full rent car booking workflow', function () {
     ];
 
     $response = $this->post(route('bookings.return', $booking), $returnData);
-    $response->assertRedirect(route('bookings.index'));
+    $response->assertRedirect(route('rentals.index'));
 
     $booking->refresh();
     $car->refresh();

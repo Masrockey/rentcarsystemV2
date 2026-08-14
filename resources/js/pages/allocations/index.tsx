@@ -258,15 +258,17 @@ export default function AllocationsIndex({
                                                 <span className="font-semibold text-foreground">Staf:</span> Supir: {b.driver?.name ?? '-'}, Peluncur: {b.peluncur?.name ?? '-'}, Cuci: {b.petugas_cuci?.name ?? '-'}
                                             </div>
                                         </div>
-                                        <div className="flex justify-end pt-2 border-t mt-1">
-                                            <Button
-                                                size="sm"
-                                                onClick={() => openAllocateDialog(b)}
-                                                className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold"
-                                            >
-                                                <Settings className="h-3.5 w-3.5" /> Alokasi Mobil & Staf
-                                            </Button>
-                                        </div>
+                                        {!b.car_id && (
+                                            <div className="flex justify-end pt-2 border-t mt-1">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => openAllocateDialog(b)}
+                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold"
+                                                >
+                                                    <Settings className="h-3.5 w-3.5" /> Alokasi Mobil & Staf
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 ))
                             )}
@@ -340,13 +342,15 @@ export default function AllocationsIndex({
                                                 </td>
                                                 <td className="px-4 py-4 font-semibold text-xs">{formatCurrency(b.amount)}</td>
                                                 <td className="px-4 py-4 text-right">
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => openAllocateDialog(b)}
-                                                        className="font-semibold text-xs flex items-center gap-1.5 ml-auto"
-                                                    >
-                                                        <Settings className="h-3.5 w-3.5" /> Alokasi
-                                                    </Button>
+                                                    {!b.car_id && (
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => openAllocateDialog(b)}
+                                                            className="font-semibold text-xs flex items-center gap-1.5 ml-auto"
+                                                        >
+                                                            <Settings className="h-3.5 w-3.5" /> Alokasi
+                                                        </Button>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))

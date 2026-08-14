@@ -555,14 +555,6 @@ export default function BookingsIndex({
                                                         {(hasRole('Admin') || hasRole('Super Admin')) && (
                                                             <>
                                                                 <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    className="flex items-center gap-1"
-                                                                    onClick={() => openAssignDialog(booking)}
-                                                                >
-                                                                    <Settings className="h-3.5 w-3.5" /> Allocate
-                                                                </Button>
-                                                                <Button
                                                                     variant="ghost"
                                                                     size="icon"
                                                                     className="h-8 w-8"

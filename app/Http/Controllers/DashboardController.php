@@ -60,13 +60,29 @@ class DashboardController extends Controller
         }
 
         if ($user->isMarketing()) {
+            $marketingQuery = Booking::query();
+
+            if (! $user->isAdmin()) {
+                $marketingQuery->where(function ($q) use ($user) {
+                    $q->where('user_id', $user->id)
+                        ->orWhere('peluncur_id', $user->id)
+                        ->orWhere('petugas_cuci_id', $user->id);
+                });
+            }
+
             $stats['marketing'] = [
-                'total_bookings' => Booking::count(),
-                'total_customers' => Customer::count(),
-                'bookings_today' => $fleetSummary['bookings_today'],
-                'revenue_today' => $fleetSummary['revenue_today'],
-                'revenue_month' => $fleetSummary['revenue_month'],
-                'recent_bookings' => Booking::with(['customer', 'car'])->latest()->take(5)->get(),
+                'total_bookings' => (clone $marketingQuery)->count(),
+                'total_customers' => $user->isAdmin()
+                    ? Customer::count()
+                    : Customer::whereHas('bookings', function ($q) use ($user) {
+                        $q->where('user_id', $user->id)
+                            ->orWhere('peluncur_id', $user->id)
+                            ->orWhere('petugas_cuci_id', $user->id);
+                    })->count(),
+                'bookings_today' => (clone $marketingQuery)->whereDate('booking_date', $today)->count(),
+                'revenue_today' => (float) (clone $marketingQuery)->whereDate('booking_date', $today)->sum('amount'),
+                'revenue_month' => (float) (clone $marketingQuery)->where('booking_date', '>=', $startOfMonth)->sum('amount'),
+                'recent_bookings' => (clone $marketingQuery)->with(['customer', 'car'])->latest()->take(5)->get(),
             ];
         }
 

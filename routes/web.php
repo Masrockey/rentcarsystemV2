@@ -10,6 +10,7 @@ use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\RentalController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VehicleTaxController;
@@ -58,6 +59,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Rentals / Serah Terima CRUD
     Route::resource('rentals', RentalController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    // Unit Kembali / Pengembalian Unit
+    Route::get('returns', [ReturnController::class, 'index'])->name('returns.index');
+    Route::post('returns', [ReturnController::class, 'store'])->name('returns.store');
 
     // Monthly Report
     Route::get('reports', ReportController::class)->name('reports');

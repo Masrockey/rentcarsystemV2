@@ -131,6 +131,16 @@ class Booking extends Model
     }
 
     /**
+     * Get the rental contract for this booking.
+     *
+     * @return HasOne<Rental, $this>
+     */
+    public function rental(): HasOne
+    {
+        return $this->hasOne(Rental::class);
+    }
+
+    /**
      * Get the rentals for this booking.
      *
      * @return HasMany<Rental, $this>

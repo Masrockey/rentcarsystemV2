@@ -8,20 +8,12 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
     DialogFooter
 } from '@/components/ui/dialog';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useState } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Phone } from 'lucide-react';
 import { index as usersIndex } from '@/routes/users';
 
 type User = {
@@ -29,6 +21,7 @@ type User = {
     name: string;
     username?: string;
     email: string;
+    phone?: string | null;
     roles: ('Super Admin' | 'Admin' | 'Marketing' | 'Peluncur' | 'Petugas Cuci')[];
 };
 
@@ -45,6 +38,7 @@ export default function UsersIndex({ users }: Props) {
         name: '',
         username: '',
         email: '',
+        phone: '',
         password: '',
         roles: [] as string[],
     });
@@ -63,6 +57,7 @@ export default function UsersIndex({ users }: Props) {
             name: user.name,
             username: user.username || '',
             email: user.email,
+            phone: user.phone || '',
             password: '',
             roles: user.roles || [],
         });
@@ -116,7 +111,7 @@ export default function UsersIndex({ users }: Props) {
                 <div className="flex items-center justify-between">
                     <div className="flex flex-col gap-1">
                         <h1 className="text-3xl font-bold tracking-tight">Manajemen User</h1>
-                        <p className="text-muted-foreground">Kelola akun pengguna dan peran akses sistem.</p>
+                        <p className="text-muted-foreground">Kelola akun pengguna, nomor telepon/WhatsApp, dan peran akses sistem.</p>
                     </div>
                     <Button onClick={openCreateDialog} className="flex items-center gap-1">
                         <Plus className="h-4 w-4" /> Tambah User
@@ -135,6 +130,7 @@ export default function UsersIndex({ users }: Props) {
                                         <th className="px-6 py-3">Name</th>
                                         <th className="px-6 py-3">Username</th>
                                         <th className="px-6 py-3">Email</th>
+                                        <th className="px-6 py-3">No. HP / WhatsApp</th>
                                         <th className="px-6 py-3">Role</th>
                                         <th className="px-6 py-3 text-right">Actions</th>
                                     </tr>
@@ -142,7 +138,7 @@ export default function UsersIndex({ users }: Props) {
                                 <tbody className="divide-y">
                                     {users.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
+                                            <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
                                                 No users found.
                                             </td>
                                         </tr>
@@ -152,6 +148,7 @@ export default function UsersIndex({ users }: Props) {
                                                 <td className="px-6 py-4 font-medium">{user.name}</td>
                                                 <td className="px-6 py-4 font-mono text-xs font-semibold text-primary">{user.username ?? '-'}</td>
                                                 <td className="px-6 py-4">{user.email}</td>
+                                                <td className="px-6 py-4 font-mono text-xs">{user.phone || '-'}</td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-wrap gap-1">
                                                         {user.roles?.map((role) => (
@@ -227,6 +224,18 @@ export default function UsersIndex({ users }: Props) {
                                     required
                                 />
                                 {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="phone">Phone Number / No. HP (WhatsApp)</Label>
+                                <Input
+                                    id="phone"
+                                    type="text"
+                                    value={data.phone}
+                                    onChange={(e) => setData('phone', e.target.value)}
+                                    placeholder="081234567890"
+                                />
+                                {errors.phone && <p className="text-xs text-red-500">{errors.phone}</p>}
                             </div>
 
                             <div className="space-y-2">

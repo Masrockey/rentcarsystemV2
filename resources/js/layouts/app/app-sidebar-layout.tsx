@@ -6,7 +6,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import {
     LayoutGrid, CalendarDays, ClipboardList, Car, UserSquare2, CreditCard,
-    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings
+    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings, RotateCcw
 } from 'lucide-react';
 import {
     Sheet,
@@ -20,6 +20,7 @@ import { edit as editProfile } from '@/routes/profile';
 import { index as allocationsIndex } from '@/routes/allocations';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { index as rentalsIndex } from '@/routes/rentals';
+import { index as returnsIndex } from '@/routes/returns';
 import { index as carsIndex } from '@/routes/cars';
 import { index as customersIndex } from '@/routes/customers';
 import { index as paymentsIndex } from '@/routes/payments';
@@ -48,6 +49,7 @@ export default function AppSidebarLayout({
         allItems.push({ title: 'Bookings', href: bookingsIndex(), icon: CalendarDays });
         allItems.push({ title: 'Alokasi', href: allocationsIndex(), icon: KeyRound });
         allItems.push({ title: 'Serah Terima', href: rentalsIndex(), icon: ClipboardList });
+        allItems.push({ title: 'Unit Kembali', href: returnsIndex(), icon: RotateCcw });
         allItems.push({ title: 'Armada', href: carsIndex(), icon: Car });
         allItems.push({ title: 'Drivers', href: driversIndex(), icon: Truck });
         allItems.push({ title: 'Payments', href: paymentsIndex(), icon: CreditCard });
@@ -67,15 +69,21 @@ export default function AppSidebarLayout({
     } else if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
         allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
         allItems.push({ title: 'Worklist', href: bookingsIndex(), icon: CalendarDays });
+        allItems.push({ title: 'Serah Terima', href: rentalsIndex(), icon: ClipboardList });
+        allItems.push({ title: 'Unit Kembali', href: returnsIndex(), icon: RotateCcw });
         allItems.push({ title: 'Armada', href: carsIndex(), icon: Car });
     }
 
+    const getKey = (item: any) => {
+        if (typeof item.href === 'string') return item.href;
+        if (typeof item.href === 'function') return String((item.href as any)());
+        if (item.href && typeof (item.href as any).url === 'string') return (item.href as any).url;
+        return item.title;
+    };
+
     // Deduplicate items based on route URL
     const deduplicatedAllItems = Array.from(
-        new Map(allItems.map((item) => {
-            const key = typeof item.href === 'string' ? item.href : (item.href as any)?.url || String(item.href);
-            return [key, item];
-        })).values()
+        new Map(allItems.map((item) => [getKey(item), item])).values()
     );
 
     // Split bottom tabs (top 4) and leftover items inside the 'Other' menu sheet

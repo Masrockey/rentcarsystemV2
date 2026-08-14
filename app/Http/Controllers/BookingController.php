@@ -213,7 +213,7 @@ class BookingController extends Controller
     {
         $this->authorizeBookingAccess($request, $booking);
 
-        $booking->load(['customer', 'car']);
+        $booking->load(['customer', 'car', 'rental']);
 
         return Inertia::render('bookings/checklist', [
             'booking' => $booking,
@@ -227,6 +227,15 @@ class BookingController extends Controller
     {
         $this->authorizeBookingAccess($request, $booking);
 
+        if (! empty($booking->delivery_checklist)) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => 'Checklist penyerahan sudah pernah diisi dan telah dikunci.',
+            ]);
+
+            return back();
+        }
+
         $validated = $request->validate([
             'checklist' => ['required', 'array'],
             'latitude' => ['nullable', 'string'],
@@ -236,6 +245,8 @@ class BookingController extends Controller
             'fuel_out' => ['required', 'integer', 'min:0', 'max:100'],
             'fuel_range_km' => ['nullable', 'integer', 'min:0'],
             'handover_location' => ['nullable', 'string', 'max:255'],
+            'checkout_date' => ['nullable', 'string'],
+            'checkout_time' => ['nullable', 'string'],
             'checkout_datetime' => ['nullable', 'date'],
             'photos' => ['nullable', 'array'],
             'photos.*' => ['nullable'],
@@ -245,6 +256,14 @@ class BookingController extends Controller
 
         // Handle uploaded photos
         $photoPaths = [];
+        if ($request->has('photos') && is_array($request->input('photos'))) {
+            foreach ($request->input('photos') as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $photoPaths[] = $p;
+                }
+            }
+        }
+
         if (isset($checklistData['photos']) && is_array($checklistData['photos'])) {
             foreach ($checklistData['photos'] as $p) {
                 if (is_string($p) && ! empty($p)) {
@@ -263,12 +282,18 @@ class BookingController extends Controller
         }
 
         $checklistData['photos'] = array_values(array_unique($photoPaths));
+        $checklistData['km_out'] = $validated['km_out'];
+        $checklistData['fuel_out'] = $validated['fuel_out'];
+        $checklistData['fuel_range_km'] = $validated['fuel_range_km'] ?? null;
+        $checklistData['handover_location'] = $validated['handover_location'] ?? null;
+        $checklistData['checkout_date'] = $validated['checkout_date'] ?? null;
+        $checklistData['checkout_time'] = $validated['checkout_time'] ?? null;
 
         $booking->update([
             'delivery_checklist' => $checklistData,
-            'delivery_latitude' => $validated['latitude'],
-            'delivery_longitude' => $validated['longitude'],
-            'delivery_notes' => $validated['notes'],
+            'delivery_latitude' => $validated['latitude'] ?? null,
+            'delivery_longitude' => $validated['longitude'] ?? null,
+            'delivery_notes' => $validated['notes'] ?? null,
             'fuel_range_km' => $validated['fuel_range_km'] ?? null,
             'status' => 'On Trip',
         ]);
@@ -283,10 +308,11 @@ class BookingController extends Controller
 
         // Automatically create or update Rental contract record
         if ($booking->car_id && $booking->customer_id) {
+            $existingRental = Rental::where('booking_id', $booking->id)->first();
             Rental::updateOrCreate(
                 ['booking_id' => $booking->id],
                 [
-                    'contract_number' => 'KTR-'.date('Ymd').'-'.strtoupper(Str::random(6)),
+                    'contract_number' => $existingRental?->contract_number ?? ('KTR-'.date('Ymd').'-'.strtoupper(Str::random(6))),
                     'car_id' => $booking->car_id,
                     'customer_id' => $booking->customer_id,
                     'officer_id' => $booking->peluncur_id ?? $request->user()->id,
@@ -295,9 +321,9 @@ class BookingController extends Controller
                     'km_out' => $validated['km_out'],
                     'fuel_out' => $validated['fuel_out'],
                     'fuel_range_km' => $validated['fuel_range_km'] ?? null,
-                    'fine_amount' => 0,
+                    'fine_amount' => $existingRental?->fine_amount ?? 0,
                     'total_payment' => $booking->amount ?? 0,
-                    'status' => 'Active',
+                    'status' => $existingRental?->status ?? 'Active',
                 ]
             );
         }
@@ -317,12 +343,24 @@ class BookingController extends Controller
     {
         $this->authorizeBookingAccess($request, $booking);
 
+        if (! empty($booking->return_checklist)) {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => 'Checklist pengembalian sudah pernah diisi dan telah dikunci.',
+            ]);
+
+            return back();
+        }
+
         $validated = $request->validate([
             'checklist' => ['required', 'array'],
             'notes' => ['nullable', 'string'],
             'km_out' => ['nullable', 'integer', 'min:0'],
             'fuel_out' => ['nullable', 'integer', 'min:0', 'max:100'],
             'fuel_range_km' => ['nullable', 'integer', 'min:0'],
+            'handover_location' => ['nullable', 'string', 'max:255'],
+            'checkout_date' => ['nullable', 'string'],
+            'checkout_time' => ['nullable', 'string'],
             'photos' => ['nullable', 'array'],
             'photos.*' => ['nullable'],
         ]);
@@ -331,6 +369,14 @@ class BookingController extends Controller
 
         // Handle uploaded photos
         $photoPaths = [];
+        if ($request->has('photos') && is_array($request->input('photos'))) {
+            foreach ($request->input('photos') as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $photoPaths[] = $p;
+                }
+            }
+        }
+
         if (isset($checklistData['photos']) && is_array($checklistData['photos'])) {
             foreach ($checklistData['photos'] as $p) {
                 if (is_string($p) && ! empty($p)) {
@@ -349,6 +395,12 @@ class BookingController extends Controller
         }
 
         $checklistData['photos'] = array_values(array_unique($photoPaths));
+        $checklistData['km_out'] = $validated['km_out'] ?? null;
+        $checklistData['fuel_out'] = $validated['fuel_out'] ?? null;
+        $checklistData['fuel_range_km'] = $validated['fuel_range_km'] ?? null;
+        $checklistData['handover_location'] = $validated['handover_location'] ?? null;
+        $checklistData['checkout_date'] = $validated['checkout_date'] ?? null;
+        $checklistData['checkout_time'] = $validated['checkout_time'] ?? null;
 
         $booking->update([
             'return_checklist' => $checklistData,

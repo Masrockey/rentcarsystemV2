@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     LayoutGrid, CalendarDays, Car, Users, UserSquare2, BarChart3,
     Truck, CreditCard, Wrench, Shield, FileText, ClipboardList,
-    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound,
+    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -35,6 +35,7 @@ import { index as driversIndex } from '@/routes/drivers';
 import { index as insurancesIndex } from '@/routes/insurances';
 import { index as paymentsIndex } from '@/routes/payments';
 import { index as rentalsIndex } from '@/routes/rentals';
+import { index as returnsIndex } from '@/routes/returns';
 import { index as servicesIndex } from '@/routes/services';
 import { index as usersIndex } from '@/routes/users';
 import { index as vehicleTaxesIndex } from '@/routes/vehicle-taxes';
@@ -81,6 +82,7 @@ export function AppSidebar() {
         operationalItems.push({ title: 'Data Booking', href: bookingsIndex(), icon: CalendarDays });
         operationalItems.push({ title: 'Alokasi Mobil', href: allocationsIndex(), icon: KeyRound });
         operationalItems.push({ title: 'Serah Terima', href: rentalsIndex(), icon: ClipboardList });
+        operationalItems.push({ title: 'Unit Kembali', href: returnsIndex(), icon: RotateCcw });
         operationalItems.push({ title: 'Pembayaran', href: paymentsIndex(), icon: CreditCard });
 
         fleetItems.push({ title: 'Data Supir', href: driversIndex(), icon: Truck });
@@ -93,21 +95,24 @@ export function AppSidebar() {
             adminItems.push({ title: 'Manajemen User', href: usersIndex(), icon: Users });
         }
         coreItems.push({ title: 'Laporan', href: reports(), icon: BarChart3 });
-    }
-
-    if (hasRole('Marketing')) {
+    } else if (hasRole('Marketing')) {
         operationalItems.push({ title: 'Data Booking', href: bookingsIndex(), icon: CalendarDays });
         adminItems.push({ title: 'Data Pelanggan', href: customersIndex(), icon: UserSquare2 });
-    }
-
-    if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
+    } else if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
         operationalItems.push({ title: 'Daftar Tugas Saya', href: bookingsIndex(), icon: CalendarDays });
     }
+
+    const getKey = (item: NavItem) => {
+        if (typeof item.href === 'string') return item.href;
+        if (typeof item.href === 'function') return String((item.href as any)());
+        if (item.href && typeof (item.href as any).url === 'string') return (item.href as any).url;
+        return item.title;
+    };
 
     const deduplicate = (items: NavItem[]) => {
         const seen = new Set<string>();
         return items.filter((item) => {
-            const key = typeof item.href === 'string' ? item.href : (item.href as any)?.url || String(item.href);
+            const key = getKey(item);
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
