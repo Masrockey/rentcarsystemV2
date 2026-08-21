@@ -49,6 +49,11 @@ class BookingController extends Controller
                 ->values(),
             'peluncurOfficers' => User::whereJsonContains('roles', 'Peluncur')->orderBy('name')->get(),
             'washOfficers' => User::whereJsonContains('roles', 'Petugas Cuci')->orderBy('name')->get(),
+            'marketingUsers' => User::where(function ($q) {
+                $q->whereJsonContains('roles', 'Marketing')
+                    ->orWhereJsonContains('roles', 'Admin')
+                    ->orWhereJsonContains('roles', 'Super Admin');
+            })->orderBy('name')->get(),
         ]);
     }
 
@@ -58,6 +63,7 @@ class BookingController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
+            'user_id' => ['nullable', 'exists:users,id'],
             'customer_id' => ['nullable', 'exists:customers,id'],
             'new_customer_name' => ['nullable', 'string', 'max:255'],
             'new_customer_nik' => ['nullable', 'string', 'max:50'],
@@ -118,9 +124,13 @@ class BookingController extends Controller
             $customerId = $validated['customer_id'];
         }
 
+        $userId = ($request->user()->isAdmin() && ! empty($validated['user_id']))
+            ? $validated['user_id']
+            : $request->user()->id;
+
         $bookingNumber = 'BK-'.date('Ymd').'-'.strtoupper(Str::random(6));
         Booking::create([
-            'user_id' => $request->user()->id,
+            'user_id' => $userId,
             'customer_id' => $customerId,
             'car_type' => $validated['car_type'],
             'rental_type' => $validated['rental_type'] ?? 'Lepas Kunci',
@@ -172,6 +182,7 @@ class BookingController extends Controller
         $this->authorizeBookingAccess($request, $booking);
 
         $validated = $request->validate([
+            'user_id' => ['nullable', 'exists:users,id'],
             'customer_id' => ['nullable', 'exists:customers,id'],
             'car_type' => ['nullable', 'string', 'max:255'],
             'rental_type' => ['nullable', Rule::in(['Lepas Kunci', 'With Driver'])],

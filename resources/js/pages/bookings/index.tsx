@@ -100,6 +100,7 @@ type Props = {
     carTypes?: CarTypeRef[];
     peluncurOfficers: UserType[];
     washOfficers: UserType[];
+    marketingUsers?: UserType[];
 };
 
 const DEFAULT_CAR_TYPES = [
@@ -127,7 +128,8 @@ export default function BookingsIndex({
     readyDrivers = [],
     carTypes,
     peluncurOfficers,
-    washOfficers
+    washOfficers,
+    marketingUsers = [],
 }: Props) {
     const { auth } = usePage().props;
     const user = auth?.user as any;
@@ -181,6 +183,7 @@ export default function BookingsIndex({
     }));
 
     const { data: createData, setData: setCreateData, post: postCreate, reset: resetCreate, processing: processingCreate, errors: errorsCreate } = useForm({
+        user_id: '',
         customer_id: '',
         new_customer_name: '',
         new_customer_nik: '',
@@ -207,6 +210,7 @@ export default function BookingsIndex({
     });
 
     const { data: editData, setData: setEditData, put: putEdit, processing: processingEdit, errors: errorsEdit } = useForm({
+        user_id: '',
         customer_id: '',
         car_type: '',
         rental_type: 'Lepas Kunci' as 'Lepas Kunci' | 'With Driver',
@@ -234,15 +238,18 @@ export default function BookingsIndex({
         resetCreate();
         setIsNewCustomer(false);
         setIsCustomCarType(false);
-        if (customers.length > 0) {
-            setCreateData('customer_id', customers[0].id.toString());
-        }
+        setCreateData((prev) => ({
+            ...prev,
+            user_id: user?.id ? user.id.toString() : '',
+            customer_id: customers.length > 0 ? customers[0].id.toString() : '',
+        }));
         setIsCreateOpen(true);
     };
 
     const openEditDialog = (booking: Booking) => {
         setSelectedBooking(booking);
         setEditData({
+            user_id: booking.user_id ? booking.user_id.toString() : (user?.id ? user.id.toString() : ''),
             customer_id: booking.customer_id ? booking.customer_id.toString() : '',
             car_type: booking.car_type || '',
             rental_type: (booking.rental_type as any) || 'Lepas Kunci',
@@ -601,6 +608,27 @@ export default function BookingsIndex({
                             <h2 className="text-lg font-semibold">Tambah Booking Sewa</h2>
                         </DialogHeader>
                         <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
+                            {hasRole('Admin') && (
+                                <div className="space-y-1">
+                                    <Label htmlFor="create_user_id" className="text-xs font-semibold">Nama Marketing / Dibuat Oleh</Label>
+                                    <Select
+                                        value={createData.user_id || (user?.id ? user.id.toString() : '')}
+                                        onValueChange={(val) => setCreateData('user_id', val)}
+                                    >
+                                        <SelectTrigger id="create_user_id" className="h-9">
+                                            <SelectValue placeholder="Pilih Marketing / Staff..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {marketingUsers.map((m) => (
+                                                <SelectItem key={m.id} value={m.id.toString()}>
+                                                    {m.name} ({m.role || 'Staff'})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <Label htmlFor="customer_id">{isNewCustomer ? 'Customer Baru' : 'Pilih Customer'}</Label>
@@ -1108,6 +1136,27 @@ export default function BookingsIndex({
                             <DialogTitle>Edit Booking</DialogTitle>
                         </DialogHeader>
                         <form onSubmit={handleEditSubmit} className="space-y-4 py-2">
+                            {hasRole('Admin') && (
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_user_id" className="text-xs font-semibold">Nama Marketing / Dibuat Oleh</Label>
+                                    <Select
+                                        value={editData.user_id}
+                                        onValueChange={(val) => setEditData('user_id', val)}
+                                    >
+                                        <SelectTrigger id="edit_user_id" className="h-9">
+                                            <SelectValue placeholder="Pilih Marketing / Staff..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {marketingUsers.map((m) => (
+                                                <SelectItem key={m.id} value={m.id.toString()}>
+                                                    {m.name} ({m.role || 'Staff'})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
                             <div className="space-y-1">
                                 <Label htmlFor="edit_customer_id">Pelanggan</Label>
                                 <SearchableSelect
