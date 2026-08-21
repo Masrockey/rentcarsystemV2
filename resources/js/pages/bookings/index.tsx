@@ -616,12 +616,12 @@ export default function BookingsIndex({
                                         onValueChange={(val) => setCreateData('user_id', val)}
                                     >
                                         <SelectTrigger id="create_user_id" className="h-9">
-                                            <SelectValue placeholder="Pilih Marketing / Staff..." />
+                                            <SelectValue placeholder="Pilih Marketing..." />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {marketingUsers.map((m) => (
                                                 <SelectItem key={m.id} value={m.id.toString()}>
-                                                    {m.name} ({m.role || 'Staff'})
+                                                    {m.name}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -1144,12 +1144,12 @@ export default function BookingsIndex({
                                         onValueChange={(val) => setEditData('user_id', val)}
                                     >
                                         <SelectTrigger id="edit_user_id" className="h-9">
-                                            <SelectValue placeholder="Pilih Marketing / Staff..." />
+                                            <SelectValue placeholder="Pilih Marketing..." />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {marketingUsers.map((m) => (
                                                 <SelectItem key={m.id} value={m.id.toString()}>
-                                                    {m.name} ({m.role || 'Staff'})
+                                                    {m.name}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
