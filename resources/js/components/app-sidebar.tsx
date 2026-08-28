@@ -65,19 +65,21 @@ export function AppSidebar() {
     const fleetItems: NavItem[] = [];
     const adminItems: NavItem[] = [];
 
-    // Data Mobil & status checking is accessible by ALL user roles
-    fleetItems.push({
-        title: 'Data Mobil',
-        href: carsIndex(),
-        icon: Car,
-        items: [
-            { title: 'Semua Mobil', href: '/cars', icon: Car },
-            { title: 'Mobil Ready', href: '/cars?status=Ready', icon: CheckCircle2 },
-            { title: 'Mobil Sedang Disewa', href: '/cars?status=Not+Ready', icon: Play },
-            { title: 'Mobil Perlu Dicuci', href: '/cars?status=Belum+Dicuci', icon: Sparkles },
-            { title: 'Mobil Service', href: '/cars?status=Service', icon: Wrench },
-        ],
-    });
+    // Data Mobil & status checking is hidden for Marketing role
+    if (!roles.includes('Marketing') || hasRole('Admin')) {
+        fleetItems.push({
+            title: 'Data Mobil',
+            href: carsIndex(),
+            icon: Car,
+            items: [
+                { title: 'Semua Mobil', href: '/cars', icon: Car },
+                { title: 'Mobil Ready', href: '/cars?status=Ready', icon: CheckCircle2 },
+                { title: 'Mobil Sedang Disewa', href: '/cars?status=Not+Ready', icon: Play },
+                { title: 'Mobil Perlu Dicuci', href: '/cars?status=Belum+Dicuci', icon: Sparkles },
+                { title: 'Mobil Service', href: '/cars?status=Service', icon: Wrench },
+            ],
+        });
+    }
 
     if (hasRole('Admin')) {
         operationalItems.push({ title: 'Data Booking', href: bookingsIndex(), icon: CalendarDays });

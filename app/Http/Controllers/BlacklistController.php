@@ -25,6 +25,10 @@ class BlacklistController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Hanya Admin yang dapat menambah data blacklist.');
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:50'],
@@ -71,6 +75,10 @@ class BlacklistController extends Controller
 
     public function update(Request $request, Blacklist $blacklist): RedirectResponse
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Hanya Admin yang dapat mengubah data blacklist.');
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:50'],
@@ -127,8 +135,12 @@ class BlacklistController extends Controller
         return to_route('blacklists.index');
     }
 
-    public function destroy(Blacklist $blacklist): RedirectResponse
+    public function destroy(Request $request, Blacklist $blacklist): RedirectResponse
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Hanya Admin yang dapat menghapus data blacklist.');
+        }
+
         $blacklist->delete();
 
         Inertia::flash('toast', [
@@ -141,6 +153,10 @@ class BlacklistController extends Controller
 
     public function import(Request $request): RedirectResponse
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Hanya Admin yang dapat mengimpor data blacklist.');
+        }
+
         $validated = $request->validate([
             'rows' => ['required', 'array', 'min:1'],
             'rows.*.name' => ['required'],

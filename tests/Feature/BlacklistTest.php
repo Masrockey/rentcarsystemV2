@@ -94,3 +94,22 @@ test('user can bulk import blacklists from excel data rows', function () {
         'phone' => '081666667777',
     ]);
 });
+
+test('marketing role cannot create or import blacklists', function () {
+    $marketing = User::factory()->create(['roles' => ['Marketing']]);
+
+    $response = $this->actingAs($marketing)->post(route('blacklists.store'), [
+        'name' => 'Bad Consumer',
+        'phone' => '0811111111',
+    ]);
+
+    $response->assertForbidden();
+
+    $importResponse = $this->actingAs($marketing)->post(route('blacklists.import'), [
+        'rows' => [
+            ['name' => 'Bad Consumer', 'phone' => '0811111111'],
+        ],
+    ]);
+
+    $importResponse->assertForbidden();
+});

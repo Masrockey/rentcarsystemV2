@@ -66,8 +66,8 @@ export default function AppSidebarLayout({
     } else if (hasRole('Marketing')) {
         allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
         allItems.push({ title: 'Bookings', href: bookingsIndex(), icon: CalendarDays });
-        allItems.push({ title: 'Armada', href: carsIndex(), icon: Car });
         allItems.push({ title: 'Customers', href: customersIndex(), icon: UserSquare2 });
+        allItems.push({ title: 'Blacklist', href: blacklistsIndex(), icon: ShieldAlert });
     } else if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
         allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
         allItems.push({ title: 'Worklist', href: bookingsIndex(), icon: CalendarDays });

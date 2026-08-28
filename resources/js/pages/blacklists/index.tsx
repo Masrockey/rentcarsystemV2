@@ -1,4 +1,4 @@
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +44,11 @@ type Props = {
 };
 
 export default function BlacklistsIndex({ blacklists }: Props) {
+    const { auth } = usePage().props;
+    const user = auth?.user as any;
+    const roles: string[] = user?.roles || [];
+    const isAdmin = roles.includes('Admin') || roles.includes('Super Admin');
+
     const [searchQuery, setSearchQuery] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingBlacklist, setEditingBlacklist] = useState<Blacklist | null>(null);
@@ -315,29 +320,31 @@ export default function BlacklistsIndex({ blacklists }: Props) {
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {/* Hidden File Input for Excel */}
-                        <input
-                            type="file"
-                            id="excel_import_input"
-                            accept=".xlsx, .xls, .csv"
-                            onChange={handleExcelFileSelect}
-                            className="hidden"
-                        />
+                    {isAdmin && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {/* Hidden File Input for Excel */}
+                            <input
+                                type="file"
+                                id="excel_import_input"
+                                accept=".xlsx, .xls, .csv"
+                                onChange={handleExcelFileSelect}
+                                className="hidden"
+                            />
 
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => document.getElementById('excel_import_input')?.click()}
-                            className="border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold flex items-center gap-1.5"
-                        >
-                            <FileSpreadsheet className="h-4 w-4" /> Import Excel (.xlsx)
-                        </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => document.getElementById('excel_import_input')?.click()}
+                                className="border-emerald-600 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold flex items-center gap-1.5"
+                            >
+                                <FileSpreadsheet className="h-4 w-4" /> Import Excel (.xlsx)
+                            </Button>
 
-                        <Button onClick={openCreate} className="bg-red-600 hover:bg-red-700 text-white font-bold flex items-center gap-1.5 shadow-sm">
-                            <Plus className="h-4 w-4" /> Tambah Blacklist
-                        </Button>
-                    </div>
+                            <Button onClick={openCreate} className="bg-red-600 hover:bg-red-700 text-white font-bold flex items-center gap-1.5 shadow-sm">
+                                <Plus className="h-4 w-4" /> Tambah Blacklist
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Metric Summary Cards */}
@@ -430,13 +437,13 @@ export default function BlacklistsIndex({ blacklists }: Props) {
                                         <th className="px-4 py-3">BLACKLIST DARI</th>
                                         <th className="px-4 py-3">TGL LAPOR</th>
                                         <th className="px-4 py-3">FOTO EVIDANCE</th>
-                                        <th className="px-4 py-3 text-right">AKSI</th>
+                                        {isAdmin && <th className="px-4 py-3 text-right">AKSI</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {filteredBlacklists.length === 0 ? (
                                         <tr>
-                                            <td colSpan={10} className="text-center py-10 text-muted-foreground">
+                                            <td colSpan={isAdmin ? 10 : 9} className="text-center py-10 text-muted-foreground">
                                                 Tidak ada data konsumen blacklist yang ditemukan.
                                             </td>
                                         </tr>
@@ -500,23 +507,25 @@ export default function BlacklistsIndex({ blacklists }: Props) {
                                                             <span className="text-xs text-muted-foreground italic">Tidak Ada Foto</span>
                                                         )}
                                                     </td>
-                                                    <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => openEdit(item)}
-                                                        >
-                                                            <Edit className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="text-red-500 hover:text-red-600"
-                                                            onClick={() => setDeleteId(item.id)}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </td>
+                                                    {isAdmin && (
+                                                        <td className="px-4 py-3 text-right space-x-1 whitespace-nowrap">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => openEdit(item)}
+                                                            >
+                                                                <Edit className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="text-red-500 hover:text-red-600"
+                                                                onClick={() => setDeleteId(item.id)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </td>
+                                                    )}
                                                 </tr>
                                             );
                                         })

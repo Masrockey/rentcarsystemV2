@@ -16,6 +16,10 @@ class CarController extends Controller
      */
     public function index(Request $request): Response
     {
+        if ($request->user()->hasRole('Marketing') && ! $request->user()->isAdmin()) {
+            abort(403, 'Akses ditolak. Role Marketing tidak memiliki akses ke Data Armada.');
+        }
+
         $allCars = Car::orderBy('brand')->orderBy('name')->get();
 
         $selectedStatus = $request->query('status', 'all');
