@@ -39,11 +39,13 @@ createInertiaApp({
 // This will set light / dark mode on load...
 initializeTheme();
 
-// Unregister any stale Service Workers registered on localhost origin
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-        for (const registration of registrations) {
-            registration.unregister();
-        }
+// Register the PWA worker only for production builds.
+if (
+    import.meta.env.PROD &&
+    typeof window !== 'undefined' &&
+    'serviceWorker' in navigator
+) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js');
     });
 }
