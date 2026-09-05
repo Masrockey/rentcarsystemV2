@@ -247,3 +247,20 @@ test('creating or updating payment automatically syncs booking payment status', 
     expect($booking->payment_status)->toBe('Paid');
     expect($booking->payment_method)->toBe('Transfer');
 });
+
+test('admin can access allocations page and view data with blacklists', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $this->actingAs($admin);
+
+    $response = $this->get(route('allocations.index'));
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page->has('blacklists'));
+});
+
+test('admin and peluncur can access rentals page and view data', function () {
+    $peluncur = User::factory()->create(['roles' => ['Peluncur']]);
+    $this->actingAs($peluncur);
+
+    $response = $this->get(route('rentals.index'));
+    $response->assertOk();
+});

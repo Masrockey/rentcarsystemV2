@@ -233,6 +233,22 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
         );
     };
 
+    const formatShortDate = (dStr?: string | null) => {
+        if (!dStr) return '-';
+        return dStr.includes('T') ? dStr.split('T')[0] : dStr.substring(0, 10);
+    };
+
+    const formatShortTime = (tStr?: string | null) => {
+        if (!tStr) return '';
+        if (tStr.includes(':')) {
+            const parts = tStr.split(':');
+            if (parts.length >= 2) {
+                return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+            }
+        }
+        return tStr.substring(0, 5);
+    };
+
     const filteredMarketingCars = useMemo(() => {
         const list = stats.marketing?.cars_status || [];
         return list.filter((car: any) => {
@@ -841,7 +857,7 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                                 </div>
                                                 <div className="text-xs text-muted-foreground space-y-0.5">
                                                     <div>Plat Nomor: <span className="font-mono font-medium text-foreground">{car.plate_number}</span> ({car.color})</div>
-                                                    <div>Tipe: {car.type || car.brand || '-'} • Tarif: {formatCurrency(car.daily_price)}/hari</div>
+                                                    <div>Tipe: {car.type || car.brand || '-'}</div>
                                                 </div>
                                                 {car.active_booking && (
                                                     <div className="mt-1 p-2 rounded-md bg-muted/50 text-xs space-y-0.5 border">
@@ -852,8 +868,8 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                                             </Badge>
                                                         </div>
                                                         <div className="text-muted-foreground">
-                                                            Jadwal: {car.active_booking.booking_date} s/d {car.active_booking.return_date}
-                                                            {car.active_booking.pickup_time ? ` (${car.active_booking.pickup_time})` : ''}
+                                                            Jadwal: {formatShortDate(car.active_booking.booking_date)} s/d {formatShortDate(car.active_booking.return_date)}
+                                                            {car.active_booking.pickup_time ? ` (${formatShortTime(car.active_booking.pickup_time)})` : ''}
                                                         </div>
                                                     </div>
                                                 )}
@@ -877,14 +893,13 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                                 <th className="px-4 py-3">Armada Mobil</th>
                                                 <th className="px-4 py-3">Status Booking Mobil</th>
                                                 <th className="px-4 py-3">Penyewa & Jadwal Sewa</th>
-                                                <th className="px-4 py-3">Tarif / Hari</th>
                                                 <th className="px-4 py-3 text-right">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
                                             {filteredMarketingCars.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                                                    <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
                                                         Tidak ada data mobil dengan jadwal booking aktif saat ini.
                                                     </td>
                                                 </tr>
@@ -910,16 +925,13 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                                                         </Badge>
                                                                     </div>
                                                                     <div className="text-xs text-muted-foreground">
-                                                                        {car.active_booking.booking_date} s/d {car.active_booking.return_date}
-                                                                        {car.active_booking.pickup_time ? ` (${car.active_booking.pickup_time})` : ''}
+                                                                        {formatShortDate(car.active_booking.booking_date)} s/d {formatShortDate(car.active_booking.return_date)}
+                                                                        {car.active_booking.pickup_time ? ` (${formatShortTime(car.active_booking.pickup_time)})` : ''}
                                                                     </div>
                                                                 </div>
                                                             ) : (
                                                                 <span className="text-xs text-muted-foreground">-</span>
                                                             )}
-                                                        </td>
-                                                        <td className="px-4 py-3 font-medium">
-                                                            {formatCurrency(car.daily_price)}
                                                         </td>
                                                         <td className="px-4 py-3 text-right">
                                                             <Link href={bookingsIndex().url}>

@@ -1,24 +1,36 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useState } from 'react';
-import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight } from 'lucide-react';
 import { index as allocationsIndex } from '@/routes/allocations';
 
 type CarRef = { id: number; name: string; plate_number: string; daily_price?: string };
 type DriverRef = { id: number; name: string; phone?: string | null; daily_rate?: string };
 type UserRef = { id: number; name: string };
-type CustomerRef = { id: number; name: string; phone?: string | null };
+type CustomerRef = { id: number; name: string; phone?: string | null; nik?: string | null; address?: string | null; email?: string | null };
+
+type BlacklistRef = {
+    id: number;
+    name: string;
+    phone?: string | null;
+    nik?: string | null;
+    address?: string | null;
+    incident_date?: string | null;
+    perpetrator_info?: string | null;
+    blacklisted_by?: string | null;
+    report_date?: string | null;
+};
 
 type Booking = {
     id: number;
@@ -56,6 +68,7 @@ type Props = {
     washOfficers: UserRef[];
     unallocatedCount: number;
     allocatedCount: number;
+    blacklists?: BlacklistRef[];
 };
 
 export default function AllocationsIndex({
@@ -66,11 +79,108 @@ export default function AllocationsIndex({
     washOfficers,
     unallocatedCount,
     allocatedCount,
+    blacklists = [],
 }: Props) {
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | 'unallocated' | 'allocated'>('all');
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [isAllocateOpen, setIsAllocateOpen] = useState(false);
+
+    // Blacklist Checking States
+    const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
+    const [checkingBooking, setCheckingBooking] = useState<Booking | null>(null);
+    const [checkStage, setCheckStage] = useState<'checking' | 'blacklisted' | 'clean'>('checking');
+    const [matchedBlacklist, setMatchedBlacklist] = useState<BlacklistRef | null>(null);
+
+    // Date Filters
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [dateFilterField, setDateFilterField] = useState<'booking_date' | 'return_date' | 'active_period'>('booking_date');
+
+    const formatLocalDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const getTodayStr = () => formatLocalDate(new Date());
+
+    const getTomorrowStr = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        return formatLocalDate(d);
+    };
+
+    const getThisWeekRange = () => {
+        const now = new Date();
+        const day = now.getDay();
+        const diff = now.getDate() - (day === 0 ? 6 : day - 1);
+        const monday = new Date(now.setDate(diff));
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        return {
+            start: formatLocalDate(monday),
+            end: formatLocalDate(sunday),
+        };
+    };
+
+    const getThisMonthRange = () => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return {
+            start: formatLocalDate(start),
+            end: formatLocalDate(end),
+        };
+    };
+
+    const handleFilterAll = () => {
+        setStartDate('');
+        setEndDate('');
+    };
+
+    const handleFilterToday = () => {
+        const today = getTodayStr();
+        setStartDate(today);
+        setEndDate(today);
+    };
+
+    const handleFilterTomorrow = () => {
+        const tomorrow = getTomorrowStr();
+        setStartDate(tomorrow);
+        setEndDate(tomorrow);
+    };
+
+    const handleFilterThisWeek = () => {
+        const range = getThisWeekRange();
+        setStartDate(range.start);
+        setEndDate(range.end);
+    };
+
+    const handleFilterThisMonth = () => {
+        const range = getThisMonthRange();
+        setStartDate(range.start);
+        setEndDate(range.end);
+    };
+
+    const handleResetAllFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setDateFilterField('booking_date');
+        setActiveFilter('all');
+        setSearchQuery('');
+    };
+
+    const todayStr = getTodayStr();
+    const tomorrowStr = getTomorrowStr();
+    const thisWeek = getThisWeekRange();
+    const thisMonth = getThisMonthRange();
+
+    const isTodayActive = startDate === todayStr && endDate === todayStr;
+    const isTomorrowActive = startDate === tomorrowStr && endDate === tomorrowStr;
+    const isThisWeekActive = startDate === thisWeek.start && endDate === thisWeek.end;
+    const isThisMonthActive = startDate === thisMonth.start && endDate === thisMonth.end;
 
     const { data: assignData, setData: setAssignData, put: putAssign, processing: processingAssign } = useForm({
         car_id: '',
@@ -92,6 +202,60 @@ export default function AllocationsIndex({
         setIsAllocateOpen(true);
     };
 
+    const handleStartAllocation = (booking: Booking) => {
+        setCheckingBooking(booking);
+        setCheckStage('checking');
+        setMatchedBlacklist(null);
+        setIsCheckModalOpen(true);
+
+        // Perform checking with slight simulated scan delay for clear visual feedback
+        setTimeout(() => {
+            const cust = booking.customer;
+            if (!cust) {
+                setCheckStage('clean');
+                return;
+            }
+
+            const cleanPhone = (p?: string | null) => (p || '').replace(/\D/g, '').replace(/^0/, '').replace(/^62/, '');
+            const custPhone = cleanPhone(cust.phone);
+            const custNik = (cust.nik || '').trim().toLowerCase();
+            const custName = (cust.name || '').trim().toLowerCase();
+
+            const found = blacklists.find((bl) => {
+                const blPhone = cleanPhone(bl.phone);
+                const blNik = (bl.nik || '').trim().toLowerCase();
+                const blName = (bl.name || '').trim().toLowerCase();
+
+                if (custNik && blNik && custNik === blNik) return true;
+                if (custPhone && blPhone && custPhone.length >= 6 && blPhone.length >= 6 && (custPhone === blPhone || custPhone.endsWith(blPhone) || blPhone.endsWith(custPhone))) return true;
+                if (custName && blName && (custName === blName || custName.includes(blName) || blName.includes(custName))) return true;
+
+                return false;
+            });
+
+            if (found) {
+                setMatchedBlacklist(found);
+                setCheckStage('blacklisted');
+            } else {
+                setMatchedBlacklist(null);
+                setCheckStage('clean');
+            }
+        }, 600);
+    };
+
+    const handleProceedFromCheck = () => {
+        if (!checkingBooking) return;
+        setIsCheckModalOpen(false);
+        openAllocateDialog(checkingBooking);
+    };
+
+    const handleReviseBooking = () => {
+        if (!checkingBooking) return;
+        setIsCheckModalOpen(false);
+        const searchParam = encodeURIComponent(checkingBooking.booking_number || checkingBooking.customer?.name || '');
+        router.visit(`/bookings?search=${searchParam}`);
+    };
+
     const handleAssignSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedBooking) return;
@@ -106,18 +270,89 @@ export default function AllocationsIndex({
     const formatCurrency = (val: string | number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(val));
 
-    const filteredBookings = bookings.filter((b) => {
-        const matchesSearch =
-            (b.customer?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (b.booking_number ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-            b.car_type.toLowerCase().includes(searchQuery.toLowerCase());
+    // Dynamic counts based on active date range
+    const currentUnallocatedCount = useMemo(() => {
+        return bookings.filter((b) => {
+            if (startDate || endDate) {
+                const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
+                const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
+                if (dateFilterField === 'booking_date') {
+                    if (!bStartDate || (startDate && bStartDate < startDate) || (endDate && bStartDate > endDate)) return false;
+                } else if (dateFilterField === 'return_date') {
+                    if (!bReturnDate || (startDate && bReturnDate < startDate) || (endDate && bReturnDate > endDate)) return false;
+                } else if (dateFilterField === 'active_period') {
+                    const rangeStart = startDate || endDate;
+                    const rangeEnd = endDate || startDate;
+                    const bookingEnd = bReturnDate || bStartDate;
+                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) return false;
+                }
+            }
+            return b.car_id === null;
+        }).length;
+    }, [bookings, startDate, endDate, dateFilterField]);
 
-        if (!matchesSearch) return false;
+    const currentAllocatedCount = useMemo(() => {
+        return bookings.filter((b) => {
+            if (startDate || endDate) {
+                const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
+                const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
+                if (dateFilterField === 'booking_date') {
+                    if (!bStartDate || (startDate && bStartDate < startDate) || (endDate && bStartDate > endDate)) return false;
+                } else if (dateFilterField === 'return_date') {
+                    if (!bReturnDate || (startDate && bReturnDate < startDate) || (endDate && bReturnDate > endDate)) return false;
+                } else if (dateFilterField === 'active_period') {
+                    const rangeStart = startDate || endDate;
+                    const rangeEnd = endDate || startDate;
+                    const bookingEnd = bReturnDate || bStartDate;
+                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) return false;
+                }
+            }
+            return b.car_id !== null;
+        }).length;
+    }, [bookings, startDate, endDate, dateFilterField]);
 
-        if (activeFilter === 'unallocated') return b.car_id === null;
-        if (activeFilter === 'allocated') return b.car_id !== null;
-        return true;
-    });
+    const currentTotalCount = currentUnallocatedCount + currentAllocatedCount;
+
+    const filteredBookings = useMemo(() => {
+        return bookings.filter((b) => {
+            const matchesSearch =
+                (b.customer?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (b.booking_number ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (b.car_type ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (b.car?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (b.car?.plate_number ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (b.peluncur?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+
+            if (!matchesSearch) return false;
+
+            if (activeFilter === 'unallocated' && b.car_id !== null) return false;
+            if (activeFilter === 'allocated' && b.car_id === null) return false;
+
+            if (startDate || endDate) {
+                const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
+                const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
+
+                if (dateFilterField === 'booking_date') {
+                    if (!bStartDate) return false;
+                    if (startDate && bStartDate < startDate) return false;
+                    if (endDate && bStartDate > endDate) return false;
+                } else if (dateFilterField === 'return_date') {
+                    if (!bReturnDate) return false;
+                    if (startDate && bReturnDate < startDate) return false;
+                    if (endDate && bReturnDate > endDate) return false;
+                } else if (dateFilterField === 'active_period') {
+                    const rangeStart = startDate || endDate;
+                    const rangeEnd = endDate || startDate;
+                    const bookingEnd = bReturnDate || bStartDate;
+                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        });
+    }, [bookings, searchQuery, activeFilter, startDate, endDate, dateFilterField]);
 
     return (
         <>
@@ -141,8 +376,10 @@ export default function AllocationsIndex({
                             <Car className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold">{bookings.length}</div>
-                            <p className="text-xs text-muted-foreground mt-1">Keseluruhan pesanan sewa</p>
+                            <div className="text-2xl font-bold">{currentTotalCount}</div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {startDate || endDate ? 'Pesanan pada periode filter' : 'Keseluruhan pesanan sewa'}
+                            </p>
                         </CardContent>
                     </Card>
 
@@ -155,7 +392,7 @@ export default function AllocationsIndex({
                             <AlertTriangle className="h-4 w-4 text-red-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{unallocatedCount}</div>
+                            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{currentUnallocatedCount}</div>
                             <p className="text-xs text-red-500/80 dark:text-red-400/80 mt-1">Booking membutuhkan unit mobil</p>
                         </CardContent>
                     </Card>
@@ -169,7 +406,7 @@ export default function AllocationsIndex({
                             <CheckCircle2 className="h-4 w-4 text-green-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{allocatedCount}</div>
+                            <div className="text-2xl font-bold text-green-600 dark:text-green-400">{currentAllocatedCount}</div>
                             <p className="text-xs text-green-500/80 dark:text-green-400/80 mt-1">Armada telah ditentukan</p>
                         </CardContent>
                     </Card>
@@ -189,7 +426,7 @@ export default function AllocationsIndex({
                                     className="h-7 text-xs px-2.5"
                                     onClick={() => setActiveFilter('all')}
                                 >
-                                    Semua ({bookings.length})
+                                    Semua ({currentTotalCount})
                                 </Button>
                                 <Button
                                     variant={activeFilter === 'unallocated' ? 'destructive' : 'ghost'}
@@ -197,7 +434,7 @@ export default function AllocationsIndex({
                                     className="h-7 text-xs px-2.5"
                                     onClick={() => setActiveFilter('unallocated')}
                                 >
-                                    ⚠️ Belum Dialokasi ({unallocatedCount})
+                                    ⚠️ Belum Dialokasi ({currentUnallocatedCount})
                                 </Button>
                                 <Button
                                     variant={activeFilter === 'allocated' ? 'default' : 'ghost'}
@@ -205,7 +442,7 @@ export default function AllocationsIndex({
                                     className={`h-7 text-xs px-2.5 ${activeFilter === 'allocated' ? 'bg-green-600 hover:bg-green-700' : ''}`}
                                     onClick={() => setActiveFilter('allocated')}
                                 >
-                                    ✓ Dialokasi ({allocatedCount})
+                                    ✓ Dialokasi ({currentAllocatedCount})
                                 </Button>
                             </div>
                             <div className="relative w-full sm:w-64">
@@ -221,6 +458,124 @@ export default function AllocationsIndex({
                         </div>
                     </CardHeader>
                     <CardContent>
+                        {/* Filter Tanggal Bar */}
+                        <div className="mb-5 p-3.5 rounded-lg border bg-muted/30 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-primary" />
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Filter Berdasarkan Tanggal</span>
+                                    {(startDate || endDate || activeFilter !== 'all') && (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                                            {filteredBookings.length} data ditemukan
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                {/* Quick Filter Presets */}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <Button
+                                        type="button"
+                                        variant={!startDate && !endDate ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterAll}
+                                    >
+                                        Semua
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={isTodayActive ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterToday}
+                                    >
+                                        Hari Ini
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={isTomorrowActive ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterTomorrow}
+                                    >
+                                        Besok
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={isThisWeekActive ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterThisWeek}
+                                    >
+                                        Minggu Ini
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={isThisMonthActive ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterThisMonth}
+                                    >
+                                        Bulan Ini
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 gap-3 pt-1">
+                                <div className="space-y-1">
+                                    <Label htmlFor="dateFilterField" className="text-[11px] text-muted-foreground font-medium">Tipe Tanggal</Label>
+                                    <Select
+                                        value={dateFilterField}
+                                        onValueChange={(val: any) => setDateFilterField(val)}
+                                    >
+                                        <SelectTrigger id="dateFilterField" className="h-8 text-xs bg-background">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="booking_date">Tanggal Sewa (Mulai)</SelectItem>
+                                            <SelectItem value="return_date">Tanggal Balik (Selesai)</SelectItem>
+                                            <SelectItem value="active_period">Periode Aktif Sewa</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label htmlFor="filter_start_date" className="text-[11px] text-muted-foreground font-medium">Dari Tanggal</Label>
+                                    <Input
+                                        id="filter_start_date"
+                                        type="date"
+                                        className="h-8 text-xs bg-background"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label htmlFor="filter_end_date" className="text-[11px] text-muted-foreground font-medium">Sampai Tanggal</Label>
+                                    <div className="flex items-center gap-1.5">
+                                        <Input
+                                            id="filter_end_date"
+                                            type="date"
+                                            className="h-8 text-xs bg-background"
+                                            value={endDate}
+                                            onChange={(e) => setEndDate(e.target.value)}
+                                        />
+                                        {(startDate || endDate || activeFilter !== 'all' || searchQuery) && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+                                                title="Reset Filter"
+                                                onClick={handleResetAllFilters}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         {/* Mobile Cards View */}
                         <div className="space-y-3 md:hidden">
                             {filteredBookings.length === 0 ? (
@@ -262,7 +617,7 @@ export default function AllocationsIndex({
                                             <div className="flex justify-end pt-2 border-t mt-1">
                                                 <Button
                                                     size="sm"
-                                                    onClick={() => openAllocateDialog(b)}
+                                                    onClick={() => handleStartAllocation(b)}
                                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold"
                                                 >
                                                     <Settings className="h-3.5 w-3.5" /> Alokasi Mobil & Staf
@@ -345,7 +700,7 @@ export default function AllocationsIndex({
                                                     {!b.car_id && (
                                                         <Button
                                                             size="sm"
-                                                            onClick={() => openAllocateDialog(b)}
+                                                            onClick={() => handleStartAllocation(b)}
                                                             className="font-semibold text-xs flex items-center gap-1.5 ml-auto"
                                                         >
                                                             <Settings className="h-3.5 w-3.5" /> Alokasi
@@ -360,6 +715,165 @@ export default function AllocationsIndex({
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* BLACKLIST CHECKING POPUP MODAL */}
+                <Dialog open={isCheckModalOpen} onOpenChange={setIsCheckModalOpen}>
+                    <DialogContent className={`max-w-lg transition-all duration-300 ${checkStage === 'blacklisted' ? 'border-2 border-red-500 bg-red-50/95 dark:bg-red-950/90 text-red-950 dark:text-red-100 shadow-2xl' : ''}`}>
+                        {checkStage === 'checking' && (
+                            <div className="py-8 px-2 flex flex-col items-center justify-center text-center space-y-4">
+                                <div className="relative">
+                                    <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+                                        <ShieldCheck className="h-8 w-8 text-primary animate-bounce" />
+                                    </div>
+                                    <Loader2 className="h-20 w-20 text-primary absolute -top-2 -left-2 animate-spin opacity-40" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <DialogTitle className="text-lg font-bold">Memeriksa Data Blacklist...</DialogTitle>
+                                    <DialogDescription className="text-xs text-muted-foreground">
+                                        Mengecek rekam jejak konsumen <span className="font-semibold text-foreground">{checkingBooking?.customer?.name}</span> di database blacklist rental mobil.
+                                    </DialogDescription>
+                                </div>
+                                <div className="text-[11px] font-mono bg-muted/60 px-3 py-1.5 rounded-md border text-muted-foreground">
+                                    No. Booking: {checkingBooking?.booking_number ?? '-'} • NIK: {checkingBooking?.customer?.nik ?? '-'}
+                                </div>
+                            </div>
+                        )}
+
+                        {checkStage === 'blacklisted' && (
+                            <div className="space-y-4 py-1">
+                                <DialogHeader className="text-left space-y-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-12 w-12 rounded-full bg-red-500/20 flex items-center justify-center shrink-0 border border-red-500/40 animate-pulse">
+                                            <ShieldAlert className="h-7 w-7 text-red-600 dark:text-red-400" />
+                                        </div>
+                                        <div>
+                                            <DialogTitle className="text-lg font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+                                                PERINGATAN: KONSUMEN MASUK BLACKLIST!
+                                            </DialogTitle>
+                                            <DialogDescription className="text-xs text-red-700/80 dark:text-red-300/80 font-medium">
+                                                Konsumen ini terdeteksi memiliki rekam jejak bermasalah pada rental mobil.
+                                            </DialogDescription>
+                                        </div>
+                                    </div>
+                                </DialogHeader>
+
+                                {/* Blacklist Information Box */}
+                                <div className="rounded-xl border-2 border-red-500/40 bg-background/90 dark:bg-background/80 p-4 text-xs space-y-2.5 shadow-xs">
+                                    <div className="flex items-center justify-between border-b pb-2">
+                                        <span className="text-muted-foreground font-medium">Nama Konsumen (Booking):</span>
+                                        <span className="font-bold text-sm text-foreground">{checkingBooking?.customer?.name}</span>
+                                    </div>
+
+                                    <div className="flex items-center justify-between border-b pb-2">
+                                        <span className="text-muted-foreground font-medium">Nama di Database Blacklist:</span>
+                                        <span className="font-bold text-red-600 dark:text-red-400">{matchedBlacklist?.name}</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 border-b pb-2 text-[11px]">
+                                        <div>
+                                            <span className="text-muted-foreground block">No. HP / Kontak:</span>
+                                            <span className="font-mono font-semibold text-foreground">{matchedBlacklist?.phone || checkingBooking?.customer?.phone || '-'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block">No. NIK KTP:</span>
+                                            <span className="font-mono font-semibold text-foreground">{matchedBlacklist?.nik || checkingBooking?.customer?.nik || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 border-b pb-2 text-[11px]">
+                                        <div>
+                                            <span className="text-muted-foreground block">Sumber / Pelapor:</span>
+                                            <span className="font-semibold text-foreground">{matchedBlacklist?.blacklisted_by || 'Asosiasi Rental'}</span>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground block">Tanggal Kejadian:</span>
+                                            <span className="font-semibold text-foreground">{matchedBlacklist?.incident_date || matchedBlacklist?.report_date || '-'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <span className="text-muted-foreground block font-medium mb-1">Kronologi / Catatan Pelanggaran:</span>
+                                        <div className="p-2.5 rounded-md bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300 text-xs font-semibold leading-relaxed">
+                                            {matchedBlacklist?.perpetrator_info || 'Pelanggaran sewa / unit bermasalah / tunggakan'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="text-[11px] text-red-700/90 dark:text-red-300/90 bg-red-500/10 p-2.5 rounded-lg border border-red-500/20">
+                                    ⚠️ Harap berhati-hati sebelum menyerahkan unit armada. Anda dapat merevisi booking atau tetap melanjutkan alokasi jika sudah ada konfirmasi/jaminan khusus.
+                                </div>
+
+                                <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handleReviseBooking}
+                                        className="w-full sm:w-auto border-red-300 text-red-700 hover:bg-red-100 hover:text-red-800 dark:border-red-800 dark:text-red-300 flex items-center justify-center gap-1.5"
+                                    >
+                                        <ExternalLink className="h-4 w-4" /> Revisi Booking
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={handleProceedFromCheck}
+                                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center justify-center gap-1.5"
+                                    >
+                                        Lanjut Alokasi <ArrowRight className="h-4 w-4" />
+                                    </Button>
+                                </DialogFooter>
+                            </div>
+                        )}
+
+                        {checkStage === 'clean' && (
+                            <div className="space-y-4 py-1">
+                                <DialogHeader className="text-left space-y-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center shrink-0 border border-green-500/40">
+                                            <CheckCircle2 className="h-7 w-7 text-green-600 dark:text-green-400" />
+                                        </div>
+                                        <div>
+                                            <DialogTitle className="text-lg font-bold text-green-600 dark:text-green-400">
+                                                Konsumen Aman (Tidak Blacklist)
+                                            </DialogTitle>
+                                            <DialogDescription className="text-xs text-muted-foreground">
+                                                Pemeriksaan selesai. Data konsumen bersih dari catatan blacklist rental.
+                                            </DialogDescription>
+                                        </div>
+                                    </div>
+                                </DialogHeader>
+
+                                <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-3.5 text-xs space-y-1.5">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Nama Konsumen:</span>
+                                        <span className="font-semibold text-foreground">{checkingBooking?.customer?.name}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Tipe Mobil Dipesan:</span>
+                                        <span className="font-semibold text-foreground">{checkingBooking?.car_type} ({checkingBooking?.rental_type ?? 'Lepas Kunci'})</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Status Pengecekan:</span>
+                                        <Badge variant="outline" className="text-[10px] bg-green-500/15 text-green-600 border-green-500/30 font-bold">
+                                            ✓ CLEAR / AMAN
+                                        </Badge>
+                                    </div>
+                                </div>
+
+                                <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+                                    <Button type="button" variant="outline" onClick={() => setIsCheckModalOpen(false)}>
+                                        Batal
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={handleProceedFromCheck}
+                                        className="bg-green-600 hover:bg-green-700 text-white font-semibold flex items-center justify-center gap-1.5"
+                                    >
+                                        Lanjut Alokasi <ArrowRight className="h-4 w-4" />
+                                    </Button>
+                                </DialogFooter>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
 
                 {/* ALLOCATION DIALOG MODAL */}
                 <Dialog open={isAllocateOpen} onOpenChange={setIsAllocateOpen}>

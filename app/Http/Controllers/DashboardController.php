@@ -7,6 +7,7 @@ use App\Models\Car;
 use App\Models\Customer;
 use App\Models\Service;
 use App\Models\VehicleTax;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -123,10 +124,10 @@ class DashboardController extends Controller
                     'id' => $activeBooking->id,
                     'booking_number' => $activeBooking->booking_number,
                     'customer_name' => $activeBooking->customer?->name,
-                    'booking_date' => $activeBooking->booking_date,
-                    'return_date' => $activeBooking->return_date,
-                    'pickup_time' => $activeBooking->pickup_time,
-                    'return_time' => $activeBooking->return_time,
+                    'booking_date' => $activeBooking->booking_date instanceof CarbonInterface ? $activeBooking->booking_date->format('Y-m-d') : ($activeBooking->booking_date ? substr((string) $activeBooking->booking_date, 0, 10) : null),
+                    'return_date' => $activeBooking->return_date instanceof CarbonInterface ? $activeBooking->return_date->format('Y-m-d') : ($activeBooking->return_date ? substr((string) $activeBooking->return_date, 0, 10) : null),
+                    'pickup_time' => $activeBooking->pickup_time ? substr((string) $activeBooking->pickup_time, 0, 5) : null,
+                    'return_time' => $activeBooking->return_time ? substr((string) $activeBooking->return_time, 0, 5) : null,
                     'status' => $activeBooking->status,
                 ] : null,
             ];

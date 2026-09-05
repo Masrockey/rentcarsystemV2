@@ -111,7 +111,7 @@ class RentalController extends Controller
         }
 
         if ($rental->status === 'Returned') {
-            $rental->car->update(['status' => 'Belum Dicuci']);
+            $rental->car->update(['status' => 'Ready']);
             $rental->booking->update(['status' => 'Returned']);
         } elseif ($rental->status === 'Cancelled') {
             $rental->car->update(['status' => 'Ready']);

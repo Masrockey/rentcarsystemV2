@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useState } from 'react';
-import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User, Calendar, Search, X, Filter } from 'lucide-react';
 import { index as rentalsIndex } from '@/routes/rentals';
 
 type CarOption = { id: number; name: string; plate_number: string };
@@ -78,6 +78,180 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
     const [washBookingId, setWashBookingId] = useState<number | null>(null);
     const [editingRental, setEditingRental] = useState<Rental | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
+
+    // Filters
+    const [searchQuery, setSearchQuery] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [dateFilterField, setDateFilterField] = useState<'checkout_date' | 'checkin_date' | 'active_period'>('checkout_date');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
+
+    const formatLocalDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const getTodayStr = () => formatLocalDate(new Date());
+
+    const getTomorrowStr = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        return formatLocalDate(d);
+    };
+
+    const getThisWeekRange = () => {
+        const now = new Date();
+        const day = now.getDay();
+        const diff = now.getDate() - (day === 0 ? 6 : day - 1);
+        const monday = new Date(now.setDate(diff));
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        return {
+            start: formatLocalDate(monday),
+            end: formatLocalDate(sunday),
+        };
+    };
+
+    const getThisMonthRange = () => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return {
+            start: formatLocalDate(start),
+            end: formatLocalDate(end),
+        };
+    };
+
+    const handleFilterAll = () => {
+        setStartDate('');
+        setEndDate('');
+    };
+
+    const handleFilterToday = () => {
+        const today = getTodayStr();
+        setStartDate(today);
+        setEndDate(today);
+    };
+
+    const handleFilterTomorrow = () => {
+        const tomorrow = getTomorrowStr();
+        setStartDate(tomorrow);
+        setEndDate(tomorrow);
+    };
+
+    const handleFilterThisWeek = () => {
+        const range = getThisWeekRange();
+        setStartDate(range.start);
+        setEndDate(range.end);
+    };
+
+    const handleFilterThisMonth = () => {
+        const range = getThisMonthRange();
+        setStartDate(range.start);
+        setEndDate(range.end);
+    };
+
+    const handleResetAllFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setDateFilterField('checkout_date');
+        setStatusFilter('all');
+        setSearchQuery('');
+    };
+
+    const todayStr = getTodayStr();
+    const tomorrowStr = getTomorrowStr();
+    const thisWeek = getThisWeekRange();
+    const thisMonth = getThisMonthRange();
+
+    const isTodayActive = startDate === todayStr && endDate === todayStr;
+    const isTomorrowActive = startDate === tomorrowStr && endDate === tomorrowStr;
+    const isThisWeekActive = startDate === thisWeek.start && endDate === thisWeek.end;
+    const isThisMonthActive = startDate === thisMonth.start && endDate === thisMonth.end;
+
+    const filteredRentals = useMemo(() => {
+        return rentals.filter((r) => {
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase();
+                const contract = r.contract_number?.toLowerCase() || '';
+                const customer = r.customer?.name?.toLowerCase() || '';
+                const carName = r.car?.name?.toLowerCase() || '';
+                const plate = r.car?.plate_number?.toLowerCase() || '';
+                const officer = (r.officer?.name || r.booking?.peluncur?.name || '').toLowerCase();
+                const matches = contract.includes(q) || customer.includes(q) || carName.includes(q) || plate.includes(q) || officer.includes(q);
+                if (!matches) return false;
+            }
+
+            if (statusFilter !== 'all' && r.status !== statusFilter) {
+                return false;
+            }
+
+            if (startDate || endDate) {
+                const checkoutDate = r.checkout_datetime ? r.checkout_datetime.substring(0, 10) : '';
+                const checkinDate = r.checkin_datetime ? r.checkin_datetime.substring(0, 10) : '';
+
+                if (dateFilterField === 'checkout_date') {
+                    if (!checkoutDate) return false;
+                    if (startDate && checkoutDate < startDate) return false;
+                    if (endDate && checkoutDate > endDate) return false;
+                } else if (dateFilterField === 'checkin_date') {
+                    if (!checkinDate) return false;
+                    if (startDate && checkinDate < startDate) return false;
+                    if (endDate && checkinDate > endDate) return false;
+                } else if (dateFilterField === 'active_period') {
+                    const rangeStart = startDate || endDate;
+                    const rangeEnd = endDate || startDate;
+                    const rentalEnd = checkinDate || checkoutDate;
+                    if (checkoutDate > rangeEnd || rentalEnd < rangeStart) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        });
+    }, [rentals, searchQuery, statusFilter, startDate, endDate, dateFilterField]);
+
+    const filteredConfirmedBookings = useMemo(() => {
+        return confirmedBookings.filter((b: any) => {
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase();
+                const customer = b.customer?.name?.toLowerCase() || '';
+                const carType = b.car_type?.toLowerCase() || '';
+                const carName = b.car?.name?.toLowerCase() || '';
+                const plate = b.car?.plate_number?.toLowerCase() || '';
+                const bookingNum = b.booking_number?.toLowerCase() || '';
+                const matches = customer.includes(q) || carType.includes(q) || carName.includes(q) || plate.includes(q) || bookingNum.includes(q);
+                if (!matches) return false;
+            }
+
+            if (startDate || endDate) {
+                const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
+                const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
+
+                if (dateFilterField === 'checkout_date') {
+                    if (!bStartDate) return false;
+                    if (startDate && bStartDate < startDate) return false;
+                    if (endDate && bStartDate > endDate) return false;
+                } else if (dateFilterField === 'checkin_date') {
+                    if (!bReturnDate) return false;
+                    if (startDate && bReturnDate < startDate) return false;
+                    if (endDate && bReturnDate > endDate) return false;
+                } else if (dateFilterField === 'active_period') {
+                    const rangeStart = startDate || endDate;
+                    const rangeEnd = endDate || startDate;
+                    const bookingEnd = bReturnDate || bStartDate;
+                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        });
+    }, [confirmedBookings, searchQuery, startDate, endDate, dateFilterField]);
 
     const { data, setData, post, put, reset, processing, errors, clearErrors, transform } = useForm({
         booking_id: '' as number | string,
@@ -251,22 +425,178 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                     </Button>
                 </div>
 
+                {/* Filter Tanggal & Status Bar */}
+                <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-xs space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-primary" />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Filter Serah Terima</span>
+                            {(startDate || endDate || statusFilter !== 'all' || searchQuery) && (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                                    {filteredRentals.length} kontrak ditemukan
+                                </Badge>
+                            )}
+                        </div>
+
+                        {/* Quick Filter Presets */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <Button
+                                type="button"
+                                variant={!startDate && !endDate ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-7 text-xs px-2.5"
+                                onClick={handleFilterAll}
+                            >
+                                Semua
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isTodayActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-7 text-xs px-2.5"
+                                onClick={handleFilterToday}
+                            >
+                                Hari Ini
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isTomorrowActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-7 text-xs px-2.5"
+                                onClick={handleFilterTomorrow}
+                            >
+                                Besok
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isThisWeekActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-7 text-xs px-2.5"
+                                onClick={handleFilterThisWeek}
+                            >
+                                Minggu Ini
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isThisMonthActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-7 text-xs px-2.5"
+                                onClick={handleFilterThisMonth}
+                            >
+                                Bulan Ini
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 pt-1">
+                        <div className="space-y-1">
+                            <Label htmlFor="searchQuery" className="text-[11px] text-muted-foreground font-medium">Pencarian</Label>
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                                <Input
+                                    id="searchQuery"
+                                    type="search"
+                                    placeholder="Cari kontrak, plat, penyewa..."
+                                    className="pl-8 h-8 text-xs bg-background"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="dateFilterField" className="text-[11px] text-muted-foreground font-medium">Tipe Tanggal</Label>
+                            <Select
+                                value={dateFilterField}
+                                onValueChange={(val: any) => setDateFilterField(val)}
+                            >
+                                <SelectTrigger id="dateFilterField" className="h-8 text-xs bg-background">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="checkout_date">Tanggal Checkout (Keluar)</SelectItem>
+                                    <SelectItem value="checkin_date">Tanggal Checkin (Kembali)</SelectItem>
+                                    <SelectItem value="active_period">Periode Aktif Rental</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="filter_start_date" className="text-[11px] text-muted-foreground font-medium">Dari Tanggal</Label>
+                            <Input
+                                id="filter_start_date"
+                                type="date"
+                                className="h-8 text-xs bg-background"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="filter_end_date" className="text-[11px] text-muted-foreground font-medium">Sampai Tanggal</Label>
+                            <Input
+                                id="filter_end_date"
+                                type="date"
+                                className="h-8 text-xs bg-background"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="statusFilter" className="text-[11px] text-muted-foreground font-medium">Status Kontrak</Label>
+                            <div className="flex items-center gap-1.5">
+                                <Select
+                                    value={statusFilter}
+                                    onValueChange={(val: any) => setStatusFilter(val)}
+                                >
+                                    <SelectTrigger id="statusFilter" className="h-8 text-xs bg-background">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua Status</SelectItem>
+                                        <SelectItem value="Active">Active (Berjalan)</SelectItem>
+                                        <SelectItem value="Returned">Returned (Kembali)</SelectItem>
+                                        <SelectItem value="Completed">Completed (Selesai)</SelectItem>
+                                        <SelectItem value="Cancelled">Cancelled (Dibatalkan)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                {(startDate || endDate || statusFilter !== 'all' || searchQuery) && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+                                        title="Reset Filter"
+                                        onClick={handleResetAllFilters}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {/* CONFIRMED BOOKINGS READY FOR HANDOVER */}
                 <Card className="border-blue-500/30 bg-blue-500/5">
                     <CardHeader>
                         <CardTitle className="text-base font-semibold flex items-center gap-2">
                             <Car className="h-5 w-5 text-blue-600" />
-                            Booking Siap Serah Terima (Pending Handover)
+                            Booking Siap Serah Terima (Pending Handover) ({filteredConfirmedBookings.length})
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {confirmedBookings.length === 0 ? (
+                        {filteredConfirmedBookings.length === 0 ? (
                             <div className="text-center py-4 text-xs text-muted-foreground">
-                                Tidak ada booking dengan status Confirmed yang menunggu serah terima.
+                                {startDate || endDate || searchQuery
+                                    ? 'Tidak ada booking Confirmed pada periode filter.'
+                                    : 'Tidak ada booking dengan status Confirmed yang menunggu serah terima.'}
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {confirmedBookings.map((b: any) => (
+                                {filteredConfirmedBookings.map((b: any) => (
                                     <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border bg-background shadow-xs">
                                         <div className="space-y-1 text-xs">
                                             <div className="font-semibold text-sm text-foreground">{b.customer?.name}</div>
@@ -286,16 +616,20 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                 </Card>
 
                 <Card>
-                    <CardHeader><CardTitle>Daftar Kontrak Serah Terima</CardTitle></CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle>Daftar Kontrak Serah Terima ({filteredRentals.length})</CardTitle>
+                    </CardHeader>
                     <CardContent>
                         {/* Mobile Cards View */}
                         <div className="space-y-3 md:hidden">
-                            {rentals.length === 0 ? (
+                            {filteredRentals.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
-                                    Belum ada data serah terima.
+                                    {startDate || endDate || searchQuery || statusFilter !== 'all'
+                                        ? 'Tidak ada data serah terima yang cocok dengan filter.'
+                                        : 'Belum ada data serah terima.'}
                                 </div>
                             ) : (
-                                rentals.map((r) => (
+                                filteredRentals.map((r) => (
                                     <div key={r.id} className="flex flex-col gap-2 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
                                         <div className="flex items-center justify-between">
                                             <span className="font-mono text-xs font-semibold">{r.contract_number}</span>
@@ -385,9 +719,15 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {rentals.length === 0 ? (
-                                        <tr><td colSpan={10} className="px-6 py-8 text-center text-muted-foreground">Belum ada data serah terima.</td></tr>
-                                    ) : rentals.map((r) => (
+                                    {filteredRentals.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={10} className="px-6 py-8 text-center text-muted-foreground">
+                                                {startDate || endDate || searchQuery || statusFilter !== 'all'
+                                                    ? 'Tidak ada data serah terima yang cocok dengan filter.'
+                                                    : 'Belum ada data serah terima.'}
+                                            </td>
+                                        </tr>
+                                    ) : filteredRentals.map((r) => (
                                         <tr key={r.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4 font-mono text-xs font-semibold">{r.contract_number}</td>
                                             <td className="px-6 py-4 font-medium">{r.customer?.name}</td>

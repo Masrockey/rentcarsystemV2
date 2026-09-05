@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Blacklist;
 use App\Models\Booking;
 use App\Models\Car;
 use App\Models\Driver;
@@ -40,6 +41,7 @@ class AllocationController extends Controller
             'washOfficers' => User::whereJsonContains('roles', 'Petugas Cuci')->orderBy('name')->get(),
             'unallocatedCount' => $allBookings->whereNull('car_id')->count(),
             'allocatedCount' => $allBookings->whereNotNull('car_id')->count(),
+            'blacklists' => Blacklist::all(),
         ]);
     }
 
