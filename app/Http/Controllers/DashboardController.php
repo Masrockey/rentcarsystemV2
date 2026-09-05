@@ -26,6 +26,36 @@ class DashboardController extends Controller
         $today = Carbon::today();
         $startOfMonth = Carbon::now()->startOfMonth();
 
+        // Date Filter handling
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+        $preset = $request->query('preset', ($startDate || $endDate) ? 'custom' : 'all');
+
+        if ($preset === 'today') {
+            $startDate = $today->format('Y-m-d');
+            $endDate = $today->format('Y-m-d');
+        } elseif ($preset === 'tomorrow') {
+            $startDate = Carbon::tomorrow()->format('Y-m-d');
+            $endDate = Carbon::tomorrow()->format('Y-m-d');
+        } elseif ($preset === 'this_week') {
+            $startDate = Carbon::now()->startOfWeek()->format('Y-m-d');
+            $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
+        } elseif ($preset === 'this_month') {
+            $startDate = Carbon::now()->startOfMonth()->format('Y-m-d');
+            $endDate = Carbon::now()->endOfMonth()->format('Y-m-d');
+        }
+
+        $isFiltered = ! empty($startDate) || ! empty($endDate) || $preset !== 'all';
+
+        // Base query for filtered period
+        $periodBookingQuery = Booking::query();
+        if ($startDate) {
+            $periodBookingQuery->whereDate('booking_date', '>=', $startDate);
+        }
+        if ($endDate) {
+            $periodBookingQuery->whereDate('booking_date', '<=', $endDate);
+        }
+
         // Shared fleet summary for Admin, Marketing
         $fleetSummary = [
             'total_cars' => Car::count(),
@@ -37,6 +67,8 @@ class DashboardController extends Controller
             'bookings_today' => Booking::whereDate('booking_date', $today)->count(),
             'revenue_today' => (float) Booking::whereDate('booking_date', $today)->sum('amount'),
             'revenue_month' => (float) Booking::where('booking_date', '>=', $startOfMonth)->sum('amount'),
+            'period_bookings' => (clone $periodBookingQuery)->count(),
+            'period_revenue' => (float) (clone $periodBookingQuery)->sum('amount'),
             'utilization_rate' => $this->calculateUtilizationRate(),
             'overdue_returns' => Booking::where('status', 'On Trip')
                 ->whereDate('return_date', '<', $today)
@@ -49,18 +81,74 @@ class DashboardController extends Controller
                 ->count(),
         ];
 
+        $carsWithBookingStatus = Car::whereHas('bookings', function ($q) use ($startDate, $endDate, $isFiltered) {
+            if ($isFiltered) {
+                if ($startDate) {
+                    $q->whereDate('booking_date', '>=', $startDate);
+                }
+                if ($endDate) {
+                    $q->whereDate('booking_date', '<=', $endDate);
+                }
+            } else {
+                $q->whereIn('status', ['Pending', 'Confirmed', 'On Trip']);
+            }
+        })->with(['bookings' => function ($q) use ($startDate, $endDate, $isFiltered) {
+            if ($isFiltered) {
+                if ($startDate) {
+                    $q->whereDate('booking_date', '>=', $startDate);
+                }
+                if ($endDate) {
+                    $q->whereDate('booking_date', '<=', $endDate);
+                }
+            } else {
+                $q->whereIn('status', ['Pending', 'Confirmed', 'On Trip']);
+            }
+            $q->orderBy('booking_date', 'asc');
+        }, 'bookings.customer'])->get()->map(function ($car) use ($today) {
+            $activeBooking = $car->bookings->first(function ($b) use ($today) {
+                return $b->status === 'On Trip' || ($b->status === 'Confirmed' && $b->return_date >= $today->format('Y-m-d'));
+            }) ?? $car->bookings->first();
+
+            return [
+                'id' => $car->id,
+                'name' => $car->name,
+                'brand' => $car->brand,
+                'model' => $car->model,
+                'type' => $car->type,
+                'plate_number' => $car->plate_number,
+                'color' => $car->color,
+                'status' => $car->status,
+                'daily_price' => (float) $car->daily_price,
+                'active_booking' => $activeBooking ? [
+                    'id' => $activeBooking->id,
+                    'booking_number' => $activeBooking->booking_number,
+                    'customer_name' => $activeBooking->customer?->name,
+                    'booking_date' => $activeBooking->booking_date,
+                    'return_date' => $activeBooking->return_date,
+                    'pickup_time' => $activeBooking->pickup_time,
+                    'return_time' => $activeBooking->return_time,
+                    'status' => $activeBooking->status,
+                ] : null,
+            ];
+        })->filter(function ($car) {
+            return ! is_null($car['active_booking']);
+        })->values();
+
         if ($user->isAdmin()) {
+            $adminRecentQuery = (clone $periodBookingQuery)->with(['customer', 'car', 'peluncur'])->latest();
+
             $stats['admin'] = [
                 ...$fleetSummary,
                 'total_bookings' => Booking::count(),
                 'total_customers' => Customer::count(),
                 'total_revenue' => (float) Booking::sum('amount'),
-                'recent_bookings' => Booking::with(['customer', 'car', 'peluncur'])->latest()->take(5)->get(),
+                'recent_bookings' => $adminRecentQuery->take(10)->get(),
+                'cars_status' => $carsWithBookingStatus,
             ];
         }
 
         if ($user->isMarketing()) {
-            $marketingQuery = Booking::query();
+            $marketingQuery = (clone $periodBookingQuery);
 
             if (! $user->isAdmin()) {
                 $marketingQuery->where(function ($q) use ($user) {
@@ -71,6 +159,7 @@ class DashboardController extends Controller
             }
 
             $stats['marketing'] = [
+                ...$fleetSummary,
                 'total_bookings' => (clone $marketingQuery)->count(),
                 'total_customers' => $user->isAdmin()
                     ? Customer::count()
@@ -82,35 +171,63 @@ class DashboardController extends Controller
                 'bookings_today' => (clone $marketingQuery)->whereDate('booking_date', $today)->count(),
                 'revenue_today' => (float) (clone $marketingQuery)->whereDate('booking_date', $today)->sum('amount'),
                 'revenue_month' => (float) (clone $marketingQuery)->where('booking_date', '>=', $startOfMonth)->sum('amount'),
-                'recent_bookings' => (clone $marketingQuery)->with(['customer', 'car'])->latest()->take(5)->get(),
+                'period_bookings' => (clone $marketingQuery)->count(),
+                'period_revenue' => (float) (clone $marketingQuery)->sum('amount'),
+                'recent_bookings' => (clone $marketingQuery)->with(['customer', 'car'])->latest()->take(10)->get(),
+                'cars_status' => $carsWithBookingStatus,
             ];
         }
 
         if ($user->isPeluncur()) {
+            $peluncurDeliveryQuery = Booking::with(['customer', 'car'])
+                ->where('peluncur_id', $user->id)
+                ->where('status', 'Confirmed');
+
+            $peluncurReturnQuery = Booking::with(['customer', 'car'])
+                ->where('peluncur_id', $user->id)
+                ->where('status', 'On Trip');
+
+            if ($startDate) {
+                $peluncurDeliveryQuery->whereDate('booking_date', '>=', $startDate);
+                $peluncurReturnQuery->whereDate('return_date', '>=', $startDate);
+            }
+            if ($endDate) {
+                $peluncurDeliveryQuery->whereDate('booking_date', '<=', $endDate);
+                $peluncurReturnQuery->whereDate('return_date', '<=', $endDate);
+            }
+
             $stats['peluncur'] = [
-                'assigned_deliveries' => Booking::with(['customer', 'car'])
-                    ->where('peluncur_id', $user->id)
-                    ->where('status', 'Confirmed')
-                    ->get(),
-                'assigned_returns' => Booking::with(['customer', 'car'])
-                    ->where('peluncur_id', $user->id)
-                    ->where('status', 'On Trip')
-                    ->get(),
+                'assigned_deliveries' => $peluncurDeliveryQuery->get(),
+                'assigned_returns' => $peluncurReturnQuery->get(),
             ];
         }
 
         if ($user->isPetugasCuci()) {
+            $washQuery = Booking::with(['customer', 'car'])
+                ->where('petugas_cuci_id', $user->id)
+                ->where('status', 'Returned');
+
+            if ($startDate) {
+                $washQuery->whereDate('return_date', '>=', $startDate);
+            }
+            if ($endDate) {
+                $washQuery->whereDate('return_date', '<=', $endDate);
+            }
+
             $stats['petugas_cuci'] = [
-                'assigned_wash' => Booking::with(['customer', 'car'])
-                    ->where('petugas_cuci_id', $user->id)
-                    ->where('status', 'Returned')
-                    ->get(),
+                'assigned_wash' => $washQuery->get(),
             ];
         }
 
         return Inertia::render('dashboard', [
             'stats' => $stats,
             'roles' => $roles,
+            'filters' => [
+                'start_date' => $startDate ?? '',
+                'end_date' => $endDate ?? '',
+                'preset' => $preset,
+                'is_filtered' => $isFiltered,
+            ],
         ]);
     }
 

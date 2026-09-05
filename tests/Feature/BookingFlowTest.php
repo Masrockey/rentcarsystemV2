@@ -111,7 +111,7 @@ test('full rent car booking workflow', function () {
     $car->refresh();
 
     expect($booking->status)->toBe('Returned');
-    expect($car->status)->toBe('Belum Dicuci'); // Automatically changes to Belum Dicuci
+    expect($car->status)->toBe('Ready'); // Automatically changes to Ready
 
     // 6. Log in as Petugas Cuci to complete washing
     $this->actingAs($cuci);
@@ -123,7 +123,7 @@ test('full rent car booking workflow', function () {
     $car->refresh();
 
     expect($booking->status)->toBe('Completed');
-    expect($car->status)->toBe('Ready'); // Automatically changes to Ready
+    expect($car->status)->toBe('Ready'); // Stays / ensures Ready
 });
 
 test('marketing can create booking with new customer on the fly', function () {

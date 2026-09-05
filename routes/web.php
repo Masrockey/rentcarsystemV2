@@ -4,6 +4,7 @@ use App\Http\Controllers\AllocationController;
 use App\Http\Controllers\BlacklistController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\CarController;
+use App\Http\Controllers\CarTypeController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DriverController;
@@ -17,7 +18,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VehicleTaxController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+Route::redirect('/', '/login')->name('home');
 Route::redirect('/home', '/dashboard');
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -31,6 +32,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Cars CRUD
     Route::resource('cars', CarController::class)->only(['index', 'store', 'update', 'destroy']);
+
+    // Car Types (Tipe & Jenis Mobil) CRUD
+    Route::resource('car-types', CarTypeController::class)->only(['index', 'store', 'update', 'destroy']);
 
     // Drivers CRUD
     Route::resource('drivers', DriverController::class)->only(['index', 'store', 'update', 'destroy']);

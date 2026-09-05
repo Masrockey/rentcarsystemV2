@@ -92,17 +92,17 @@ class ReturnController extends Controller
             'status' => 'Returned',
         ]);
 
-        // Automatically update car status to 'Belum Dicuci' and update last_km
+        // Automatically update car status to 'Ready' and update last_km
         if ($booking->car) {
             $booking->car->update([
-                'status' => 'Belum Dicuci',
+                'status' => 'Ready',
                 'last_km' => max($validated['km_in'], $booking->car->last_km ?? 0),
             ]);
         }
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => 'Pengembalian unit berhasil diproses. Status armada diubah menjadi Belum Dicuci.',
+            'message' => 'Pengembalian unit berhasil diproses. Status armada diubah menjadi Ready.',
         ]);
 
         return to_route('returns.index');

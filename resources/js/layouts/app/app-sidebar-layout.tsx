@@ -6,7 +6,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import {
     LayoutGrid, CalendarDays, ClipboardList, Car, UserSquare2, CreditCard,
-    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings, RotateCcw, ShieldAlert
+    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings, RotateCcw, ShieldAlert, Layers
 } from 'lucide-react';
 import {
     Sheet,
@@ -20,6 +20,7 @@ import { edit as editProfile } from '@/routes/profile';
 import { index as allocationsIndex } from '@/routes/allocations';
 import { index as blacklistsIndex } from '@/routes/blacklists';
 import { index as bookingsIndex } from '@/routes/bookings';
+import { index as carTypesIndex } from '@/routes/car-types';
 import { index as rentalsIndex } from '@/routes/rentals';
 import { index as returnsIndex } from '@/routes/returns';
 import { index as carsIndex } from '@/routes/cars';
@@ -52,6 +53,7 @@ export default function AppSidebarLayout({
         allItems.push({ title: 'Serah Terima', href: rentalsIndex(), icon: ClipboardList });
         allItems.push({ title: 'Unit Kembali', href: returnsIndex(), icon: RotateCcw });
         allItems.push({ title: 'Armada', href: carsIndex(), icon: Car });
+        allItems.push({ title: 'Tipe Mobil', href: carTypesIndex(), icon: Layers });
         allItems.push({ title: 'Drivers', href: driversIndex(), icon: Truck });
         allItems.push({ title: 'Payments', href: paymentsIndex(), icon: CreditCard });
         allItems.push({ title: 'Service', href: servicesIndex(), icon: Wrench });

@@ -20,7 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
 
 type Customer = {
@@ -40,8 +40,11 @@ type CarType = {
 };
 
 type CarTypeRef = {
+    id?: number;
     name: string;
     type?: string | null;
+    category?: string | null;
+    description?: string | null;
     daily_price?: string | null;
     weekly_price?: string | null;
     monthly_price?: string | null;
@@ -146,30 +149,157 @@ export default function BookingsIndex({
     const [washConfirmId, setWashConfirmId] = useState<number | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
-    const filteredBookings = useMemo(() => {
-        if (!searchQuery.trim()) return bookings;
-        const q = searchQuery.toLowerCase();
-        return bookings.filter((b) => {
-            const customerName = b.customer?.name?.toLowerCase() || '';
-            const bookingNumber = (b as any).booking_number?.toLowerCase() || '';
-            const carType = b.car_type?.toLowerCase() || '';
-            const carName = b.car?.name?.toLowerCase() || '';
-            const plateNumber = b.car?.plate_number?.toLowerCase() || '';
-            const pickLoc = b.pickup_location?.toLowerCase() || '';
-            const dropLoc = b.dropoff_location?.toLowerCase() || '';
-            return (
-                customerName.includes(q) ||
-                bookingNumber.includes(q) ||
-                carType.includes(q) ||
-                carName.includes(q) ||
-                plateNumber.includes(q) ||
-                pickLoc.includes(q) ||
-                dropLoc.includes(q)
-            );
-        });
-    }, [bookings, searchQuery]);
+    // Date & Status Filters
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [dateFilterField, setDateFilterField] = useState<'booking_date' | 'return_date' | 'active_period'>('booking_date');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
 
-    const availableCarTypeNames = DEFAULT_CAR_TYPES;
+    const formatLocalDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const getTodayStr = () => formatLocalDate(new Date());
+
+    const getTomorrowStr = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        return formatLocalDate(d);
+    };
+
+    const getThisWeekRange = () => {
+        const now = new Date();
+        const day = now.getDay();
+        const diff = now.getDate() - (day === 0 ? 6 : day - 1);
+        const monday = new Date(now.setDate(diff));
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        return {
+            start: formatLocalDate(monday),
+            end: formatLocalDate(sunday),
+        };
+    };
+
+    const getThisMonthRange = () => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return {
+            start: formatLocalDate(start),
+            end: formatLocalDate(end),
+        };
+    };
+
+    const handleFilterAll = () => {
+        setStartDate('');
+        setEndDate('');
+    };
+
+    const handleFilterToday = () => {
+        const today = getTodayStr();
+        setStartDate(today);
+        setEndDate(today);
+    };
+
+    const handleFilterTomorrow = () => {
+        const tomorrow = getTomorrowStr();
+        setStartDate(tomorrow);
+        setEndDate(tomorrow);
+    };
+
+    const handleFilterThisWeek = () => {
+        const range = getThisWeekRange();
+        setStartDate(range.start);
+        setEndDate(range.end);
+    };
+
+    const handleFilterThisMonth = () => {
+        const range = getThisMonthRange();
+        setStartDate(range.start);
+        setEndDate(range.end);
+    };
+
+    const handleResetAllFilters = () => {
+        setStartDate('');
+        setEndDate('');
+        setDateFilterField('booking_date');
+        setStatusFilter('all');
+        setSearchQuery('');
+    };
+
+    const todayStr = getTodayStr();
+    const tomorrowStr = getTomorrowStr();
+    const thisWeek = getThisWeekRange();
+    const thisMonth = getThisMonthRange();
+
+    const isTodayActive = startDate === todayStr && endDate === todayStr;
+    const isTomorrowActive = startDate === tomorrowStr && endDate === tomorrowStr;
+    const isThisWeekActive = startDate === thisWeek.start && endDate === thisWeek.end;
+    const isThisMonthActive = startDate === thisMonth.start && endDate === thisMonth.end;
+
+    const filteredBookings = useMemo(() => {
+        return bookings.filter((b) => {
+            // 1. Search Query Filter
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase();
+                const customerName = b.customer?.name?.toLowerCase() || '';
+                const bookingNumber = (b as any).booking_number?.toLowerCase() || '';
+                const carType = b.car_type?.toLowerCase() || '';
+                const carName = b.car?.name?.toLowerCase() || '';
+                const plateNumber = b.car?.plate_number?.toLowerCase() || '';
+                const pickLoc = b.pickup_location?.toLowerCase() || '';
+                const dropLoc = b.dropoff_location?.toLowerCase() || '';
+                const matchesSearch =
+                    customerName.includes(q) ||
+                    bookingNumber.includes(q) ||
+                    carType.includes(q) ||
+                    carName.includes(q) ||
+                    plateNumber.includes(q) ||
+                    pickLoc.includes(q) ||
+                    dropLoc.includes(q);
+                if (!matchesSearch) return false;
+            }
+
+            // 2. Status Filter
+            if (statusFilter !== 'all' && b.status !== statusFilter) {
+                return false;
+            }
+
+            // 3. Date Filter
+            const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
+            const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
+
+            if (startDate || endDate) {
+                if (dateFilterField === 'booking_date') {
+                    if (startDate && (!bStartDate || bStartDate < startDate)) return false;
+                    if (endDate && (!bStartDate || bStartDate > endDate)) return false;
+                } else if (dateFilterField === 'return_date') {
+                    if (!bReturnDate) return false;
+                    if (startDate && bReturnDate < startDate) return false;
+                    if (endDate && bReturnDate > endDate) return false;
+                } else if (dateFilterField === 'active_period') {
+                    const rangeStart = startDate || endDate;
+                    const rangeEnd = endDate || startDate;
+                    const bookingEnd = bReturnDate || bStartDate;
+                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        });
+    }, [bookings, searchQuery, startDate, endDate, dateFilterField, statusFilter]);
+
+    const availableCarTypeNames = useMemo(() => {
+        if (carTypes && carTypes.length > 0) {
+            return Array.from(new Set(carTypes.map((c) => c.name)));
+        }
+        return DEFAULT_CAR_TYPES;
+    }, [carTypes]);
 
     const customerOptions = customers.map((c) => ({
         value: c.id.toString(),
@@ -177,10 +307,19 @@ export default function BookingsIndex({
         sublabel: c.phone ? `HP: ${c.phone}` : undefined,
     }));
 
-    const carTypeOptions = DEFAULT_CAR_TYPES.map((name) => ({
-        value: name,
-        label: name,
-    }));
+    const carTypeOptions = useMemo(() => {
+        if (carTypes && carTypes.length > 0) {
+            return carTypes.map((c) => ({
+                value: c.name,
+                label: c.name,
+                sublabel: c.type || c.category ? `${c.type ?? ''}${c.type && c.category ? ' • ' : ''}${c.category ?? ''}` : undefined,
+            }));
+        }
+        return DEFAULT_CAR_TYPES.map((name) => ({
+            value: name,
+            label: name,
+        }));
+    }, [carTypes]);
 
     const { data: createData, setData: setCreateData, post: postCreate, reset: resetCreate, processing: processingCreate, errors: errorsCreate } = useForm({
         user_id: '',
@@ -384,11 +523,153 @@ export default function BookingsIndex({
                         </div>
                     </CardHeader>
                     <CardContent>
+                        {/* Filter Bar */}
+                        <div className="mb-5 p-3.5 rounded-lg border bg-muted/30 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-primary" />
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Filter Berdasarkan Tanggal</span>
+                                    {(startDate || endDate || statusFilter !== 'all') && (
+                                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                                            {filteredBookings.length} data ditemukan
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                {/* Quick Filter Presets */}
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <Button
+                                        type="button"
+                                        variant={!startDate && !endDate ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterAll}
+                                    >
+                                        Semua
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={isTodayActive ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterToday}
+                                    >
+                                        Hari Ini
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={isTomorrowActive ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterTomorrow}
+                                    >
+                                        Besok
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={isThisWeekActive ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterThisWeek}
+                                    >
+                                        Minggu Ini
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={isThisMonthActive ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-7 text-xs px-2.5"
+                                        onClick={handleFilterThisMonth}
+                                    >
+                                        Bulan Ini
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+                                <div className="space-y-1">
+                                    <Label htmlFor="dateFilterField" className="text-[11px] text-muted-foreground font-medium">Tipe Tanggal</Label>
+                                    <Select
+                                        value={dateFilterField}
+                                        onValueChange={(val: any) => setDateFilterField(val)}
+                                    >
+                                        <SelectTrigger id="dateFilterField" className="h-8 text-xs bg-background">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="booking_date">Tanggal Sewa (Mulai)</SelectItem>
+                                            <SelectItem value="return_date">Tanggal Balik (Selesai)</SelectItem>
+                                            <SelectItem value="active_period">Periode Aktif Sewa</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label htmlFor="filter_start_date" className="text-[11px] text-muted-foreground font-medium">Dari Tanggal</Label>
+                                    <Input
+                                        id="filter_start_date"
+                                        type="date"
+                                        className="h-8 text-xs bg-background"
+                                        value={startDate}
+                                        onChange={(e) => setStartDate(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label htmlFor="filter_end_date" className="text-[11px] text-muted-foreground font-medium">Sampai Tanggal</Label>
+                                    <Input
+                                        id="filter_end_date"
+                                        type="date"
+                                        className="h-8 text-xs bg-background"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label htmlFor="filter_status" className="text-[11px] text-muted-foreground font-medium">Status Booking</Label>
+                                    <div className="flex items-center gap-1.5">
+                                        <Select
+                                            value={statusFilter}
+                                            onValueChange={(val: any) => setStatusFilter(val)}
+                                        >
+                                            <SelectTrigger id="filter_status" className="h-8 text-xs bg-background">
+                                                <SelectValue placeholder="Semua Status" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Semua Status</SelectItem>
+                                                <SelectItem value="Pending">Pending</SelectItem>
+                                                <SelectItem value="Confirmed">Confirmed</SelectItem>
+                                                <SelectItem value="On Trip">On Trip</SelectItem>
+                                                <SelectItem value="Returned">Returned</SelectItem>
+                                                <SelectItem value="Completed">Completed</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+
+                                        {(startDate || endDate || statusFilter !== 'all' || searchQuery) && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                title="Reset Semua Filter"
+                                                className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+                                                onClick={handleResetAllFilters}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Mobile Cards View */}
                         <div className="space-y-3 md:hidden">
                             {filteredBookings.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
-                                    {searchQuery ? 'Tidak ada booking yang cocok dengan pencarian.' : 'Belum ada data booking.'}
+                                    {searchQuery || startDate || endDate || statusFilter !== 'all'
+                                        ? 'Tidak ada booking yang cocok dengan filter atau pencarian.'
+                                        : 'Belum ada data booking.'}
                                 </div>
                             ) : (
                                 filteredBookings.map((booking) => (
@@ -499,7 +780,9 @@ export default function BookingsIndex({
                                     {filteredBookings.length === 0 ? (
                                         <tr>
                                             <td colSpan={(hasRole('Admin') || hasRole('Super Admin')) ? 9 : 8} className="px-4 py-8 text-center text-muted-foreground">
-                                                {searchQuery ? 'Tidak ada booking yang cocok dengan pencarian.' : 'Belum ada data booking.'}
+                                                {searchQuery || startDate || endDate || statusFilter !== 'all'
+                                                    ? 'Tidak ada booking yang cocok dengan filter atau pencarian.'
+                                                    : 'Belum ada data booking.'}
                                             </td>
                                         </tr>
                                     ) : (
@@ -829,21 +1112,23 @@ export default function BookingsIndex({
                             <div className="space-y-1">
                                 <div className="flex items-center justify-between">
                                     <Label htmlFor="car_type">Tipe Mobil yang Dipesan</Label>
-                                    <button
-                                        type="button"
-                                        className="text-xs text-primary hover:underline font-medium focus:outline-none"
-                                        onClick={() => {
-                                            const nextState = !isCustomCarType;
-                                            setIsCustomCarType(nextState);
-                                            if (nextState) {
-                                                setCreateData('car_type', '');
-                                            } else if (availableCarTypeNames.length > 0) {
-                                                setCreateData('car_type', availableCarTypeNames[0]);
-                                            }
-                                        }}
-                                    >
-                                        {isCustomCarType ? '← Pilih Dari Daftar Type' : '+ Ketik Manual'}
-                                    </button>
+                                    {hasRole('Admin') && (
+                                        <button
+                                            type="button"
+                                            className="text-xs text-primary hover:underline font-medium focus:outline-none"
+                                            onClick={() => {
+                                                const nextState = !isCustomCarType;
+                                                setIsCustomCarType(nextState);
+                                                if (nextState) {
+                                                    setCreateData('car_type', '');
+                                                } else if (availableCarTypeNames.length > 0) {
+                                                    setCreateData('car_type', availableCarTypeNames[0]);
+                                                }
+                                            }}
+                                        >
+                                            {isCustomCarType ? '← Pilih Dari Daftar Type' : '+ Ketik Manual'}
+                                        </button>
+                                    )}
                                 </div>
 
                                 {!isCustomCarType ? (

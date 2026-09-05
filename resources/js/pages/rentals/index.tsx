@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState } from 'react';
-import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare } from 'lucide-react';
+import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User } from 'lucide-react';
 import { index as rentalsIndex } from '@/routes/rentals';
 
 type CarOption = { id: number; name: string; plate_number: string };
@@ -27,12 +27,14 @@ type BookingOption = {
     booking_date: string | null;
     return_date: string | null;
     customer?: CustomerOption;
+    peluncur?: OfficerOption;
 };
 
 type Rental = {
     id: number;
     contract_number: string;
     booking_id: number;
+    booking?: BookingOption;
     car_id: number;
     customer_id: number;
     officer_id: number;
@@ -302,6 +304,10 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                         <div className="text-xs text-muted-foreground space-y-1">
                                             <div><span className="font-semibold text-foreground">Penyewa:</span> {r.customer?.name}</div>
                                             <div><span className="font-semibold text-foreground">Kendaraan:</span> {r.car?.name} ({r.car?.plate_number})</div>
+                                            <div>
+                                                <span className="font-semibold text-foreground">Petugas Peluncur:</span>{' '}
+                                                <span className="text-foreground">{r.officer?.name || r.booking?.peluncur?.name || <span className="italic text-muted-foreground">Belum ada</span>}</span>
+                                            </div>
                                             <div><span className="font-semibold text-foreground">Checkout:</span> {formatCompactDateTime(r.checkout_datetime)}</div>
                                             <div>
                                                 <span className="font-semibold text-foreground">KM / BBM Keluar:</span> {r.km_out.toLocaleString('id-ID')} km | {r.fuel_out}%
@@ -369,6 +375,7 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                         <th className="px-6 py-3">No. Kontrak</th>
                                         <th className="px-6 py-3">Penyewa</th>
                                         <th className="px-6 py-3">Kendaraan</th>
+                                        <th className="px-6 py-3">Petugas Peluncur</th>
                                         <th className="px-6 py-3">Checkout</th>
                                         <th className="px-6 py-3">KM / BBM Keluar</th>
                                         <th className="px-6 py-3">KM / BBM Masuk</th>
@@ -379,7 +386,7 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                 </thead>
                                 <tbody className="divide-y">
                                     {rentals.length === 0 ? (
-                                        <tr><td colSpan={9} className="px-6 py-8 text-center text-muted-foreground">Belum ada data serah terima.</td></tr>
+                                        <tr><td colSpan={10} className="px-6 py-8 text-center text-muted-foreground">Belum ada data serah terima.</td></tr>
                                     ) : rentals.map((r) => (
                                         <tr key={r.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4 font-mono text-xs font-semibold">{r.contract_number}</td>
@@ -388,6 +395,16 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                 <div className="font-medium">{r.car?.name}</div>
                                                 <div className="text-xs font-mono text-muted-foreground">{r.car?.plate_number}</div>
                                             </td>
+                                            <td className="px-6 py-4 text-xs font-medium">
+                                                 <div className="flex items-center gap-1.5">
+                                                     <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                                     <span className="text-foreground">
+                                                         {r.officer?.name || r.booking?.peluncur?.name || (
+                                                             <span className="text-muted-foreground italic">Belum ada</span>
+                                                         )}
+                                                     </span>
+                                                 </div>
+                                             </td>
                                             <td className="px-6 py-4 text-xs font-mono">{formatCompactDateTime(r.checkout_datetime)}</td>
                                             <td className="px-6 py-4 text-xs">
                                                 <div className="flex items-center gap-1"><Gauge className="h-3 w-3" /> {r.km_out.toLocaleString('id-ID')} km</div>

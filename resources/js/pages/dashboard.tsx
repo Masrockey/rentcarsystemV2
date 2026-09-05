@@ -1,8 +1,11 @@
-import { Head, Link } from '@inertiajs/react';
+import { useState, useEffect, useMemo } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
 import { dashboard } from '@/routes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Car,
     CalendarDays,
@@ -16,7 +19,11 @@ import {
     Clock,
     AlertCircle,
     Calendar,
-    TrendingUp
+    TrendingUp,
+    Filter,
+    RotateCcw,
+    Search,
+    Sparkles
 } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { index as carsIndex } from '@/routes/cars';
@@ -26,9 +33,129 @@ import { index as usersIndex } from '@/routes/users';
 type DashboardProps = {
     roles: string[];
     stats: any;
+    filters?: {
+        start_date: string;
+        end_date: string;
+        preset: string;
+        is_filtered: boolean;
+    };
 };
 
-export default function Dashboard({ roles = [], stats }: DashboardProps) {
+export default function Dashboard({ roles = [], stats, filters }: DashboardProps) {
+    const [startDate, setStartDate] = useState(filters?.start_date || '');
+    const [endDate, setEndDate] = useState(filters?.end_date || '');
+    const [carSearch, setCarSearch] = useState('');
+    const [carStatusFilter, setCarStatusFilter] = useState<'all' | 'rented' | 'confirmed' | 'pending'>('all');
+
+    useEffect(() => {
+        setStartDate(filters?.start_date || '');
+        setEndDate(filters?.end_date || '');
+    }, [filters?.start_date, filters?.end_date]);
+
+    const formatLocalDate = (d: Date) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const getTodayStr = () => formatLocalDate(new Date());
+    const getTomorrowStr = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        return formatLocalDate(d);
+    };
+    const getThisWeekRange = () => {
+        const now = new Date();
+        const day = now.getDay();
+        const diffToMonday = day === 0 ? -6 : 1 - day;
+        const start = new Date(now);
+        start.setDate(now.getDate() + diffToMonday);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        return {
+            start: formatLocalDate(start),
+            end: formatLocalDate(end),
+        };
+    };
+    const getThisMonthRange = () => {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        return {
+            start: formatLocalDate(start),
+            end: formatLocalDate(end),
+        };
+    };
+
+    const todayStr = getTodayStr();
+    const tomorrowStr = getTomorrowStr();
+    const thisWeek = getThisWeekRange();
+    const thisMonth = getThisMonthRange();
+
+    const isTodayActive = filters?.preset === 'today' || (startDate === todayStr && endDate === todayStr);
+    const isTomorrowActive = filters?.preset === 'tomorrow' || (startDate === tomorrowStr && endDate === tomorrowStr);
+    const isThisWeekActive = filters?.preset === 'this_week' || (startDate === thisWeek.start && endDate === thisWeek.end);
+    const isThisMonthActive = filters?.preset === 'this_month' || (startDate === thisMonth.start && endDate === thisMonth.end);
+    const isAllActive = !filters?.is_filtered || filters?.preset === 'all' || (!startDate && !endDate);
+
+    const applyFilter = (start: string, end: string, presetName: string = 'custom') => {
+        router.get(
+            '/dashboard',
+            {
+                start_date: start,
+                end_date: end,
+                preset: presetName,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            }
+        );
+    };
+
+    const handleFilterAll = () => {
+        setStartDate('');
+        setEndDate('');
+        applyFilter('', '', 'all');
+    };
+
+    const handleFilterToday = () => {
+        setStartDate(todayStr);
+        setEndDate(todayStr);
+        applyFilter(todayStr, todayStr, 'today');
+    };
+
+    const handleFilterTomorrow = () => {
+        setStartDate(tomorrowStr);
+        setEndDate(tomorrowStr);
+        applyFilter(tomorrowStr, tomorrowStr, 'tomorrow');
+    };
+
+    const handleFilterThisWeek = () => {
+        setStartDate(thisWeek.start);
+        setEndDate(thisWeek.end);
+        applyFilter(thisWeek.start, thisWeek.end, 'this_week');
+    };
+
+    const handleFilterThisMonth = () => {
+        setStartDate(thisMonth.start);
+        setEndDate(thisMonth.end);
+        applyFilter(thisMonth.start, thisMonth.end, 'this_month');
+    };
+
+    const handleCustomFilterSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        applyFilter(startDate, endDate, 'custom');
+    };
+
+    const handleReset = () => {
+        setStartDate('');
+        setEndDate('');
+        applyFilter('', '', 'all');
+    };
+
     const formatCurrency = (val: number) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
@@ -54,6 +181,86 @@ export default function Dashboard({ roles = [], stats }: DashboardProps) {
         }
     };
 
+    const getCarBookingStatusBadge = (car: any) => {
+        if (car.status === 'Service') {
+            return (
+                <Badge variant="outline" className="bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/25">
+                    Service
+                </Badge>
+            );
+        }
+        if (car.status === 'Belum Dicuci') {
+            return (
+                <Badge variant="outline" className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25">
+                    Perlu Dicuci
+                </Badge>
+            );
+        }
+        if (car.active_booking) {
+            if (car.active_booking.status === 'On Trip' || car.status === 'Not Ready') {
+                return (
+                    <Badge variant="outline" className="bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25">
+                        Sedang Disewa (On Trip)
+                    </Badge>
+                );
+            }
+            if (car.active_booking.status === 'Confirmed') {
+                return (
+                    <Badge variant="outline" className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25">
+                        Booked (Terkonfirmasi)
+                    </Badge>
+                );
+            }
+            if (car.active_booking.status === 'Pending') {
+                return (
+                    <Badge variant="outline" className="bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/25">
+                        Booking Pending
+                    </Badge>
+                );
+            }
+        }
+        if (car.status === 'Ready') {
+            return (
+                <Badge variant="outline" className="bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/25">
+                    Ready (Siap Sewa)
+                </Badge>
+            );
+        }
+        return (
+            <Badge variant="outline" className="bg-neutral-500/15 text-neutral-600 dark:text-neutral-400 border-neutral-500/25">
+                {car.status}
+            </Badge>
+        );
+    };
+
+    const filteredMarketingCars = useMemo(() => {
+        const list = stats.marketing?.cars_status || [];
+        return list.filter((car: any) => {
+            const matchesSearch =
+                !carSearch.trim() ||
+                car.name?.toLowerCase().includes(carSearch.toLowerCase()) ||
+                car.brand?.toLowerCase().includes(carSearch.toLowerCase()) ||
+                car.plate_number?.toLowerCase().includes(carSearch.toLowerCase()) ||
+                car.type?.toLowerCase().includes(carSearch.toLowerCase()) ||
+                car.active_booking?.customer_name?.toLowerCase().includes(carSearch.toLowerCase()) ||
+                car.active_booking?.booking_number?.toLowerCase().includes(carSearch.toLowerCase());
+
+            if (!matchesSearch) return false;
+
+            if (carStatusFilter === 'rented') {
+                return car.status === 'Not Ready' || car.active_booking?.status === 'On Trip';
+            }
+            if (carStatusFilter === 'confirmed') {
+                return car.active_booking?.status === 'Confirmed';
+            }
+            if (carStatusFilter === 'pending') {
+                return car.active_booking?.status === 'Pending';
+            }
+
+            return true;
+        });
+    }, [stats.marketing?.cars_status, carSearch, carStatusFilter]);
+
     const hasRole = (r: string) => roles.includes(r) || roles.includes('Super Admin');
 
     return (
@@ -67,6 +274,112 @@ export default function Dashboard({ roles = [], stats }: DashboardProps) {
                             <Badge key={r} className="ml-1 select-none">{r}</Badge>
                         ))}.
                     </p>
+                </div>
+
+                {/* --- DATE FILTER BAR --- */}
+                <div className="p-4 rounded-xl border bg-card text-card-foreground shadow-xs space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <Filter className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-semibold text-foreground">Filter Berdasarkan Tanggal</span>
+                            {filters?.is_filtered && (
+                                <Badge variant="secondary" className="text-xs px-2 py-0.5 font-normal bg-primary/10 text-primary border-primary/20">
+                                    Filter Aktif: {filters.start_date ? filters.start_date : 'Awal'} s/d {filters.end_date ? filters.end_date : 'Sekarang'}
+                                </Badge>
+                            )}
+                        </div>
+
+                        {/* Quick Filter Presets */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <Button
+                                type="button"
+                                variant={isAllActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-8 text-xs px-3"
+                                onClick={handleFilterAll}
+                            >
+                                Semua
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isTodayActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-8 text-xs px-3"
+                                onClick={handleFilterToday}
+                            >
+                                Hari Ini
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isTomorrowActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-8 text-xs px-3"
+                                onClick={handleFilterTomorrow}
+                            >
+                                Besok
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isThisWeekActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-8 text-xs px-3"
+                                onClick={handleFilterThisWeek}
+                            >
+                                Minggu Ini
+                            </Button>
+                            <Button
+                                type="button"
+                                variant={isThisMonthActive ? 'default' : 'outline'}
+                                size="sm"
+                                className="h-8 text-xs px-3"
+                                onClick={handleFilterThisMonth}
+                            >
+                                Bulan Ini
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* Custom Date Inputs */}
+                    <form onSubmit={handleCustomFilterSubmit} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 pt-1 border-t">
+                        <div className="sm:col-span-1 md:col-span-4 space-y-1">
+                            <Label htmlFor="dashboard_start_date" className="text-xs text-muted-foreground font-medium">Dari Tanggal</Label>
+                            <Input
+                                id="dashboard_start_date"
+                                type="date"
+                                className="h-8 text-xs bg-background"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="sm:col-span-1 md:col-span-4 space-y-1">
+                            <Label htmlFor="dashboard_end_date" className="text-xs text-muted-foreground font-medium">Sampai Tanggal</Label>
+                            <Input
+                                id="dashboard_end_date"
+                                type="date"
+                                className="h-8 text-xs bg-background"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="sm:col-span-2 md:col-span-4 flex items-end gap-2">
+                            <Button type="submit" size="sm" className="h-8 text-xs flex-1 gap-1">
+                                <Filter className="h-3.5 w-3.5" /> Terapkan Filter
+                            </Button>
+                            {(startDate || endDate || filters?.is_filtered) && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-xs gap-1"
+                                    onClick={handleReset}
+                                >
+                                    <RotateCcw className="h-3.5 w-3.5" /> Reset
+                                </Button>
+                            )}
+                        </div>
+                    </form>
                 </div>
 
                 {/* --- ADMIN PANEL --- */}
@@ -130,30 +443,42 @@ export default function Dashboard({ roles = [], stats }: DashboardProps) {
                                 </Card>
                             </Link>
 
-                            {/* 5. Booking Hari Ini */}
+                            {/* 5. Booking Hari Ini / Periode */}
                             <Link href="/bookings" className="block">
                                 <Card className="shadow-xs transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer h-full border-blue-200/80 hover:border-blue-400 dark:border-blue-950">
                                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Booking Hari Ini</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                                            {filters?.is_filtered ? 'Booking (Periode)' : 'Booking Hari Ini'}
+                                        </CardTitle>
                                         <CalendarDays className="h-4 w-4 text-blue-500" />
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.admin.bookings_today}</div>
-                                        <p className="text-xs text-muted-foreground mt-1">Pesanan masuk hari ini</p>
+                                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                                            {filters?.is_filtered ? stats.admin.period_bookings : stats.admin.bookings_today}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {filters?.is_filtered ? 'Pesanan dalam periode filter' : 'Pesanan masuk hari ini'}
+                                        </p>
                                     </CardContent>
                                 </Card>
                             </Link>
 
-                            {/* 6. Pendapatan Hari Ini */}
+                            {/* 6. Pendapatan Hari Ini / Periode */}
                             <Link href="/payments" className="block">
                                 <Card className="shadow-xs transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer h-full border-emerald-200/80 hover:border-emerald-400 dark:border-emerald-950">
                                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Pendapatan Hari Ini</CardTitle>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                                            {filters?.is_filtered ? 'Pendapatan (Periode)' : 'Pendapatan Hari Ini'}
+                                        </CardTitle>
                                         <DollarSign className="h-4 w-4 text-emerald-500" />
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.admin.revenue_today)}</div>
-                                        <p className="text-xs text-muted-foreground mt-1">Total transaksi hari ini</p>
+                                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                                            {formatCurrency(filters?.is_filtered ? stats.admin.period_revenue : stats.admin.revenue_today)}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            {filters?.is_filtered ? 'Total transaksi dalam periode' : 'Total transaksi hari ini'}
+                                        </p>
                                     </CardContent>
                                 </Card>
                             </Link>
@@ -232,7 +557,9 @@ export default function Dashboard({ roles = [], stats }: DashboardProps) {
                         <div className="grid gap-6 md:grid-cols-3">
                             <Card className="md:col-span-2">
                                 <CardHeader>
-                                    <CardTitle>Booking Terbaru</CardTitle>
+                                    <CardTitle>
+                                        {filters?.is_filtered ? 'Booking Periode Terpilih' : 'Booking Terbaru'}
+                                    </CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     {/* Mobile Cards View */}
@@ -333,46 +660,289 @@ export default function Dashboard({ roles = [], stats }: DashboardProps) {
                 {/* --- MARKETING PANEL --- */}
                 {hasRole('Marketing') && stats.marketing && (
                     <div className="space-y-6">
-                        <h2 className="text-xl font-semibold border-b pb-2 mt-6">Panel Marketing</h2>
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <Link href="/customers" className="block">
-                                <Card className="shadow-xs transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer h-full border-neutral-200/80 dark:border-neutral-800">
-                                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Pelanggan</CardTitle>
-                                        <Users className="h-4 w-4 text-muted-foreground" />
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="text-2xl font-bold">{stats.marketing.total_customers}</div>
-                                        <p className="text-xs text-muted-foreground mt-1">Tersedia untuk alokasi sewa</p>
-                                    </CardContent>
-                                </Card>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2 mt-6">
+                            <div>
+                                <h2 className="text-xl font-semibold">Panel Marketing</h2>
+                                <p className="text-xs text-muted-foreground">Kelola pesanan pelanggan dan pantau ketersediaan armada mobil</p>
+                            </div>
+                            <Link href={bookingsIndex().url}>
+                                <Button size="sm" className="gap-1.5">
+                                    <Sparkles className="h-3.5 w-3.5" /> Buat Booking Baru
+                                </Button>
                             </Link>
-
-                            <Link href="/bookings" className="block">
-                                <Card className="shadow-xs transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer h-full border-neutral-200/80 dark:border-neutral-800">
-                                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Booking</CardTitle>
-                                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="text-2xl font-bold">{stats.marketing.total_bookings}</div>
-                                        <p className="text-xs text-muted-foreground mt-1">Booking yang telah dibuat</p>
-                                    </CardContent>
-                                </Card>
-                            </Link>
-
-                            <Card className="flex flex-col justify-center p-6 bg-primary text-primary-foreground">
-                                <h3 className="font-semibold text-lg mb-2">Ada Pesanan Sewa Baru?</h3>
-                                <p className="text-sm text-primary-foreground/80 mb-4">Input detail pemesanan dari pelanggan secara cepat.</p>
-                                <Link href={bookingsIndex().url}>
-                                    <Button variant="secondary" className="w-full">Buat Booking Baru</Button>
-                                </Link>
-                            </Card>
                         </div>
 
+                        {/* Marketing Summary Cards */}
+                        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+                            {/* Total Mobil */}
+                            <Card className="shadow-xs border-neutral-200/80 dark:border-neutral-800">
+                                <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-4">
+                                    <CardTitle className="text-xs font-medium text-muted-foreground">Total Mobil</CardTitle>
+                                    <Car className="h-3.5 w-3.5 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent className="px-4 pb-3">
+                                    <div className="text-xl font-bold">{stats.marketing.total_cars ?? 0}</div>
+                                    <p className="text-[11px] text-muted-foreground">Seluruh unit</p>
+                                </CardContent>
+                            </Card>
+
+                            {/* Mobil Ready */}
+                            <Card className="shadow-xs border-green-200/80 dark:border-green-950">
+                                <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-4">
+                                    <CardTitle className="text-xs font-medium text-muted-foreground">Mobil Ready</CardTitle>
+                                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                                </CardHeader>
+                                <CardContent className="px-4 pb-3">
+                                    <div className="text-xl font-bold text-green-600 dark:text-green-400">{stats.marketing.cars_ready ?? 0}</div>
+                                    <p className="text-[11px] text-muted-foreground">Siap disewa</p>
+                                </CardContent>
+                            </Card>
+
+                            {/* Sedang Disewa */}
+                            <Card className="shadow-xs border-purple-200/80 dark:border-purple-950">
+                                <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-4">
+                                    <CardTitle className="text-xs font-medium text-muted-foreground">Sedang Disewa</CardTitle>
+                                    <Play className="h-3.5 w-3.5 text-purple-500" />
+                                </CardHeader>
+                                <CardContent className="px-4 pb-3">
+                                    <div className="text-xl font-bold text-purple-600 dark:text-purple-400">{stats.marketing.cars_not_ready ?? 0}</div>
+                                    <p className="text-[11px] text-muted-foreground">Unit di jalan</p>
+                                </CardContent>
+                            </Card>
+
+                            {/* Perlu Dicuci / Service */}
+                            <Card className="shadow-xs border-amber-200/80 dark:border-amber-950">
+                                <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-4">
+                                    <CardTitle className="text-xs font-medium text-muted-foreground">Cuci / Service</CardTitle>
+                                    <Wrench className="h-3.5 w-3.5 text-amber-500" />
+                                </CardHeader>
+                                <CardContent className="px-4 pb-3">
+                                    <div className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                                        {(stats.marketing.cars_belum_dicuci ?? 0) + (stats.marketing.cars_service ?? 0)}
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground">Perawatan</p>
+                                </CardContent>
+                            </Card>
+
+                            {/* Total Pelanggan */}
+                            <Link href="/customers" className="block">
+                                <Card className="shadow-xs hover:scale-[1.02] transition-all cursor-pointer border-neutral-200/80 dark:border-neutral-800">
+                                    <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-4">
+                                        <CardTitle className="text-xs font-medium text-muted-foreground">Pelanggan</CardTitle>
+                                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                                    </CardHeader>
+                                    <CardContent className="px-4 pb-3">
+                                        <div className="text-xl font-bold">{stats.marketing.total_customers ?? 0}</div>
+                                        <p className="text-[11px] text-muted-foreground">Data customer</p>
+                                    </CardContent>
+                                </Card>
+                            </Link>
+
+                            {/* Total Booking */}
+                            <Link href="/bookings" className="block">
+                                <Card className="shadow-xs hover:scale-[1.02] transition-all cursor-pointer border-blue-200/80 dark:border-blue-950">
+                                    <CardHeader className="flex flex-row items-center justify-between pb-1.5 pt-3 px-4">
+                                        <CardTitle className="text-xs font-medium text-muted-foreground">
+                                            {filters?.is_filtered ? 'Booking (P)' : 'Booking'}
+                                        </CardTitle>
+                                        <CalendarDays className="h-3.5 w-3.5 text-blue-500" />
+                                    </CardHeader>
+                                    <CardContent className="px-4 pb-3">
+                                        <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                                            {filters?.is_filtered ? stats.marketing.period_bookings : stats.marketing.total_bookings}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            {filters?.is_filtered ? 'Periode filter' : 'Total order'}
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                            </Link>
+                        </div>
+
+                        {/* --- STATUS MOBIL BERDASARKAN BOOKING (MARKETING SECTION) --- */}
+                        <Card className="border-neutral-200/80 dark:border-neutral-800">
+                            <CardHeader className="pb-3">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                    <div>
+                                        <CardTitle className="flex items-center gap-2 text-lg">
+                                            <Car className="h-5 w-5 text-primary" />
+                                            Status Mobil Berdasarkan Booking
+                                        </CardTitle>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                            Menampilkan mobil yang memiliki data jadwal booking aktif
+                                        </p>
+                                    </div>
+
+                                    {/* Search & Quick Filter Tabs */}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <div className="relative w-full sm:w-56">
+                                            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                                            <Input
+                                                placeholder="Cari mobil / plat / penyewa..."
+                                                className="h-8 text-xs pl-8 bg-background"
+                                                value={carSearch}
+                                                onChange={(e) => setCarSearch(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                type="button"
+                                                variant={carStatusFilter === 'all' ? 'default' : 'outline'}
+                                                size="sm"
+                                                className="h-8 text-xs px-2.5"
+                                                onClick={() => setCarStatusFilter('all')}
+                                            >
+                                                Semua ({stats.marketing.cars_status?.length || 0})
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={carStatusFilter === 'rented' ? 'default' : 'outline'}
+                                                size="sm"
+                                                className="h-8 text-xs px-2.5"
+                                                onClick={() => setCarStatusFilter('rented')}
+                                            >
+                                                On Trip ({stats.marketing.cars_status?.filter((c: any) => c.active_booking?.status === 'On Trip' || c.status === 'Not Ready').length || 0})
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={carStatusFilter === 'confirmed' ? 'default' : 'outline'}
+                                                size="sm"
+                                                className="h-8 text-xs px-2.5"
+                                                onClick={() => setCarStatusFilter('confirmed')}
+                                            >
+                                                Confirmed ({stats.marketing.cars_status?.filter((c: any) => c.active_booking?.status === 'Confirmed').length || 0})
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant={carStatusFilter === 'pending' ? 'default' : 'outline'}
+                                                size="sm"
+                                                className="h-8 text-xs px-2.5"
+                                                onClick={() => setCarStatusFilter('pending')}
+                                            >
+                                                Pending ({stats.marketing.cars_status?.filter((c: any) => c.active_booking?.status === 'Pending').length || 0})
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                {/* Mobile Cards View */}
+                                <div className="space-y-3 md:hidden">
+                                    {filteredMarketingCars.length === 0 ? (
+                                        <div className="text-center py-8 text-muted-foreground text-sm">
+                                            Tidak ada data mobil dengan jadwal booking aktif saat ini.
+                                        </div>
+                                    ) : (
+                                        filteredMarketingCars.map((car: any) => (
+                                            <div key={car.id} className="flex flex-col gap-2 p-3.5 rounded-lg border bg-card text-card-foreground shadow-xs">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-semibold text-sm">{car.name}</span>
+                                                    {getCarBookingStatusBadge(car)}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground space-y-0.5">
+                                                    <div>Plat Nomor: <span className="font-mono font-medium text-foreground">{car.plate_number}</span> ({car.color})</div>
+                                                    <div>Tipe: {car.type || car.brand || '-'} • Tarif: {formatCurrency(car.daily_price)}/hari</div>
+                                                </div>
+                                                {car.active_booking && (
+                                                    <div className="mt-1 p-2 rounded-md bg-muted/50 text-xs space-y-0.5 border">
+                                                        <div className="font-medium text-foreground flex items-center justify-between">
+                                                            <span>Penyewa: {car.active_booking.customer_name}</span>
+                                                            <Badge variant="outline" className={getStatusColor(car.active_booking.status)}>
+                                                                {car.active_booking.status}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="text-muted-foreground">
+                                                            Jadwal: {car.active_booking.booking_date} s/d {car.active_booking.return_date}
+                                                            {car.active_booking.pickup_time ? ` (${car.active_booking.pickup_time})` : ''}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className="mt-2">
+                                                    <Link href={bookingsIndex().url} className="w-full">
+                                                        <Button size="sm" variant="outline" className="w-full text-xs h-7">
+                                                            Lihat di Menu Booking
+                                                        </Button>
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+
+                                {/* Desktop Table View */}
+                                <div className="hidden md:block relative overflow-x-auto rounded-lg border">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-muted text-xs uppercase text-muted-foreground">
+                                            <tr>
+                                                <th className="px-4 py-3">Armada Mobil</th>
+                                                <th className="px-4 py-3">Status Booking Mobil</th>
+                                                <th className="px-4 py-3">Penyewa & Jadwal Sewa</th>
+                                                <th className="px-4 py-3">Tarif / Hari</th>
+                                                <th className="px-4 py-3 text-right">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {filteredMarketingCars.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                                                        Tidak ada data mobil dengan jadwal booking aktif saat ini.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                filteredMarketingCars.map((car: any) => (
+                                                    <tr key={car.id} className="hover:bg-muted/50">
+                                                        <td className="px-4 py-3">
+                                                            <div className="font-medium text-foreground">{car.name}</div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                <span className="font-mono">{car.plate_number}</span> • {car.color} • {car.type || car.brand}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {getCarBookingStatusBadge(car)}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {car.active_booking ? (
+                                                                <div className="space-y-0.5">
+                                                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                                                        <span>Penyewa: {car.active_booking.customer_name}</span>
+                                                                        <Badge variant="outline" className={getStatusColor(car.active_booking.status)}>
+                                                                            {car.active_booking.status}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <div className="text-xs text-muted-foreground">
+                                                                        {car.active_booking.booking_date} s/d {car.active_booking.return_date}
+                                                                        {car.active_booking.pickup_time ? ` (${car.active_booking.pickup_time})` : ''}
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-xs text-muted-foreground">-</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium">
+                                                            {formatCurrency(car.daily_price)}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right">
+                                                            <Link href={bookingsIndex().url}>
+                                                                <Button size="sm" variant="outline" className="h-7 text-xs">
+                                                                    Lihat Booking
+                                                                </Button>
+                                                            </Link>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Recent Bookings */}
                         <Card>
                             <CardHeader>
-                                <CardTitle>Booking Terbaru yang Dibuat</CardTitle>
+                                <CardTitle>
+                                    {filters?.is_filtered ? 'Booking Periode Terpilih yang Dibuat' : 'Booking Terbaru yang Dibuat'}
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="relative overflow-x-auto rounded-lg border">

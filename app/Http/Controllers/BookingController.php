@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Car;
+use App\Models\CarType;
 use App\Models\Customer;
 use App\Models\Driver;
 use App\Models\Rental;
@@ -43,10 +44,7 @@ class BookingController extends Controller
             'cars' => Car::orderBy('name')->get(),
             'readyCars' => Car::where('status', 'Ready')->orderBy('name')->get(),
             'readyDrivers' => Driver::where('status', 'Active')->orderBy('name')->get(),
-            'carTypes' => Car::select('name', 'type', 'daily_price', 'weekly_price', 'monthly_price')
-                ->get()
-                ->unique('name')
-                ->values(),
+            'carTypes' => CarType::orderBy('name')->get(),
             'peluncurOfficers' => User::whereJsonContains('roles', 'Peluncur')->orderBy('name')->get(),
             'washOfficers' => User::whereJsonContains('roles', 'Petugas Cuci')->orderBy('name')->get(),
             'marketingUsers' => User::where(function ($q) {
@@ -422,10 +420,10 @@ class BookingController extends Controller
         $kmIn = $validated['km_out'] ?? ($booking->car->last_km ?? 0);
         $fuelIn = $validated['fuel_out'] ?? 100;
 
-        // Automatically change car status to 'Belum Dicuci' and update last_km
+        // Automatically change car status to 'Ready' and update last_km
         if ($booking->car) {
             $booking->car->update([
-                'status' => 'Belum Dicuci',
+                'status' => 'Ready',
                 'last_km' => $kmIn,
             ]);
         }
@@ -440,7 +438,7 @@ class BookingController extends Controller
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => 'Checklist pengembalian mobil berhasil disimpan. Status unit kini Belum Dicuci.',
+            'message' => 'Checklist pengembalian mobil berhasil disimpan. Status unit kini Ready.',
         ]);
 
         return to_route('rentals.index');

@@ -22,7 +22,7 @@ class RentalController extends Controller
     public function index(): Response
     {
         return Inertia::render('rentals/index', [
-            'rentals' => Rental::with(['booking', 'car', 'customer', 'officer'])
+            'rentals' => Rental::with(['booking.peluncur', 'car', 'customer', 'officer'])
                 ->latest()
                 ->get(),
             'confirmedBookings' => Booking::with(['customer', 'car', 'peluncur'])

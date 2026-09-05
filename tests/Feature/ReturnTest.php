@@ -48,7 +48,7 @@ test('admin can access unit kembali page and view active on trip units', functio
         ->assertStatus(200);
 });
 
-test('submitting return checklist updates booking and car status to Belum Dicuci', function () {
+test('submitting return checklist updates booking and car status to Ready', function () {
     $admin = User::factory()->create(['roles' => ['Admin']]);
     $customer = Customer::create(['name' => 'Jane Return Test']);
     $car = Car::create([
@@ -106,6 +106,6 @@ test('submitting return checklist updates booking and car status to Belum Dicuci
     expect($rental->fuel_in)->toBe(70);
 
     expect($booking->status)->toBe('Returned');
-    expect($car->status)->toBe('Belum Dicuci');
+    expect($car->status)->toBe('Ready');
     expect($car->last_km)->toBe(63000);
 });

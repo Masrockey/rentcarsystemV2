@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     LayoutGrid, CalendarDays, Car, Users, UserSquare2, BarChart3,
     Truck, CreditCard, Wrench, Shield, FileText, ClipboardList,
-    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw, ShieldAlert,
+    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw, ShieldAlert, Layers,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -30,6 +30,7 @@ import { dashboard, reports } from '@/routes';
 import { index as allocationsIndex } from '@/routes/allocations';
 import { index as blacklistsIndex } from '@/routes/blacklists';
 import { index as bookingsIndex } from '@/routes/bookings';
+import { index as carTypesIndex } from '@/routes/car-types';
 import { index as carsIndex } from '@/routes/cars';
 import { index as customersIndex } from '@/routes/customers';
 import { index as driversIndex } from '@/routes/drivers';
@@ -88,6 +89,7 @@ export function AppSidebar() {
         operationalItems.push({ title: 'Unit Kembali', href: returnsIndex(), icon: RotateCcw });
         operationalItems.push({ title: 'Pembayaran', href: paymentsIndex(), icon: CreditCard });
 
+        fleetItems.push({ title: 'Tipe & Jenis Mobil', href: carTypesIndex(), icon: Layers });
         fleetItems.push({ title: 'Data Supir', href: driversIndex(), icon: Truck });
         fleetItems.push({ title: 'Servis Mobil', href: servicesIndex(), icon: Wrench });
         fleetItems.push({ title: 'Asuransi', href: insurancesIndex(), icon: Shield });
