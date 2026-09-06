@@ -2,12 +2,14 @@ import { Head, Link, router, useForm, usePage, usePoll } from '@inertiajs/react'
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter
 } from '@/components/ui/dialog';
 import {
@@ -20,7 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter } from 'lucide-react';
+import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
 
 type Customer = {
@@ -91,7 +93,9 @@ type Booking = {
     payment_method: 'Cash' | 'Transfer' | 'DP';
     payment_status: 'Pending' | 'Paid' | 'Down Payment';
     amount: number;
-    status: 'Pending' | 'Confirmed' | 'On Trip' | 'Returned' | 'Completed';
+    status: 'Pending' | 'Confirmed' | 'On Trip' | 'Returned' | 'Completed' | 'Cancelled';
+    cancellation_reason?: string | null;
+    cancelled_at?: string | null;
 };
 
 import Pagination, { PaginatedData } from '@/components/pagination';
@@ -150,6 +154,9 @@ export default function BookingsIndex({
     const [isAssignOpen, setIsAssignOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [deleteBookingId, setDeleteBookingId] = useState<number | null>(null);
+    const [cancelBooking, setCancelBooking] = useState<Booking | null>(null);
+    const [cancelReason, setCancelReason] = useState('');
+    const [isCancelling, setIsCancelling] = useState(false);
     const [isNewCustomer, setIsNewCustomer] = useState(false);
     const [isCustomCarType, setIsCustomCarType] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -371,6 +378,7 @@ export default function BookingsIndex({
         payment_status: 'Pending',
         amount: '0',
         status: 'Pending',
+        cancellation_reason: '',
     });
 
     const { data: assignData, setData: setAssignData, put: putAssign, processing: processingAssign } = useForm({
@@ -410,6 +418,7 @@ export default function BookingsIndex({
             payment_status: booking.payment_status || 'Pending',
             amount: booking.amount ? booking.amount.toString() : '0',
             status: booking.status || 'Pending',
+            cancellation_reason: booking.cancellation_reason || '',
         });
         setIsEditOpen(true);
     };
@@ -482,6 +491,8 @@ export default function BookingsIndex({
                 return 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/25';
             case 'Completed':
                 return 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/25';
+            case 'Cancelled':
+                return 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/25';
             default:
                 return 'bg-neutral-500/15 text-neutral-600 dark:text-neutral-400 border-neutral-500/25';
         }
@@ -651,6 +662,7 @@ export default function BookingsIndex({
                                                 <SelectItem value="On Trip">On Trip</SelectItem>
                                                 <SelectItem value="Returned">Returned</SelectItem>
                                                 <SelectItem value="Completed">Completed</SelectItem>
+                                                <SelectItem value="Cancelled">Cancelled (Dibatalkan)</SelectItem>
                                             </SelectContent>
                                         </Select>
 
@@ -721,6 +733,19 @@ export default function BookingsIndex({
                                             )}
                                         </div>
                                         <div className="flex justify-end gap-2 pt-2 border-t mt-1">
+                                            {booking.status !== 'Cancelled' && booking.status !== 'Completed' && booking.status !== 'Returned' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="destructive"
+                                                    className="flex items-center gap-1 h-8 text-xs font-semibold px-2.5 shadow-xs"
+                                                    onClick={() => {
+                                                        setCancelBooking(booking);
+                                                        setCancelReason('');
+                                                    }}
+                                                >
+                                                    <Ban className="h-3.5 w-3.5" /> Cancel
+                                                </Button>
+                                            )}
                                             {(hasRole('Admin') || hasRole('Super Admin')) && (
                                                 <>
                                                     <Button
@@ -844,18 +869,41 @@ export default function BookingsIndex({
                                                     </td>
                                                 )}
                                                 <td className="px-4 py-4">
-                                                    <Badge variant="outline" className={getStatusColor(booking.status)}>
-                                                        {booking.status}
-                                                    </Badge>
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        <Badge variant="outline" className={getStatusColor(booking.status)}>
+                                                            {booking.status}
+                                                        </Badge>
+                                                        {booking.status === 'Cancelled' && booking.cancellation_reason && (
+                                                            <span className="text-[11px] text-muted-foreground line-clamp-2 max-w-[160px]" title={`Alasan: ${booking.cancellation_reason}`}>
+                                                                Alasan: {booking.cancellation_reason}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-4 text-right whitespace-nowrap">
-                                                    <div className="flex items-center justify-end gap-2">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {booking.status !== 'Cancelled' && booking.status !== 'Completed' && booking.status !== 'Returned' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="destructive"
+                                                                className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 shadow-xs"
+                                                                title="Batalkan Booking"
+                                                                onClick={() => {
+                                                                    setCancelBooking(booking);
+                                                                    setCancelReason('');
+                                                                }}
+                                                            >
+                                                                <Ban className="h-3.5 w-3.5" /> Cancel
+                                                            </Button>
+                                                        )}
+
                                                         {(hasRole('Admin') || hasRole('Super Admin')) && (
                                                             <>
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"
                                                                     className="h-8 w-8"
+                                                                    title="Edit Booking"
                                                                     onClick={() => openEditDialog(booking)}
                                                                 >
                                                                     <Edit className="h-4 w-4" />
@@ -864,6 +912,7 @@ export default function BookingsIndex({
                                                                     variant="ghost"
                                                                     size="icon"
                                                                     className="h-8 w-8 text-red-500 hover:text-red-600"
+                                                                    title="Hapus Booking"
                                                                     onClick={() => setDeleteBookingId(booking.id)}
                                                                 >
                                                                     <Trash2 className="h-4 w-4" />
@@ -1594,16 +1643,88 @@ export default function BookingsIndex({
                                             <SelectItem value="On Trip">On Trip</SelectItem>
                                             <SelectItem value="Returned">Returned</SelectItem>
                                             <SelectItem value="Completed">Completed</SelectItem>
+                                            <SelectItem value="Cancelled">Cancelled (Dibatalkan)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
+
+                            {editData.status === 'Cancelled' && (
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_cancellation_reason" className="text-xs">Alasan Pembatalan (Opsional)</Label>
+                                    <Textarea
+                                        id="edit_cancellation_reason"
+                                        rows={2}
+                                        placeholder="Masukkan alasan pembatalan jika ada..."
+                                        value={editData.cancellation_reason}
+                                        onChange={(e) => setEditData('cancellation_reason', e.target.value)}
+                                        className="text-xs resize-none"
+                                    />
+                                </div>
+                            )}
 
                             <DialogFooter className="pt-4">
                                 <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>Batal</Button>
                                 <Button type="submit" disabled={processingEdit}>Simpan Perubahan</Button>
                             </DialogFooter>
                         </form>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Cancel Booking Confirmation Dialog */}
+                <Dialog open={cancelBooking !== null} onOpenChange={(open) => !open && setCancelBooking(null)}>
+                    <DialogContent className="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-destructive">
+                                <AlertTriangle className="h-5 w-5" /> Batalkan Booking
+                            </DialogTitle>
+                            <DialogDescription>
+                                Apakah Anda yakin ingin membatalkan pesanan booking <strong className="text-foreground">{cancelBooking?.booking_number}</strong> atas nama <strong className="text-foreground">{cancelBooking?.customer?.name}</strong>?
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-3 py-2">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="cancel_reason" className="text-xs font-medium">Alasan Pembatalan <span className="text-muted-foreground font-normal">(Opsional)</span></Label>
+                                <Textarea
+                                    id="cancel_reason"
+                                    placeholder="Contoh: Konsumen membatalkan sewa, ganti tanggal sewa, unit tidak sesuai, dll."
+                                    className="text-xs resize-none"
+                                    rows={3}
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Status booking akan diubah menjadi <span className="text-destructive font-semibold">Cancelled</span> dan unit mobil akan dibebaskan.
+                            </p>
+                        </div>
+                        <DialogFooter className="gap-2 sm:gap-0">
+                            <Button variant="outline" type="button" onClick={() => setCancelBooking(null)}>
+                                Kembali
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                type="button"
+                                disabled={isCancelling}
+                                onClick={() => {
+                                    if (cancelBooking) {
+                                        setIsCancelling(true);
+                                        router.post(`/bookings/${cancelBooking.id}/cancel`, {
+                                            cancellation_reason: cancelReason,
+                                        }, {
+                                            preserveScroll: true,
+                                            onSuccess: () => {
+                                                setCancelBooking(null);
+                                                setCancelReason('');
+                                            },
+                                            onFinish: () => setIsCancelling(false),
+                                        });
+                                    }
+                                }}
+                            >
+                                {isCancelling ? 'Membatalkan...' : 'Batalkan Booking'}
+                            </Button>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
 

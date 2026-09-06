@@ -41,6 +41,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Bookings & Workflows
     Route::resource('bookings', BookingController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
     Route::get('bookings/{booking}/checklist', [BookingController::class, 'showChecklist'])->name('bookings.checklist');
     Route::post('bookings/{booking}/delivery', [BookingController::class, 'submitDelivery'])->name('bookings.delivery');
     Route::post('bookings/{booking}/return', [BookingController::class, 'submitReturn'])->name('bookings.return');

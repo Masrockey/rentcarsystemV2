@@ -203,10 +203,16 @@ class BookingController extends Controller
             'petugas_cuci_id' => ['nullable', 'exists:users,id'],
             'amount' => ['nullable', 'numeric', 'min:0'],
             'payment_status' => ['nullable', Rule::in(['Pending', 'Paid', 'Down Payment'])],
-            'status' => ['nullable', Rule::in(['Pending', 'Confirmed', 'On Trip', 'Returned', 'Completed'])],
+            'status' => ['nullable', Rule::in(['Pending', 'Confirmed', 'On Trip', 'Returned', 'Completed', 'Cancelled'])],
+            'cancellation_reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $booking->update(array_filter($validated, fn ($val) => $val !== null));
+        $updateData = array_filter($validated, fn ($val) => $val !== null);
+        if (isset($updateData['status']) && $updateData['status'] === 'Cancelled' && ! $booking->cancelled_at) {
+            $updateData['cancelled_at'] = now();
+        }
+
+        $booking->update($updateData);
 
         // If car and peluncur are assigned, auto-confirm booking if it was pending
         if ($booking->car_id && $booking->peluncur_id && $booking->status === 'Pending') {
@@ -219,6 +225,40 @@ class BookingController extends Controller
         ]);
 
         return to_route('bookings.index');
+    }
+
+    /**
+     * Cancel a booking.
+     */
+    public function cancel(Request $request, Booking $booking): RedirectResponse
+    {
+        $this->authorizeBookingAccess($request, $booking);
+
+        if ($booking->status === 'Completed' || $booking->status === 'Returned') {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => 'Booking yang sudah selesai atau dikembalikan tidak dapat dibatalkan.',
+            ]);
+
+            return back();
+        }
+
+        $validated = $request->validate([
+            'cancellation_reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $booking->update([
+            'status' => 'Cancelled',
+            'cancellation_reason' => $validated['cancellation_reason'] ?? null,
+            'cancelled_at' => now(),
+        ]);
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => 'Booking berhasil dibatalkan.',
+        ]);
+
+        return back();
     }
 
     /**

@@ -264,3 +264,36 @@ test('admin and peluncur can access rentals page and view data', function () {
     $response = $this->get(route('rentals.index'));
     $response->assertOk();
 });
+
+test('user can cancel booking with optional cancellation reason', function () {
+    $marketing = User::factory()->create(['roles' => ['Marketing']]);
+    $customer = Customer::create([
+        'user_id' => $marketing->id,
+        'name' => 'Cancel Test Client',
+        'phone' => '0899887766',
+    ]);
+
+    $booking = Booking::create([
+        'user_id' => $marketing->id,
+        'customer_id' => $customer->id,
+        'car_type' => 'Avanza',
+        'booking_date' => '2026-09-10',
+        'payment_method' => 'Cash',
+        'payment_status' => 'Pending',
+        'amount' => 350000,
+        'status' => 'Pending',
+    ]);
+
+    $this->actingAs($marketing);
+
+    $response = $this->post(route('bookings.cancel', $booking), [
+        'cancellation_reason' => 'Konsumen berubah rencana liburan',
+    ]);
+
+    $response->assertRedirect();
+
+    $booking->refresh();
+    expect($booking->status)->toBe('Cancelled');
+    expect($booking->cancellation_reason)->toBe('Konsumen berubah rencana liburan');
+    expect($booking->cancelled_at)->not->toBeNull();
+});
