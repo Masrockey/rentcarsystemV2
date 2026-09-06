@@ -12,6 +12,7 @@ import {
 import { useState } from 'react';
 import { Plus, Edit, Trash2, Wrench } from 'lucide-react';
 import { index as servicesIndex } from '@/routes/services';
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type CarOption = { id: number; name: string; plate_number: string };
 type ServiceRecord = {
@@ -27,9 +28,10 @@ type ServiceRecord = {
     car?: CarOption;
 };
 
-type Props = { services: ServiceRecord[]; cars: CarOption[] };
+type Props = { services: PaginatedData<ServiceRecord> | ServiceRecord[]; cars: CarOption[] };
 
 export default function ServicesIndex({ services, cars }: Props) {
+    const serviceList = Array.isArray(services) ? services : (services?.data || []);
     const [isOpen, setIsOpen] = useState(false);
     const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -97,9 +99,9 @@ export default function ServicesIndex({ services, cars }: Props) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {services.length === 0 ? (
+                                    {serviceList.length === 0 ? (
                                         <tr><td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">Belum ada riwayat service.</td></tr>
-                                    ) : services.map((s) => (
+                                    ) : serviceList.map((s) => (
                                         <tr key={s.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4">
                                                 <div className="font-medium">{s.car?.name}</div>
@@ -120,6 +122,8 @@ export default function ServicesIndex({ services, cars }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={services} />
                     </CardContent>
                 </Card>
 

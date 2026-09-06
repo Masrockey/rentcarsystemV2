@@ -16,7 +16,8 @@ class BlacklistController extends Controller
     {
         $blacklists = Blacklist::with('creator:id,name')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate(10)
+            ->withQueryString();
 
         return Inertia::render('blacklists/index', [
             'blacklists' => $blacklists,

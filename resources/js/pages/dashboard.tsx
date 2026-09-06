@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePoll } from '@inertiajs/react';
 import { dashboard } from '@/routes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -278,6 +278,11 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
     }, [stats.marketing?.cars_status, carSearch, carStatusFilter]);
 
     const hasRole = (r: string) => roles.includes(r) || roles.includes('Super Admin');
+
+    // Auto-poll dashboard stats every 10 seconds in the background
+    usePoll(10000, {
+        only: ['stats'],
+    });
 
     return (
         <>

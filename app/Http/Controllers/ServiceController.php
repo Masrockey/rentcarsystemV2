@@ -19,7 +19,8 @@ class ServiceController extends Controller
         return Inertia::render('services/index', [
             'services' => Service::with('car')
                 ->orderBy('service_date', 'desc')
-                ->get(),
+                ->paginate(10)
+                ->withQueryString(),
             'cars' => Car::orderBy('name')->get(['id', 'name', 'plate_number']),
         ]);
     }

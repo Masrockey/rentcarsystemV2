@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { Plus, Edit, Trash2, CreditCard } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { index as paymentsIndex } from '@/routes/payments';
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type Payment = {
     id: number;
@@ -30,9 +31,10 @@ type Payment = {
 
 type BookingOption = { id: number; booking_number: string | null; customer?: { name: string } };
 
-type Props = { payments: Payment[]; bookings: BookingOption[] };
+type Props = { payments: PaginatedData<Payment> | Payment[]; bookings: BookingOption[] };
 
 export default function PaymentsIndex({ payments, bookings }: Props) {
+    const paymentList = Array.isArray(payments) ? payments : (payments?.data || []);
     const [isOpen, setIsOpen] = useState(false);
     const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -116,9 +118,9 @@ export default function PaymentsIndex({ payments, bookings }: Props) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {payments.length === 0 ? (
+                                    {paymentList.length === 0 ? (
                                         <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">Belum ada data pembayaran.</td></tr>
-                                    ) : payments.map((p) => (
+                                    ) : paymentList.map((p) => (
                                         <tr key={p.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4 font-mono text-xs font-semibold">{p.invoice_number}</td>
                                             <td className="px-6 py-4">
@@ -140,6 +142,8 @@ export default function PaymentsIndex({ payments, bookings }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={payments} />
                     </CardContent>
                 </Card>
 

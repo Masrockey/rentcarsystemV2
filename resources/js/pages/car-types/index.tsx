@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useMemo } from 'react';
 import { Plus, Edit, Trash2, Car, Search, Layers, X, Tag } from 'lucide-react';
 import { index as carTypesIndex } from '@/routes/car-types';
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 export type CarType = {
     id: number;
@@ -22,10 +23,11 @@ export type CarType = {
 };
 
 type Props = {
-    carTypes: CarType[];
+    carTypes: PaginatedData<CarType> | CarType[];
 };
 
 export default function CarTypesIndex({ carTypes }: Props) {
+    const carTypeList = useMemo(() => Array.isArray(carTypes) ? carTypes : (carTypes?.data || []), [carTypes]);
     const page = usePage();
     const user = page.props.auth?.user as any;
     const roles: string[] = user?.roles || [];
@@ -44,16 +46,16 @@ export default function CarTypesIndex({ carTypes }: Props) {
     });
 
     const filteredCarTypes = useMemo(() => {
-        if (!searchQuery.trim()) return carTypes;
+        if (!searchQuery.trim()) return carTypeList;
         const q = searchQuery.toLowerCase();
-        return carTypes.filter((ct) => {
+        return carTypeList.filter((ct) => {
             const name = ct.name?.toLowerCase() || '';
             const type = ct.type?.toLowerCase() || '';
             const category = ct.category?.toLowerCase() || '';
             const desc = ct.description?.toLowerCase() || '';
             return name.includes(q) || type.includes(q) || category.includes(q) || desc.includes(q);
         });
-    }, [carTypes, searchQuery]);
+    }, [carTypeList, searchQuery]);
 
     const openCreate = () => {
         setEditingCarType(null);
@@ -116,7 +118,7 @@ export default function CarTypesIndex({ carTypes }: Props) {
                         <div>
                             <CardTitle className="text-lg">Daftar Model & Tipe Mobil</CardTitle>
                             <CardDescription>
-                                Total {carTypes.length} tipe mobil terdaftar di sistem.
+                                Total {'total' in carTypes ? carTypes.total : carTypeList.length} tipe mobil terdaftar di sistem.
                             </CardDescription>
                         </div>
                         <div className="relative w-full sm:w-72">
@@ -282,6 +284,8 @@ export default function CarTypesIndex({ carTypes }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={carTypes} />
                     </CardContent>
                 </Card>
 

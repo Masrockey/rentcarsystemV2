@@ -31,16 +31,18 @@ class AllocationController extends Controller
             });
         }
 
-        $allBookings = $query->get();
+        $unallocatedCount = (clone $query)->whereNull('car_id')->count();
+        $allocatedCount = (clone $query)->whereNotNull('car_id')->count();
+        $bookings = $query->paginate(10)->withQueryString();
 
         return Inertia::render('allocations/index', [
-            'bookings' => $allBookings,
+            'bookings' => $bookings,
             'readyCars' => Car::where('status', 'Ready')->orderBy('name')->get(),
             'readyDrivers' => Driver::where('status', 'Active')->orderBy('name')->get(),
             'peluncurOfficers' => User::whereJsonContains('roles', 'Peluncur')->orderBy('name')->get(),
             'washOfficers' => User::whereJsonContains('roles', 'Petugas Cuci')->orderBy('name')->get(),
-            'unallocatedCount' => $allBookings->whereNull('car_id')->count(),
-            'allocatedCount' => $allBookings->whereNotNull('car_id')->count(),
+            'unallocatedCount' => $unallocatedCount,
+            'allocatedCount' => $allocatedCount,
             'blacklists' => Blacklist::all(),
         ]);
     }

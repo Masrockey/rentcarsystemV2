@@ -15,6 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useState } from 'react';
 import { Plus, Edit, Trash2, Phone } from 'lucide-react';
 import { index as usersIndex } from '@/routes/users';
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type User = {
     id: number;
@@ -26,10 +27,11 @@ type User = {
 };
 
 type Props = {
-    users: User[];
+    users: PaginatedData<User> | User[];
 };
 
 export default function UsersIndex({ users }: Props) {
+    const userList = Array.isArray(users) ? users : (users?.data || []);
     const [isOpen, setIsOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -136,14 +138,14 @@ export default function UsersIndex({ users }: Props) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {users.length === 0 ? (
+                                    {userList.length === 0 ? (
                                         <tr>
                                             <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
                                                 No users found.
                                             </td>
                                         </tr>
                                     ) : (
-                                        users.map((user) => (
+                                        userList.map((user) => (
                                             <tr key={user.id} className="hover:bg-muted/50">
                                                 <td className="px-6 py-4 font-medium">{user.name}</td>
                                                 <td className="px-6 py-4 font-mono text-xs font-semibold text-primary">{user.username ?? '-'}</td>
@@ -181,6 +183,8 @@ export default function UsersIndex({ users }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={users} />
                     </CardContent>
                 </Card>
 

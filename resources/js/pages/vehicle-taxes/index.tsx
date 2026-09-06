@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { Plus, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import { index as vehicleTaxesIndex } from '@/routes/vehicle-taxes';
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type CarOption = { id: number; name: string; plate_number: string };
 type VehicleTax = {
@@ -27,9 +28,10 @@ type VehicleTax = {
     car?: CarOption;
 };
 
-type Props = { vehicleTaxes: VehicleTax[]; cars: CarOption[] };
+type Props = { vehicleTaxes: PaginatedData<VehicleTax> | VehicleTax[]; cars: CarOption[]; expiringSoonCount?: number };
 
-export default function VehicleTaxesIndex({ vehicleTaxes, cars }: Props) {
+export default function VehicleTaxesIndex({ vehicleTaxes, cars, expiringSoonCount }: Props) {
+    const taxList = Array.isArray(vehicleTaxes) ? vehicleTaxes : (vehicleTaxes?.data || []);
     const [isOpen, setIsOpen] = useState(false);
     const [editingTax, setEditingTax] = useState<VehicleTax | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -71,7 +73,7 @@ export default function VehicleTaxesIndex({ vehicleTaxes, cars }: Props) {
         return { label: 'Aktif', cls: 'bg-green-500/15 text-green-600 border-green-500/25' };
     };
 
-    const expiringSoon = vehicleTaxes.filter(t => {
+    const expiringSoon = expiringSoonCount ?? taxList.filter(t => {
         const days = (new Date(t.valid_until).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
         return days >= 0 && days <= 30;
     }).length;
@@ -116,9 +118,9 @@ export default function VehicleTaxesIndex({ vehicleTaxes, cars }: Props) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {vehicleTaxes.length === 0 ? (
+                                    {taxList.length === 0 ? (
                                         <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">Belum ada data pajak.</td></tr>
-                                    ) : vehicleTaxes.map((t) => {
+                                    ) : taxList.map((t) => {
                                         const status = getTaxStatus(t.valid_until);
                                         return (
                                             <tr key={t.id} className="hover:bg-muted/50">
@@ -143,6 +145,8 @@ export default function VehicleTaxesIndex({ vehicleTaxes, cars }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={vehicleTaxes} />
                     </CardContent>
                 </Card>
 

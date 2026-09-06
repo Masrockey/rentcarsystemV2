@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePoll } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,8 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
 import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight } from 'lucide-react';
 import { index as allocationsIndex } from '@/routes/allocations';
+
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type CarRef = { id: number; name: string; plate_number: string; daily_price?: string };
 type DriverRef = { id: number; name: string; phone?: string | null; daily_rate?: string };
@@ -61,7 +63,7 @@ type Booking = {
 };
 
 type Props = {
-    bookings: Booking[];
+    bookings: PaginatedData<Booking> | Booking[];
     readyCars: CarRef[];
     readyDrivers: DriverRef[];
     peluncurOfficers: UserRef[];
@@ -81,10 +83,16 @@ export default function AllocationsIndex({
     allocatedCount,
     blacklists = [],
 }: Props) {
+    const bookingList = useMemo(() => Array.isArray(bookings) ? bookings : (bookings?.data || []), [bookings]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | 'unallocated' | 'allocated'>('all');
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [isAllocateOpen, setIsAllocateOpen] = useState(false);
+
+    // Auto-poll allocations data every 10 seconds in the background
+    usePoll(10000, {
+        only: ['bookings', 'readyCars', 'drivers', 'unallocatedCount', 'allocatedCount'],
+    });
 
     // Blacklist Checking States
     const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
@@ -272,7 +280,7 @@ export default function AllocationsIndex({
 
     // Dynamic counts based on active date range
     const currentUnallocatedCount = useMemo(() => {
-        return bookings.filter((b) => {
+        return bookingList.filter((b) => {
             if (startDate || endDate) {
                 const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
                 const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
@@ -289,10 +297,10 @@ export default function AllocationsIndex({
             }
             return b.car_id === null;
         }).length;
-    }, [bookings, startDate, endDate, dateFilterField]);
+    }, [bookingList, startDate, endDate, dateFilterField]);
 
     const currentAllocatedCount = useMemo(() => {
-        return bookings.filter((b) => {
+        return bookingList.filter((b) => {
             if (startDate || endDate) {
                 const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
                 const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
@@ -309,12 +317,12 @@ export default function AllocationsIndex({
             }
             return b.car_id !== null;
         }).length;
-    }, [bookings, startDate, endDate, dateFilterField]);
+    }, [bookingList, startDate, endDate, dateFilterField]);
 
     const currentTotalCount = currentUnallocatedCount + currentAllocatedCount;
 
     const filteredBookings = useMemo(() => {
-        return bookings.filter((b) => {
+        return bookingList.filter((b) => {
             const matchesSearch =
                 (b.customer?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (b.booking_number ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -352,7 +360,7 @@ export default function AllocationsIndex({
 
             return true;
         });
-    }, [bookings, searchQuery, activeFilter, startDate, endDate, dateFilterField]);
+    }, [bookingList, searchQuery, activeFilter, startDate, endDate, dateFilterField]);
 
     return (
         <>
@@ -713,6 +721,8 @@ export default function AllocationsIndex({
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={bookings} />
                     </CardContent>
                 </Card>
 

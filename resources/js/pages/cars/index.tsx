@@ -1,4 +1,4 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage, usePoll } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
-import { Plus, Edit, Trash2, Car } from 'lucide-react';
+import { Plus, Edit, Trash2, Car, Search, X } from 'lucide-react';
 import { index as carsIndex } from '@/routes/cars';
 
 type CarRecord = {
@@ -37,10 +37,13 @@ type CarRecord = {
     status: string;
 };
 
+import Pagination, { PaginatedData } from '@/components/pagination';
+
 type Props = {
-    cars: CarRecord[];
+    cars: PaginatedData<CarRecord> | CarRecord[];
     allCars?: CarRecord[];
     selectedStatus?: string;
+    search?: string;
     statusCounts?: {
         all: number;
         ready: number;
@@ -50,29 +53,52 @@ type Props = {
     };
 };
 
-export default function CarsIndex({ cars, allCars, selectedStatus = 'all', statusCounts }: Props) {
+export default function CarsIndex({ cars, selectedStatus = 'all', search = '', statusCounts }: Props) {
     const page = usePage();
     const user = page.props.auth?.user as any;
     const roles: string[] = user?.roles || [];
     const canManageCars = roles.includes('Admin') || roles.includes('Super Admin');
 
-    const list = allCars && allCars.length > 0 ? allCars : cars;
-    const [activeFilter, setActiveFilter] = useState<string>(selectedStatus);
+    const carList = Array.isArray(cars) ? cars : (cars?.data || []);
+    const [searchQuery, setSearchQuery] = useState(search);
     const [isOpen, setIsOpen] = useState(false);
     const [editingCar, setEditingCar] = useState<CarRecord | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
     const counts = statusCounts ?? {
-        all: list.length,
-        ready: list.filter(c => c.status === 'Ready').length,
-        not_ready: list.filter(c => c.status === 'Not Ready').length,
-        belum_dicuci: list.filter(c => c.status === 'Belum Dicuci').length,
-        service: list.filter(c => c.status === 'Service').length,
+        all: 'total' in cars ? cars.total : carList.length,
+        ready: 0,
+        not_ready: 0,
+        belum_dicuci: 0,
+        service: 0,
     };
 
-    const filteredCars = activeFilter === 'all'
-        ? list
-        : list.filter(c => c.status === activeFilter);
+    // Auto-poll cars fleet data and status counts every 10 seconds in the background
+    usePoll(10000, {
+        only: ['cars', 'statusCounts'],
+    });
+
+    const handleFilterChange = (status: string, customSearch?: string) => {
+        const querySearch = customSearch !== undefined ? customSearch : searchQuery;
+        router.get(
+            '/cars',
+            {
+                status,
+                ...(querySearch ? { search: querySearch } : {}),
+            },
+            { preserveState: true, preserveScroll: true }
+        );
+    };
+
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        handleFilterChange(selectedStatus, searchQuery);
+    };
+
+    const handleClearSearch = () => {
+        setSearchQuery('');
+        handleFilterChange(selectedStatus, '');
+    };
 
     const { data, setData, post, put, reset, processing, errors, clearErrors } = useForm({
         name: '',
@@ -164,8 +190,8 @@ export default function CarsIndex({ cars, allCars, selectedStatus = 'all', statu
                     {cardConfigs.map(item => (
                         <Card
                             key={item.status}
-                            className={`cursor-pointer transition-all hover:scale-[1.02] ${activeFilter === item.status ? 'ring-2 ring-primary shadow-sm' : ''}`}
-                            onClick={() => setActiveFilter(activeFilter === item.status ? 'all' : item.status)}
+                            className={`cursor-pointer transition-all hover:scale-[1.02] ${selectedStatus === item.status ? 'ring-2 ring-primary shadow-sm' : ''}`}
+                            onClick={() => handleFilterChange(selectedStatus === item.status ? 'all' : item.status)}
                         >
                             <CardContent className="pt-6">
                                 <div className={`text-2xl font-bold ${item.color}`}>{item.count}</div>
@@ -178,64 +204,97 @@ export default function CarsIndex({ cars, allCars, selectedStatus = 'all', statu
                 </div>
 
                 <Card>
-                    <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <CardTitle>
-                            {activeFilter === 'all'
-                                ? `Semua Kendaraan (${filteredCars.length})`
-                                : `Kendaraan Status: ${activeFilter === 'Not Ready' ? 'Sedang Disewa' : activeFilter} (${filteredCars.length})`}
-                        </CardTitle>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            <Button
-                                variant={activeFilter === 'all' ? 'default' : 'outline'}
-                                size="sm"
-                                className="h-8 text-xs"
-                                onClick={() => setActiveFilter('all')}
-                            >
-                                Semua ({counts.all})
-                            </Button>
-                            <Button
-                                variant={activeFilter === 'Ready' ? 'default' : 'outline'}
-                                size="sm"
-                                className={`h-8 text-xs ${activeFilter === 'Ready' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                                onClick={() => setActiveFilter('Ready')}
-                            >
-                                Ready ({counts.ready})
-                            </Button>
-                            <Button
-                                variant={activeFilter === 'Not Ready' ? 'default' : 'outline'}
-                                size="sm"
-                                className={`h-8 text-xs ${activeFilter === 'Not Ready' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
-                                onClick={() => setActiveFilter('Not Ready')}
-                            >
-                                Disewa ({counts.not_ready})
-                            </Button>
-                            <Button
-                                variant={activeFilter === 'Belum Dicuci' ? 'default' : 'outline'}
-                                size="sm"
-                                className={`h-8 text-xs ${activeFilter === 'Belum Dicuci' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
-                                onClick={() => setActiveFilter('Belum Dicuci')}
-                            >
-                                Cuci ({counts.belum_dicuci})
-                            </Button>
-                            <Button
-                                variant={activeFilter === 'Service' ? 'default' : 'outline'}
-                                size="sm"
-                                className={`h-8 text-xs ${activeFilter === 'Service' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
-                                onClick={() => setActiveFilter('Service')}
-                            >
-                                Service ({counts.service})
-                            </Button>
+                    <CardHeader className="flex flex-col gap-4">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div>
+                                <CardTitle className="text-base font-bold">
+                                    {selectedStatus === 'all'
+                                        ? `Semua Kendaraan (${counts.all})`
+                                        : `Kendaraan Status: ${selectedStatus === 'Not Ready' ? 'Sedang Disewa' : selectedStatus}`}
+                                </CardTitle>
+                                {searchQuery && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Hasil pencarian untuk: <span className="font-semibold text-foreground">"{searchQuery}"</span>
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-72">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        type="search"
+                                        placeholder="Cari mobil, plat, tipe, pemilik..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-8 pr-8 text-xs h-9"
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={handleClearSearch}
+                                            className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                                            title="Hapus pencarian"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </form>
+
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <Button
+                                        variant={selectedStatus === 'all' ? 'default' : 'outline'}
+                                        size="sm"
+                                        className="h-8 text-xs"
+                                        onClick={() => handleFilterChange('all')}
+                                    >
+                                        Semua ({counts.all})
+                                    </Button>
+                                    <Button
+                                        variant={selectedStatus === 'Ready' ? 'default' : 'outline'}
+                                        size="sm"
+                                        className={`h-8 text-xs ${selectedStatus === 'Ready' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                                        onClick={() => handleFilterChange('Ready')}
+                                    >
+                                        Ready ({counts.ready})
+                                    </Button>
+                                    <Button
+                                        variant={selectedStatus === 'Not Ready' ? 'default' : 'outline'}
+                                        size="sm"
+                                        className={`h-8 text-xs ${selectedStatus === 'Not Ready' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                                        onClick={() => handleFilterChange('Not Ready')}
+                                    >
+                                        Disewa ({counts.not_ready})
+                                    </Button>
+                                    <Button
+                                        variant={selectedStatus === 'Belum Dicuci' ? 'default' : 'outline'}
+                                        size="sm"
+                                        className={`h-8 text-xs ${selectedStatus === 'Belum Dicuci' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                                        onClick={() => handleFilterChange('Belum Dicuci')}
+                                    >
+                                        Cuci ({counts.belum_dicuci})
+                                    </Button>
+                                    <Button
+                                        variant={selectedStatus === 'Service' ? 'default' : 'outline'}
+                                        size="sm"
+                                        className={`h-8 text-xs ${selectedStatus === 'Service' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                                        onClick={() => handleFilterChange('Service')}
+                                    >
+                                        Service ({counts.service})
+                                    </Button>
+                                </div>
+                            </div>
                         </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-3">
                         {/* Mobile Cards View */}
                         <div className="space-y-3 md:hidden">
-                            {filteredCars.length === 0 ? (
+                            {carList.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
                                     Tidak ada kendaraan dengan status ini.
                                 </div>
                             ) : (
-                                filteredCars.map((car) => (
+                                carList.map((car) => (
                                     <div key={car.id} className="flex flex-col gap-3 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
                                         <div className="flex items-center gap-3">
                                             {car.photo ? (
@@ -302,9 +361,9 @@ export default function CarsIndex({ cars, allCars, selectedStatus = 'all', statu
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {filteredCars.length === 0 ? (
+                                    {carList.length === 0 ? (
                                         <tr><td colSpan={canManageCars ? 8 : 7} className="px-6 py-8 text-center text-muted-foreground">Tidak ada kendaraan dengan status ini.</td></tr>
-                                    ) : filteredCars.map((car) => (
+                                    ) : carList.map((car) => (
                                         <tr key={car.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
@@ -349,6 +408,8 @@ export default function CarsIndex({ cars, allCars, selectedStatus = 'all', statu
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={cars} />
                     </CardContent>
                 </Card>
 

@@ -14,6 +14,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
 import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User, Calendar, Search, X, Filter } from 'lucide-react';
 import { index as rentalsIndex } from '@/routes/rentals';
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type CarOption = { id: number; name: string; plate_number: string };
 type CustomerOption = { id: number; name: string };
@@ -64,7 +65,7 @@ const getCurrentTime = () => {
 };
 
 type Props = {
-    rentals: Rental[];
+    rentals: PaginatedData<Rental> | Rental[];
     confirmedBookings?: any[];
     bookings: BookingOption[];
     cars: CarOption[];
@@ -73,6 +74,7 @@ type Props = {
 };
 
 export default function RentalsIndex({ rentals, confirmedBookings = [], bookings, cars, customers, officers }: Props) {
+    const rentalList = useMemo(() => Array.isArray(rentals) ? rentals : (rentals?.data || []), [rentals]);
     const [isOpen, setIsOpen] = useState(false);
     const [isReturnOpen, setIsReturnOpen] = useState(false);
     const [washBookingId, setWashBookingId] = useState<number | null>(null);
@@ -172,7 +174,7 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
     const isThisMonthActive = startDate === thisMonth.start && endDate === thisMonth.end;
 
     const filteredRentals = useMemo(() => {
-        return rentals.filter((r) => {
+        return rentalList.filter((r) => {
             if (searchQuery.trim()) {
                 const q = searchQuery.toLowerCase();
                 const contract = r.contract_number?.toLowerCase() || '';
@@ -212,7 +214,7 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
 
             return true;
         });
-    }, [rentals, searchQuery, statusFilter, startDate, endDate, dateFilterField]);
+    }, [rentalList, searchQuery, statusFilter, startDate, endDate, dateFilterField]);
 
     const filteredConfirmedBookings = useMemo(() => {
         return confirmedBookings.filter((b: any) => {
@@ -814,6 +816,8 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={rentals} />
                     </CardContent>
                 </Card>
 

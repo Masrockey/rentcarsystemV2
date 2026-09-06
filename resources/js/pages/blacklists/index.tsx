@@ -5,9 +5,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Plus, Search, ShieldAlert, Edit, Trash2, Phone, Calendar, User, FileText, Image as ImageIcon, X, MapPin, AlertCircle, Info, FileSpreadsheet, Download, Upload } from 'lucide-react';
 import { index as blacklistsIndex } from '@/routes/blacklists';
+import Pagination, { PaginatedData } from '@/components/pagination';
 import * as XLSX from 'xlsx';
 
 type Blacklist = {
@@ -40,10 +41,11 @@ type ImportRow = {
 };
 
 type Props = {
-    blacklists: Blacklist[];
+    blacklists: PaginatedData<Blacklist> | Blacklist[];
 };
 
 export default function BlacklistsIndex({ blacklists }: Props) {
+    const blacklistList = useMemo(() => Array.isArray(blacklists) ? blacklists : (blacklists?.data || []), [blacklists]);
     const { auth } = usePage().props;
     const user = auth?.user as any;
     const roles: string[] = user?.roles || [];
@@ -288,7 +290,7 @@ export default function BlacklistsIndex({ blacklists }: Props) {
     };
 
     // Filter blacklists
-    const filteredBlacklists = blacklists.filter((item) => {
+    const filteredBlacklists = blacklistList.filter((item: Blacklist) => {
         const query = searchQuery.toLowerCase();
         const name = item.name.toLowerCase();
         const phone = item.phone.toLowerCase();
@@ -304,6 +306,15 @@ export default function BlacklistsIndex({ blacklists }: Props) {
             blacklistedBy.includes(query)
         );
     });
+
+    const totalCount = 'total' in blacklists ? blacklists.total : blacklistList.length;
+    const evidenceCount = blacklistList.filter((b: Blacklist) => b.evidence_photos && b.evidence_photos.length > 0).length;
+    const thisMonthCount = blacklistList.filter((b: Blacklist) => {
+        if (!b.created_at) return false;
+        const d = new Date(b.created_at);
+        const now = new Date();
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
 
     return (
         <>
@@ -355,7 +366,7 @@ export default function BlacklistsIndex({ blacklists }: Props) {
                             <ShieldAlert className="h-5 w-5 text-red-500" />
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{blacklists.length} Orangnya</div>
+                            <div className="text-2xl font-bold text-red-600 dark:text-red-400">{totalCount} Orangnya</div>
                             <p className="text-xs text-muted-foreground mt-1">Terdaftar dalam sistem pengawasan</p>
                         </CardContent>
                     </Card>
@@ -367,7 +378,7 @@ export default function BlacklistsIndex({ blacklists }: Props) {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                                {blacklists.filter((b) => b.evidence_photos && b.evidence_photos.length > 0).length} Data
+                                {evidenceCount} Data
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">Dilengkapi bukti foto fisik & dokumen</p>
                         </CardContent>
@@ -380,12 +391,7 @@ export default function BlacklistsIndex({ blacklists }: Props) {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-foreground">
-                                {blacklists.filter((b) => {
-                                    if (!b.created_at) return false;
-                                    const d = new Date(b.created_at);
-                                    const now = new Date();
-                                    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-                                }).length} Data
+                                {thisMonthCount} Data
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">Penambahan laporan terkini</p>
                         </CardContent>
@@ -448,7 +454,7 @@ export default function BlacklistsIndex({ blacklists }: Props) {
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredBlacklists.map((item) => {
+                                        filteredBlacklists.map((item: Blacklist) => {
                                             const photos = Array.isArray(item.evidence_photos) ? item.evidence_photos : [];
 
                                             return (
@@ -533,6 +539,8 @@ export default function BlacklistsIndex({ blacklists }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={blacklists} />
                     </CardContent>
                 </Card>
             </div>

@@ -18,7 +18,7 @@ class CarTypeController extends Controller
         abort_if(! $request->user()?->isAdmin(), 403, 'Akses ditolak. Hanya Admin Unit dan Super Administrator yang dapat mengakses menu ini.');
 
         return Inertia::render('car-types/index', [
-            'carTypes' => CarType::orderBy('name')->get(),
+            'carTypes' => CarType::orderBy('name')->paginate(10)->withQueryString(),
         ]);
     }
 

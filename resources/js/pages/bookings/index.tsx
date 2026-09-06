@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage, usePoll } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -94,8 +94,10 @@ type Booking = {
     status: 'Pending' | 'Confirmed' | 'On Trip' | 'Returned' | 'Completed';
 };
 
+import Pagination, { PaginatedData } from '@/components/pagination';
+
 type Props = {
-    bookings: Booking[];
+    bookings: PaginatedData<Booking> | Booking[];
     customers: Customer[];
     cars: CarType[];
     readyCars: CarType[];
@@ -138,6 +140,11 @@ export default function BookingsIndex({
     const user = auth?.user as any;
     const roles: string[] = user?.roles || [];
     const hasRole = (r: string) => roles.includes(r) || roles.includes('Super Admin');
+
+    // Auto-poll bookings data every 10 seconds in the background
+    usePoll(10000, {
+        only: ['bookings', 'readyCars', 'readyDrivers'],
+    });
 
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isAssignOpen, setIsAssignOpen] = useState(false);
@@ -241,7 +248,8 @@ export default function BookingsIndex({
     const isThisMonthActive = startDate === thisMonth.start && endDate === thisMonth.end;
 
     const filteredBookings = useMemo(() => {
-        return bookings.filter((b) => {
+        const bookingList = Array.isArray(bookings) ? bookings : (bookings?.data || []);
+        return bookingList.filter((b) => {
             // 1. Search Query Filter
             if (searchQuery.trim()) {
                 const q = searchQuery.toLowerCase();
@@ -881,6 +889,8 @@ export default function BookingsIndex({
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={bookings} />
                     </CardContent>
                 </Card>
 

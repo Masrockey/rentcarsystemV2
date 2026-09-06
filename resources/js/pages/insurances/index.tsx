@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { Plus, Edit, Trash2, Shield } from 'lucide-react';
 import { index as insurancesIndex } from '@/routes/insurances';
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type CarOption = { id: number; name: string; plate_number: string };
 type Insurance = {
@@ -27,9 +28,10 @@ type Insurance = {
     car?: CarOption;
 };
 
-type Props = { insurances: Insurance[]; cars: CarOption[] };
+type Props = { insurances: PaginatedData<Insurance> | Insurance[]; cars: CarOption[] };
 
 export default function InsurancesIndex({ insurances, cars }: Props) {
+    const insuranceList = Array.isArray(insurances) ? insurances : (insurances?.data || []);
     const [isOpen, setIsOpen] = useState(false);
     const [editingIns, setEditingIns] = useState<Insurance | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -103,9 +105,9 @@ export default function InsurancesIndex({ insurances, cars }: Props) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {insurances.length === 0 ? (
+                                    {insuranceList.length === 0 ? (
                                         <tr><td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">Belum ada data asuransi.</td></tr>
-                                    ) : insurances.map((ins) => (
+                                    ) : insuranceList.map((ins) => (
                                         <tr key={ins.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4">
                                                 <div className="font-medium">{ins.car?.name}</div>
@@ -134,6 +136,8 @@ export default function InsurancesIndex({ insurances, cars }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={insurances} />
                     </CardContent>
                 </Card>
 

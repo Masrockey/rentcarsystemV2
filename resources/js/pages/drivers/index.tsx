@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { Plus, Edit, Trash2, Truck } from 'lucide-react';
 import { index as driversIndex } from '@/routes/drivers';
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type Driver = {
     id: number;
@@ -24,9 +25,10 @@ type Driver = {
     daily_rate: string;
 };
 
-type Props = { drivers: Driver[] };
+type Props = { drivers: PaginatedData<Driver> | Driver[] };
 
 export default function DriversIndex({ drivers }: Props) {
+    const driverList = Array.isArray(drivers) ? drivers : (drivers?.data || []);
     const [isOpen, setIsOpen] = useState(false);
     const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
@@ -90,9 +92,9 @@ export default function DriversIndex({ drivers }: Props) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {drivers.length === 0 ? (
+                                    {driverList.length === 0 ? (
                                         <tr><td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">Belum ada driver.</td></tr>
-                                    ) : drivers.map((d) => (
+                                    ) : driverList.map((d) => (
                                         <tr key={d.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4 font-medium">
                                                 <div className="flex items-center gap-2">
@@ -119,6 +121,8 @@ export default function DriversIndex({ drivers }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={drivers} />
                     </CardContent>
                 </Card>
 

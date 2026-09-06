@@ -18,10 +18,27 @@ class CustomerController extends Controller
     {
         $user = $request->user();
 
+        $search = $request->query('search', '');
+
         $query = Customer::with('user')->orderBy('name');
 
         if (! $user->isAdmin()) {
             $query->where('user_id', $user->id);
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('nik', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%")
+                    ->orWhere('sim_number', 'like', "%{$search}%")
+                    ->orWhere('emergency_contact', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($uq) use ($search) {
+                        $uq->where('name', 'like', "%{$search}%");
+                    });
+            });
         }
 
         $marketingUsers = $user->isAdmin() ? User::where(function ($q) {
@@ -31,8 +48,9 @@ class CustomerController extends Controller
         })->orderBy('name')->get(['id', 'name']) : [];
 
         return Inertia::render('customers/index', [
-            'customers' => $query->get(),
+            'customers' => $query->paginate(10)->withQueryString(),
             'marketingUsers' => $marketingUsers,
+            'search' => $search,
         ]);
     }
 

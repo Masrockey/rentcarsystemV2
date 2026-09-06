@@ -16,11 +16,17 @@ class VehicleTaxController extends Controller
      */
     public function index(): Response
     {
+        $today = now()->toDateString();
+        $thirtyDaysFromNow = now()->addDays(30)->toDateString();
+        $expiringSoonCount = VehicleTax::whereBetween('valid_until', [$today, $thirtyDaysFromNow])->count();
+
         return Inertia::render('vehicle-taxes/index', [
             'vehicleTaxes' => VehicleTax::with('car')
                 ->orderBy('valid_until')
-                ->get(),
+                ->paginate(10)
+                ->withQueryString(),
             'cars' => Car::orderBy('name')->get(['id', 'name', 'plate_number']),
+            'expiringSoonCount' => $expiringSoonCount,
         ]);
     }
 

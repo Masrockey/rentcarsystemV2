@@ -44,7 +44,7 @@ class BookingController extends Controller
         }
 
         return Inertia::render('bookings/index', [
-            'bookings' => $query->get(),
+            'bookings' => $query->paginate(10)->withQueryString(),
             'customers' => $customerQuery->get(),
             'cars' => Car::orderBy('name')->get(),
             'readyCars' => Car::where('status', 'Ready')->orderBy('name')->get(),

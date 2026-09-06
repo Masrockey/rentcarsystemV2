@@ -25,7 +25,8 @@ class PaymentController extends Controller
         return Inertia::render('payments/index', [
             'payments' => Payment::with('booking.customer')
                 ->latest()
-                ->get(),
+                ->paginate(10)
+                ->withQueryString(),
             'bookings' => Booking::with('customer')
                 ->where('payment_status', '!=', 'Paid')
                 ->orderBy('id', 'desc')

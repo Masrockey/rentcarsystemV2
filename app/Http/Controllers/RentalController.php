@@ -24,7 +24,8 @@ class RentalController extends Controller
         return Inertia::render('rentals/index', [
             'rentals' => Rental::with(['booking.peluncur', 'car', 'customer', 'officer'])
                 ->latest()
-                ->get(),
+                ->paginate(10)
+                ->withQueryString(),
             'confirmedBookings' => Booking::with(['customer', 'car', 'peluncur'])
                 ->where('status', 'Confirmed')
                 ->latest()

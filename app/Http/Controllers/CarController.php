@@ -20,28 +20,39 @@ class CarController extends Controller
             abort(403, 'Akses ditolak. Role Marketing tidak memiliki akses ke Data Armada.');
         }
 
-        $allCars = Car::orderBy('brand')->orderBy('name')->get();
-
         $selectedStatus = $request->query('status', 'all');
+        $search = $request->query('search', '');
 
-        $filteredCars = $allCars;
+        $query = Car::orderBy('brand')->orderBy('name');
         if ($selectedStatus && $selectedStatus !== 'all') {
-            $filteredCars = $allCars->where('status', $selectedStatus)->values();
+            $query->where('status', $selectedStatus);
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('plate_number', 'like', "%{$search}%")
+                    ->orWhere('brand', 'like', "%{$search}%")
+                    ->orWhere('model', 'like', "%{$search}%")
+                    ->orWhere('type', 'like', "%{$search}%")
+                    ->orWhere('color', 'like', "%{$search}%")
+                    ->orWhere('owner_partner', 'like', "%{$search}%");
+            });
         }
 
         $statusCounts = [
-            'all' => $allCars->count(),
-            'ready' => $allCars->where('status', 'Ready')->count(),
-            'not_ready' => $allCars->where('status', 'Not Ready')->count(),
-            'belum_dicuci' => $allCars->where('status', 'Belum Dicuci')->count(),
-            'service' => $allCars->where('status', 'Service')->count(),
+            'all' => Car::count(),
+            'ready' => Car::where('status', 'Ready')->count(),
+            'not_ready' => Car::where('status', 'Not Ready')->count(),
+            'belum_dicuci' => Car::where('status', 'Belum Dicuci')->count(),
+            'service' => Car::where('status', 'Service')->count(),
         ];
 
         return Inertia::render('cars/index', [
-            'cars' => $filteredCars,
-            'allCars' => $allCars,
+            'cars' => $query->paginate(10)->withQueryString(),
             'selectedStatus' => $selectedStatus,
             'statusCounts' => $statusCounts,
+            'search' => $search,
         ]);
     }
 

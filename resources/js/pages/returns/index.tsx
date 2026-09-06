@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePoll } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { Search, RotateCcw, Car, Calendar, ClipboardCheck, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { index as returnsIndex } from '@/routes/returns';
 import { checklist as bookingChecklist } from '@/routes/bookings';
+
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type Customer = {
     id: number;
@@ -52,15 +54,30 @@ type Rental = {
 };
 
 type Props = {
-    rentals: Rental[];
+    rentals: PaginatedData<Rental> | Rental[];
+    totalOut?: number;
+    pendingChecklist?: number;
+    completedChecklist?: number;
     onTripBookings: Booking[];
 };
 
-export default function ReturnsIndex({ rentals, onTripBookings }: Props) {
+export default function ReturnsIndex({
+    rentals,
+    totalOut: initialTotalOut,
+    pendingChecklist: initialPendingChecklist,
+    completedChecklist: initialCompletedChecklist,
+    onTripBookings,
+}: Props) {
     const [searchQuery, setSearchQuery] = useState('');
+    const rentalList = Array.isArray(rentals) ? rentals : (rentals?.data || []);
+
+    // Auto-poll returns data every 10 seconds in the background
+    usePoll(10000, {
+        only: ['rentals', 'totalOut', 'pendingChecklist', 'completedChecklist', 'onTripBookings'],
+    });
 
     // Filter active items that are out on trip
-    const filteredRentals = rentals.filter((rental) => {
+    const filteredRentals = rentalList.filter((rental) => {
         const query = searchQuery.toLowerCase();
         const contractNo = rental.contract_number.toLowerCase();
         const bookingNo = (rental.booking?.booking_number || '').toLowerCase();
@@ -77,12 +94,12 @@ export default function ReturnsIndex({ rentals, onTripBookings }: Props) {
         );
     });
 
-    // Calculate stats
-    const totalOut = rentals.length;
-    const pendingChecklist = rentals.filter(
+    // Stats
+    const totalOut = initialTotalOut ?? rentalList.length;
+    const pendingChecklist = initialPendingChecklist ?? rentalList.filter(
         (r) => !r.booking?.return_checklist || Object.keys(r.booking.return_checklist).length === 0
     ).length;
-    const completedChecklist = totalOut - pendingChecklist;
+    const completedChecklist = initialCompletedChecklist ?? (totalOut - pendingChecklist);
 
     return (
         <>
@@ -254,6 +271,8 @@ export default function ReturnsIndex({ rentals, onTripBookings }: Props) {
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={rentals} className="p-4 pt-2" />
                     </CardContent>
                 </Card>
             </div>

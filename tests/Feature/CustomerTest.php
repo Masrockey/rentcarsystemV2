@@ -25,9 +25,9 @@ test('marketing users can only see their own created customers', function () {
     $response->assertOk();
     $response->assertInertia(fn ($page) => $page
         ->component('customers/index')
-        ->has('customers', 1)
-        ->where('customers.0.id', $customer1->id)
-        ->where('customers.0.name', 'Customer of Marketing 1')
+        ->has('customers.data', 1)
+        ->where('customers.data.0.id', $customer1->id)
+        ->where('customers.data.0.name', 'Customer of Marketing 1')
     );
 });
 
@@ -52,7 +52,7 @@ test('admin users can see all customers from all marketing users', function () {
     $response->assertOk();
     $response->assertInertia(fn ($page) => $page
         ->component('customers/index')
-        ->has('customers', 2)
+        ->has('customers.data', 2)
     );
 });
 
@@ -179,4 +179,61 @@ test('marketing user updating customer cannot change its user_id', function () {
     $customer->refresh();
     expect($customer->name)->toBe('Marketing 1 Customer Updated');
     expect($customer->user_id)->toBe($marketing1->id); // Remains unchanged
+});
+
+test('users can search customers by name, nik, phone, email, address, sim_number, emergency_contact, or creator', function () {
+    $admin = User::factory()->create(['name' => 'Admin Officer', 'roles' => ['Super Admin']]);
+    $marketing = User::factory()->create(['name' => 'Doni Marketing', 'roles' => ['Marketing']]);
+
+    $cust1 = Customer::create([
+        'user_id' => $marketing->id,
+        'name' => 'Budi Santoso',
+        'nik' => '3201010101010001',
+        'phone' => '08123456789',
+        'email' => 'budi@example.com',
+        'address' => 'Jl. Merdeka No 1',
+        'sim_number' => 'SIM12345',
+        'emergency_contact' => '0899999999',
+    ]);
+
+    $cust2 = Customer::create([
+        'user_id' => $admin->id,
+        'name' => 'Siti Rahma',
+        'nik' => '3578034567890003',
+        'phone' => '08777777777',
+        'email' => 'siti@example.com',
+        'address' => 'Jl. Sudirman No 2',
+        'sim_number' => 'SIM67890',
+        'emergency_contact' => '0888888888',
+    ]);
+
+    $this->actingAs($admin);
+
+    // Search by NIK
+    $this->get(route('customers.index', ['search' => '3201010101010001']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('customers/index')
+            ->has('customers.data', 1)
+            ->where('customers.data.0.id', $cust1->id)
+            ->where('search', '3201010101010001')
+        );
+
+    // Search by Phone
+    $this->get(route('customers.index', ['search' => '08777777777']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('customers/index')
+            ->has('customers.data', 1)
+            ->where('customers.data.0.id', $cust2->id)
+        );
+
+    // Search by Creator Name
+    $this->get(route('customers.index', ['search' => 'Doni']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('customers/index')
+            ->has('customers.data', 1)
+            ->where('customers.data.0.id', $cust1->id)
+        );
 });

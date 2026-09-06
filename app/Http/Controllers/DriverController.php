@@ -17,7 +17,7 @@ class DriverController extends Controller
     public function index(): Response
     {
         return Inertia::render('drivers/index', [
-            'drivers' => Driver::orderBy('name')->get(),
+            'drivers' => Driver::orderBy('name')->paginate(10)->withQueryString(),
         ]);
     }
 

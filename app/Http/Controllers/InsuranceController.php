@@ -20,7 +20,8 @@ class InsuranceController extends Controller
         return Inertia::render('insurances/index', [
             'insurances' => Insurance::with('car')
                 ->orderBy('end_date')
-                ->get(),
+                ->paginate(10)
+                ->withQueryString(),
             'cars' => Car::orderBy('name')->get(['id', 'name', 'plate_number']),
         ]);
     }

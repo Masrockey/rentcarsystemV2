@@ -28,7 +28,7 @@ class UserController extends Controller
         $this->authorizeSuperAdmin();
 
         return Inertia::render('users/index', [
-            'users' => User::orderBy('name')->get(),
+            'users' => User::orderBy('name')->paginate(10)->withQueryString(),
         ]);
     }
 

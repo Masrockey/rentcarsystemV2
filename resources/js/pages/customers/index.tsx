@@ -7,8 +7,10 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { useState } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, X } from 'lucide-react';
 import { index as customersIndex } from '@/routes/customers';
+
+import Pagination, { PaginatedData } from '@/components/pagination';
 
 type Customer = {
     id: number;
@@ -28,19 +30,43 @@ type Customer = {
 };
 
 type Props = {
-    customers: Customer[];
+    customers: PaginatedData<Customer> | Customer[];
     marketingUsers?: { id: number; name: string }[];
+    search?: string;
 };
 
-export default function CustomersIndex({ customers, marketingUsers = [] }: Props) {
+export default function CustomersIndex({ customers, marketingUsers = [], search = '' }: Props) {
     const { auth } = usePage().props;
     const authUser = (auth as any)?.user;
     const roles: string[] = authUser?.roles || [];
     const isAdmin = roles.includes('Admin') || roles.includes('Super Admin');
 
+    const customerList = Array.isArray(customers) ? customers : (customers?.data || []);
+    const totalCount = Array.isArray(customers) ? customers.length : (customers?.total ?? customerList.length);
+
+    const [searchQuery, setSearchQuery] = useState(search);
     const [isOpen, setIsOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
+
+    const handleSearch = (customSearch?: string) => {
+        const querySearch = customSearch !== undefined ? customSearch : searchQuery;
+        router.get(
+            '/customers',
+            querySearch ? { search: querySearch } : {},
+            { preserveState: true, preserveScroll: true }
+        );
+    };
+
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        handleSearch(searchQuery);
+    };
+
+    const handleClearSearch = () => {
+        setSearchQuery('');
+        handleSearch('');
+    };
 
     const { data, setData, post, put, reset, processing, errors, clearErrors } = useForm({
         name: '',
@@ -110,8 +136,37 @@ export default function CustomersIndex({ customers, marketingUsers = [] }: Props
                 </div>
 
                 <Card>
-                    <CardHeader><CardTitle>Semua Customer ({customers.length})</CardTitle></CardHeader>
-                    <CardContent>
+                    <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <CardTitle className="text-base font-bold">Semua Customer ({totalCount})</CardTitle>
+                            {searchQuery && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Hasil pencarian untuk: <span className="font-semibold text-foreground">"{searchQuery}"</span>
+                                </p>
+                            )}
+                        </div>
+                        <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-72">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                type="search"
+                                placeholder="Cari nama, NIK, HP, email, staf..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-8 pr-8 text-xs h-9"
+                            />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={handleClearSearch}
+                                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                                    title="Hapus pencarian"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            )}
+                        </form>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
                         <div className="relative overflow-x-auto rounded-lg border">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-muted text-xs uppercase text-muted-foreground">
@@ -127,9 +182,9 @@ export default function CustomersIndex({ customers, marketingUsers = [] }: Props
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
-                                    {customers.length === 0 ? (
+                                    {customerList.length === 0 ? (
                                         <tr><td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">Belum ada data customer.</td></tr>
-                                    ) : customers.map((customer) => (
+                                    ) : customerList.map((customer) => (
                                         <tr key={customer.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4 font-medium">
                                                 <div>{customer.name}</div>
@@ -158,6 +213,8 @@ export default function CustomersIndex({ customers, marketingUsers = [] }: Props
                                 </tbody>
                             </table>
                         </div>
+
+                        <Pagination data={customers} />
                     </CardContent>
                 </Card>
 

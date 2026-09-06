@@ -19,15 +19,22 @@ class ReturnController extends Controller
     public function index(Request $request): Response
     {
         // Get active rentals (units handed over / on trip)
-        $rentals = Rental::with(['booking.customer', 'car', 'customer', 'officer'])
-            ->where(function ($query) {
-                $query->where('status', 'Active')
-                    ->orWhereHas('booking', function ($q) {
-                        $q->where('status', 'On Trip');
+        $query = Rental::with(['booking.customer', 'car', 'customer', 'officer'])
+            ->where(function ($q) {
+                $q->where('status', 'Active')
+                    ->orWhereHas('booking', function ($bq) {
+                        $bq->where('status', 'On Trip');
                     });
             })
-            ->latest()
-            ->get();
+            ->latest();
+
+        $totalOut = (clone $query)->count();
+        $pendingChecklist = (clone $query)->whereDoesntHave('booking', function ($bq) {
+            $bq->whereNotNull('return_checklist');
+        })->count();
+        $completedChecklist = $totalOut - $pendingChecklist;
+
+        $rentals = $query->paginate(10)->withQueryString();
 
         // Also get any bookings with 'On Trip' status that might not have a rental record yet or have pending return
         $onTripBookings = Booking::with(['customer', 'car', 'rental', 'peluncur'])
@@ -37,6 +44,9 @@ class ReturnController extends Controller
 
         return Inertia::render('returns/index', [
             'rentals' => $rentals,
+            'totalOut' => $totalOut,
+            'pendingChecklist' => $pendingChecklist,
+            'completedChecklist' => $completedChecklist,
             'onTripBookings' => $onTripBookings,
             'officers' => User::orderBy('name')->get(['id', 'name']),
         ]);
