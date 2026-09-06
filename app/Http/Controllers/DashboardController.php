@@ -164,11 +164,7 @@ class DashboardController extends Controller
                 'total_bookings' => (clone $marketingQuery)->count(),
                 'total_customers' => $user->isAdmin()
                     ? Customer::count()
-                    : Customer::whereHas('bookings', function ($q) use ($user) {
-                        $q->where('user_id', $user->id)
-                            ->orWhere('peluncur_id', $user->id)
-                            ->orWhere('petugas_cuci_id', $user->id);
-                    })->count(),
+                    : Customer::where('user_id', $user->id)->count(),
                 'bookings_today' => (clone $marketingQuery)->whereDate('booking_date', $today)->count(),
                 'revenue_today' => (float) (clone $marketingQuery)->whereDate('booking_date', $today)->sum('amount'),
                 'revenue_month' => (float) (clone $marketingQuery)->where('booking_date', '>=', $startOfMonth)->sum('amount'),

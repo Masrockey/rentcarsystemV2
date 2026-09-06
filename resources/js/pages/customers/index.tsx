@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +12,8 @@ import { index as customersIndex } from '@/routes/customers';
 
 type Customer = {
     id: number;
+    user_id?: number | null;
+    user?: { id: number; name: string } | null;
     name: string;
     nik: string | null;
     phone: string | null;
@@ -25,15 +27,24 @@ type Customer = {
     selfie_photo: string | null;
 };
 
-type Props = { customers: Customer[] };
+type Props = {
+    customers: Customer[];
+    marketingUsers?: { id: number; name: string }[];
+};
 
-export default function CustomersIndex({ customers }: Props) {
+export default function CustomersIndex({ customers, marketingUsers = [] }: Props) {
+    const { auth } = usePage().props;
+    const authUser = (auth as any)?.user;
+    const roles: string[] = authUser?.roles || [];
+    const isAdmin = roles.includes('Admin') || roles.includes('Super Admin');
+
     const [isOpen, setIsOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
     const { data, setData, post, put, reset, processing, errors, clearErrors } = useForm({
         name: '',
+        user_id: '' as string | number,
         nik: '',
         phone: '',
         email: '',
@@ -46,15 +57,30 @@ export default function CustomersIndex({ customers }: Props) {
         selfie_photo: null as File | null,
     });
 
-    const openCreate = () => { setEditingCustomer(null); reset(); clearErrors(); setIsOpen(true); };
+    const openCreate = () => {
+        setEditingCustomer(null);
+        reset();
+        clearErrors();
+        setData('user_id', authUser?.id ? String(authUser.id) : '');
+        setIsOpen(true);
+    };
+
     const openEdit = (c: Customer) => {
         setEditingCustomer(c);
         clearErrors();
         setData({
-            name: c.name, nik: c.nik ?? '', phone: c.phone ?? '', email: c.email ?? '',
-            address: c.address ?? '', sim_number: c.sim_number ?? '', sim_expiry: c.sim_expiry ?? '',
+            name: c.name,
+            user_id: c.user_id ? String(c.user_id) : (c.user?.id ? String(c.user.id) : ''),
+            nik: c.nik ?? '',
+            phone: c.phone ?? '',
+            email: c.email ?? '',
+            address: c.address ?? '',
+            sim_number: c.sim_number ?? '',
+            sim_expiry: c.sim_expiry ?? '',
             emergency_contact: c.emergency_contact ?? '',
-            ktp_photo: null, sim_photo: null, selfie_photo: null,
+            ktp_photo: null,
+            sim_photo: null,
+            selfie_photo: null,
         });
         setIsOpen(true);
     };
@@ -96,12 +122,13 @@ export default function CustomersIndex({ customers }: Props) {
                                         <th className="px-6 py-3">No. SIM</th>
                                         <th className="px-6 py-3">Berlaku SIM</th>
                                         <th className="px-6 py-3">Kontak Darurat</th>
+                                        <th className="px-6 py-3">Dibuat Oleh</th>
                                         <th className="px-6 py-3 text-right">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {customers.length === 0 ? (
-                                        <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">Belum ada data customer.</td></tr>
+                                        <tr><td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">Belum ada data customer.</td></tr>
                                     ) : customers.map((customer) => (
                                         <tr key={customer.id} className="hover:bg-muted/50">
                                             <td className="px-6 py-4 font-medium">
@@ -113,6 +140,15 @@ export default function CustomersIndex({ customers }: Props) {
                                             <td className="px-6 py-4 font-mono">{customer.sim_number ?? '-'}</td>
                                             <td className="px-6 py-4">{customer.sim_expiry ?? '-'}</td>
                                             <td className="px-6 py-4">{customer.emergency_contact ?? '-'}</td>
+                                            <td className="px-6 py-4">
+                                                {customer.user ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                                        {customer.user.name}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground">-</span>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                                                 <Button variant="ghost" size="icon" onClick={() => openEdit(customer)}><Edit className="h-4 w-4" /></Button>
                                                 <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => setDeleteId(customer.id)}><Trash2 className="h-4 w-4" /></Button>
@@ -133,6 +169,32 @@ export default function CustomersIndex({ customers }: Props) {
                         <form onSubmit={handleSubmit} className="space-y-4 py-4">
                             <p className="text-xs font-semibold uppercase text-muted-foreground">Data Pribadi</p>
                             <div className="grid grid-cols-2 gap-4">
+                                {isAdmin && (
+                                    <div className="col-span-2 space-y-1.5 p-3 rounded-lg bg-muted/40 border">
+                                        <Label htmlFor="user_id" className="text-xs font-semibold text-foreground">
+                                            Dibuat Oleh (Marketing / User)
+                                        </Label>
+                                        <select
+                                            id="user_id"
+                                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                            value={data.user_id}
+                                            onChange={(e) => setData('user_id', e.target.value)}
+                                        >
+                                            <option value="">- Tanpa Marketing / Default User -</option>
+                                            {marketingUsers.map((u) => (
+                                                <option key={u.id} value={u.id}>
+                                                    {u.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            {editingCustomer
+                                                ? 'Hanya Admin & Super Admin yang dapat mengganti marketing pembuat data pelanggan ini.'
+                                                : 'Pilih marketing yang bertanggung jawab atas data pelanggan ini.'}
+                                        </p>
+                                        {errors.user_id && <p className="text-xs text-red-500">{errors.user_id}</p>}
+                                    </div>
+                                )}
                                 <div className="col-span-2 space-y-2">
                                     <Label htmlFor="name">Nama Lengkap</Label>
                                     <Input id="name" value={data.name} onChange={e => setData('name', e.target.value)} placeholder="Nama lengkap sesuai KTP" required />

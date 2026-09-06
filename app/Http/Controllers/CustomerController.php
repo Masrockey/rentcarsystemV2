@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -13,10 +14,25 @@ class CustomerController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $user = $request->user();
+
+        $query = Customer::with('user')->orderBy('name');
+
+        if (! $user->isAdmin()) {
+            $query->where('user_id', $user->id);
+        }
+
+        $marketingUsers = $user->isAdmin() ? User::where(function ($q) {
+            $q->whereJsonContains('roles', 'Marketing')
+                ->orWhereJsonContains('roles', 'Admin')
+                ->orWhereJsonContains('roles', 'Super Admin');
+        })->orderBy('name')->get(['id', 'name']) : [];
+
         return Inertia::render('customers/index', [
-            'customers' => Customer::orderBy('name')->get(),
+            'customers' => $query->get(),
+            'marketingUsers' => $marketingUsers,
         ]);
     }
 
@@ -25,7 +41,7 @@ class CustomerController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'nik' => ['nullable', 'string', 'max:20'],
             'phone' => ['nullable', 'string', 'max:50'],
@@ -37,12 +53,22 @@ class CustomerController extends Controller
             'ktp_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
             'sim_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
             'selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-        ]);
+        ];
+
+        if ($request->user()->isAdmin()) {
+            $rules['user_id'] = ['nullable', 'exists:users,id'];
+        }
+
+        $validated = $request->validate($rules);
 
         foreach (['ktp_photo', 'sim_photo', 'selfie_photo'] as $field) {
             if ($request->hasFile($field)) {
                 $validated[$field] = $request->file($field)->store('customers', 'public');
             }
+        }
+
+        if (! $request->user()->isAdmin() || empty($validated['user_id'])) {
+            $validated['user_id'] = $request->user()->id;
         }
 
         Customer::create($validated);
@@ -57,7 +83,11 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $customer): RedirectResponse
     {
-        $validated = $request->validate([
+        if (! $request->user()->isAdmin() && $customer->user_id !== $request->user()->id) {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'nik' => ['nullable', 'string', 'max:20'],
             'phone' => ['nullable', 'string', 'max:50'],
@@ -69,7 +99,13 @@ class CustomerController extends Controller
             'ktp_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
             'sim_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
             'selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-        ]);
+        ];
+
+        if ($request->user()->isAdmin()) {
+            $rules['user_id'] = ['nullable', 'exists:users,id'];
+        }
+
+        $validated = $request->validate($rules);
 
         foreach (['ktp_photo', 'sim_photo', 'selfie_photo'] as $field) {
             if ($request->hasFile($field)) {
@@ -77,6 +113,11 @@ class CustomerController extends Controller
             } else {
                 unset($validated[$field]);
             }
+        }
+
+        // Non-admin cannot change user_id
+        if (! $request->user()->isAdmin()) {
+            unset($validated['user_id']);
         }
 
         $customer->update($validated);
@@ -89,8 +130,12 @@ class CustomerController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Customer $customer): RedirectResponse
+    public function destroy(Request $request, Customer $customer): RedirectResponse
     {
+        if (! $request->user()->isAdmin() && $customer->user_id !== $request->user()->id) {
+            abort(403, 'Unauthorized action.');
+        }
+
         $customer->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Customer deleted successfully.']);

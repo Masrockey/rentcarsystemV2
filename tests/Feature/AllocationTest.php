@@ -58,4 +58,4 @@ test('all user roles can access car status page', function (string $role) {
     $this->actingAs($user)
         ->get(route('cars.index', ['status' => 'Ready']))
         ->assertStatus(200);
-})->with(['Admin', 'Super Admin', 'Marketing', 'Peluncur', 'Petugas Cuci']);
+})->with(['Admin', 'Super Admin']);

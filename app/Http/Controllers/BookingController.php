@@ -38,9 +38,14 @@ class BookingController extends Controller
             });
         }
 
+        $customerQuery = Customer::orderBy('name');
+        if (! $user->isAdmin()) {
+            $customerQuery->where('user_id', $user->id);
+        }
+
         return Inertia::render('bookings/index', [
             'bookings' => $query->get(),
-            'customers' => Customer::orderBy('name')->get(),
+            'customers' => $customerQuery->get(),
             'cars' => Car::orderBy('name')->get(),
             'readyCars' => Car::where('status', 'Ready')->orderBy('name')->get(),
             'readyDrivers' => Driver::where('status', 'Active')->orderBy('name')->get(),
@@ -91,6 +96,10 @@ class BookingController extends Controller
             return back()->withErrors(['customer_id' => 'Pilih customer yang ada atau isi nama customer baru.']);
         }
 
+        $userId = ($request->user()->isAdmin() && ! empty($validated['user_id']))
+            ? $validated['user_id']
+            : $request->user()->id;
+
         if (! empty($validated['new_customer_name'])) {
             $ktpPhotoPath = $request->hasFile('new_customer_ktp_photo')
                 ? $request->file('new_customer_ktp_photo')->store('customers', 'public')
@@ -105,6 +114,7 @@ class BookingController extends Controller
                 : null;
 
             $customer = Customer::create([
+                'user_id' => $userId,
                 'name' => $validated['new_customer_name'],
                 'nik' => $validated['new_customer_nik'] ?? null,
                 'phone' => $validated['new_customer_phone'] ?? null,
@@ -122,10 +132,6 @@ class BookingController extends Controller
             $customerId = $validated['customer_id'];
         }
 
-        $userId = ($request->user()->isAdmin() && ! empty($validated['user_id']))
-            ? $validated['user_id']
-            : $request->user()->id;
-
         $bookingNumber = 'BK-'.date('Ymd').'-'.strtoupper(Str::random(6));
         Booking::create([
             'user_id' => $userId,
@@ -133,7 +139,7 @@ class BookingController extends Controller
             'car_type' => $validated['car_type'],
             'rental_type' => $validated['rental_type'] ?? 'Lepas Kunci',
             'booking_date' => $validated['booking_date'],
-            'return_date' => $validated['return_date'],
+            'return_date' => $validated['return_date'] ?? null,
             'pickup_time' => $validated['pickup_time'] ?? null,
             'return_time' => $validated['return_time'] ?? null,
             'pickup_location' => $validated['pickup_location'] ?? null,
