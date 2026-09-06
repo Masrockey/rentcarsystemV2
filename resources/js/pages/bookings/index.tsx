@@ -733,7 +733,7 @@ export default function BookingsIndex({
                                             )}
                                         </div>
                                         <div className="flex justify-end gap-2 pt-2 border-t mt-1">
-                                            {booking.status !== 'Cancelled' && booking.status !== 'Completed' && booking.status !== 'Returned' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
+                                            {booking.status === 'Pending' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
                                                 <Button
                                                     size="sm"
                                                     variant="destructive"
@@ -882,7 +882,7 @@ export default function BookingsIndex({
                                                 </td>
                                                 <td className="px-4 py-4 text-right whitespace-nowrap">
                                                     <div className="flex items-center justify-end gap-1.5">
-                                                        {booking.status !== 'Cancelled' && booking.status !== 'Completed' && booking.status !== 'Returned' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
+                                                        {booking.status === 'Pending' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
                                                             <Button
                                                                 size="sm"
                                                                 variant="destructive"
