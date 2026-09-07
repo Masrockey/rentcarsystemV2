@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
-import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight } from 'lucide-react';
+import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight, Download } from 'lucide-react';
 import { index as allocationsIndex } from '@/routes/allocations';
 
 import Pagination, { PaginatedData } from '@/components/pagination';
@@ -329,7 +329,10 @@ export default function AllocationsIndex({
                 (b.car_type ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (b.car?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                 (b.car?.plate_number ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.peluncur?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+                (b.peluncur?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (b.petugas_cuci?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (b.user?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (b.driver?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase());
 
             if (!matchesSearch) return false;
 
@@ -362,14 +365,37 @@ export default function AllocationsIndex({
         });
     }, [bookingList, searchQuery, activeFilter, startDate, endDate, dateFilterField]);
 
+    const handleExportData = () => {
+        const params = new URLSearchParams();
+        if (searchQuery) params.append('search', searchQuery);
+        if (activeFilter !== 'all') params.append('status', activeFilter);
+        if (startDate) params.append('start_date', startDate);
+        if (endDate) params.append('end_date', endDate);
+        if (dateFilterField) params.append('date_field', dateFilterField);
+
+        const url = `/allocations/export?${params.toString()}`;
+        window.location.href = url;
+    };
+
     return (
         <>
             <Head title="Alokasi Mobil & Staf" />
             <div className="flex flex-1 flex-col gap-6 p-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex flex-col gap-1">
                         <h1 className="text-3xl font-bold tracking-tight">Alokasi Mobil & Staf</h1>
                         <p className="text-muted-foreground">Kelola penugasan armada mobil, supir, peluncur, dan petugas cuci untuk pesanan sewa.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2 h-9 text-xs font-semibold shadow-xs hover:bg-muted"
+                            onClick={handleExportData}
+                        >
+                            <Download className="h-4 w-4 text-primary" />
+                            Download Data (CSV / Excel)
+                        </Button>
                     </div>
                 </div>
 
@@ -453,15 +479,27 @@ export default function AllocationsIndex({
                                     ✓ Dialokasi ({currentAllocatedCount})
                                 </Button>
                             </div>
-                            <div className="relative w-full sm:w-64">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    type="search"
-                                    placeholder="Cari pelanggan / no. booking..."
-                                    className="pl-8 h-9 text-xs"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <div className="relative flex-1 sm:w-64">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        type="search"
+                                        placeholder="Cari pelanggan / no. booking..."
+                                        className="pl-8 h-9 text-xs"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 text-xs px-3 flex items-center gap-1.5 shrink-0"
+                                    title="Download Data (CSV / Excel)"
+                                    onClick={handleExportData}
+                                >
+                                    <Download className="h-4 w-4 text-primary" />
+                                    <span className="hidden sm:inline">Export</span>
+                                </Button>
                             </div>
                         </div>
                     </CardHeader>
@@ -618,6 +656,9 @@ export default function AllocationsIndex({
                                                 <span className="font-semibold text-foreground">Tanggal & Jam:</span> {b.booking_date} {b.pickup_time ? `(${b.pickup_time.substring(0, 5)})` : ''} {b.return_date ? `s/d ${b.return_date}` : ''}
                                             </div>
                                             <div>
+                                                <span className="font-semibold text-foreground">Marketing:</span> {b.user?.name ?? 'Admin / System'}
+                                            </div>
+                                            <div>
                                                 <span className="font-semibold text-foreground">Staf:</span> Supir: {b.driver?.name ?? '-'}, Peluncur: {b.peluncur?.name ?? '-'}, Cuci: {b.petugas_cuci?.name ?? '-'}
                                             </div>
                                         </div>
@@ -647,6 +688,7 @@ export default function AllocationsIndex({
                                         <th className="px-4 py-3">Armada Mobil Alokasi</th>
                                         <th className="px-4 py-3">Tanggal & Jam Sewa</th>
                                         <th className="px-4 py-3">Penugasan Staf</th>
+                                        <th className="px-4 py-3">Marketing</th>
                                         <th className="px-4 py-3">Harga Sewa</th>
                                         <th className="px-4 py-3 text-right">Aksi</th>
                                     </tr>
@@ -654,7 +696,7 @@ export default function AllocationsIndex({
                                 <tbody className="divide-y">
                                     {filteredBookings.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                                            <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                                                 {searchQuery ? 'Tidak ada data alokasi yang cocok.' : 'Belum ada data booking.'}
                                             </td>
                                         </tr>
@@ -702,6 +744,11 @@ export default function AllocationsIndex({
                                                         <span className="font-medium text-muted-foreground">Petugas Cuci:</span>{' '}
                                                         {b.petugas_cuci ? b.petugas_cuci.name : <span className="text-muted-foreground italic">Belum ada</span>}
                                                     </div>
+                                                </td>
+                                                <td className="px-4 py-4 text-xs">
+                                                    <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
+                                                        {b.user ? b.user.name : <span className="text-muted-foreground italic">Admin / System</span>}
+                                                    </span>
                                                 </td>
                                                 <td className="px-4 py-4 font-semibold text-xs">{formatCurrency(b.amount)}</td>
                                                 <td className="px-4 py-4 text-right">
@@ -897,6 +944,7 @@ export default function AllocationsIndex({
                         {selectedBooking && (
                             <form onSubmit={handleAssignSubmit} className="space-y-4 py-2">
                                 <div className="rounded-lg bg-muted p-3 text-xs space-y-1 border">
+                                    <div><span className="font-semibold">Marketing / Dibuat Oleh:</span> {selectedBooking.user?.name ?? 'Admin / System'}</div>
                                     <div><span className="font-semibold">Pelanggan:</span> {selectedBooking.customer?.name}</div>
                                     <div><span className="font-semibold">Tipe Mobil Dipesan:</span> {selectedBooking.car_type}</div>
                                     <div><span className="font-semibold">Type Sewa:</span> <Badge variant="outline" className="text-[10px] ml-1">{selectedBooking.rental_type ?? 'Lepas Kunci'}</Badge></div>

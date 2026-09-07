@@ -48,6 +48,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('bookings/{booking}/wash', [BookingController::class, 'completeWash'])->name('bookings.wash');
 
     // Dedicated Car & Staff Allocations
+    Route::get('allocations/export', [AllocationController::class, 'export'])->name('allocations.export');
     Route::get('allocations', [AllocationController::class, 'index'])->name('allocations.index');
     Route::put('allocations/{booking}', [AllocationController::class, 'update'])->name('allocations.update');
 
