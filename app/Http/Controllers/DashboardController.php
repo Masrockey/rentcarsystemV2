@@ -177,11 +177,9 @@ class DashboardController extends Controller
 
         if ($user->isPeluncur()) {
             $peluncurDeliveryQuery = Booking::with(['customer', 'car'])
-                ->where('peluncur_id', $user->id)
                 ->where('status', 'Confirmed');
 
             $peluncurReturnQuery = Booking::with(['customer', 'car'])
-                ->where('peluncur_id', $user->id)
                 ->where('status', 'On Trip');
 
             if ($startDate) {

@@ -28,9 +28,9 @@ class BookingController extends Controller
 
         $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
 
-        // Isolate booking data per user: Only Super Admin and Admin Unit can see ALL bookings.
-        // Other users (e.g. Marketing, Peluncur, Petugas Cuci) can only see their own created/assigned bookings.
-        if (! $user->isAdmin()) {
+        // Admin and Peluncur can see ALL bookings.
+        // Other users (e.g. Marketing, Petugas Cuci) can only see their own created/assigned bookings.
+        if (! ($user->isAdmin() || $user->isPeluncur())) {
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
                     ->orWhere('peluncur_id', $user->id)
@@ -39,7 +39,7 @@ class BookingController extends Controller
         }
 
         $customerQuery = Customer::orderBy('name');
-        if (! $user->isAdmin()) {
+        if (! ($user->isAdmin() || $user->isPeluncur())) {
             $customerQuery->where('user_id', $user->id);
         }
 
@@ -168,7 +168,7 @@ class BookingController extends Controller
     private function authorizeBookingAccess(Request $request, Booking $booking): void
     {
         $user = $request->user();
-        if ($user->isAdmin()) {
+        if ($user->isAdmin() || $user->isPeluncur()) {
             return;
         }
 
@@ -223,8 +223,8 @@ class BookingController extends Controller
 
         $booking->update($updateData);
 
-        // If car and peluncur are assigned, auto-confirm booking if it was pending
-        if ($booking->car_id && $booking->peluncur_id && $booking->status === 'Pending') {
+        // If car is assigned, auto-confirm booking if it was pending
+        if ($booking->car_id && $booking->status === 'Pending') {
             $booking->update(['status' => 'Confirmed']);
         }
 
@@ -531,6 +531,10 @@ class BookingController extends Controller
      */
     public function destroy(Request $request, Booking $booking): RedirectResponse
     {
+        if (! $request->user()->isSuperAdmin()) {
+            abort(403, 'Akses ditolak. Hanya Super Admin yang dapat menghapus data booking.');
+        }
+
         $this->authorizeBookingAccess($request, $booking);
 
         $booking->delete();

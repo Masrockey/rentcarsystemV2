@@ -104,7 +104,6 @@ export function AppSidebar() {
     } else if (hasRole('Marketing')) {
         operationalItems.push({ title: 'Data Booking', href: bookingsIndex(), icon: CalendarDays });
         adminItems.push({ title: 'Data Pelanggan', href: customersIndex(), icon: UserSquare2 });
-        adminItems.push({ title: 'Blacklist Konsumen', href: blacklistsIndex(), icon: ShieldAlert });
     } else if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
         operationalItems.push({ title: 'Daftar Tugas Saya', href: bookingsIndex(), icon: CalendarDays });
     }

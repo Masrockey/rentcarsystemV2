@@ -24,7 +24,7 @@ class AllocationController extends Controller
 
         $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
 
-        if (! $user->isAdmin()) {
+        if (! ($user->isAdmin() || $user->isPeluncur())) {
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
                     ->orWhere('peluncur_id', $user->id)
@@ -194,7 +194,7 @@ class AllocationController extends Controller
 
         $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
 
-        if (! $user->isAdmin()) {
+        if (! ($user->isAdmin() || $user->isPeluncur())) {
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
                     ->orWhere('peluncur_id', $user->id)
@@ -242,7 +242,7 @@ class AllocationController extends Controller
             'amount' => isset($validated['amount']) ? $validated['amount'] : $booking->amount,
         ]);
 
-        if ($booking->car_id && $booking->peluncur_id && $booking->status === 'Pending') {
+        if ($booking->car_id && $booking->status === 'Pending') {
             $booking->update(['status' => 'Confirmed']);
         }
 

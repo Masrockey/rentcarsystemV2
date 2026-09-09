@@ -22,7 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle } from 'lucide-react';
+import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle, ClipboardCheck } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
 
 type Customer = {
@@ -806,7 +806,7 @@ export default function BookingsIndex({
                                                 )}
                                             </div>
                                             <div className="flex justify-end gap-2 pt-2 border-t mt-1">
-                                                {booking.status === 'Pending' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
+                                                {(booking.status === 'Pending' || booking.status === 'Confirmed') && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
                                                     <Button
                                                         size="sm"
                                                         variant="destructive"
@@ -837,15 +837,45 @@ export default function BookingsIndex({
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 text-red-500 hover:text-red-600"
-                                                            onClick={() => setDeleteBookingId(booking.id)}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
+                                                        {roles.includes('Super Admin') && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-red-500 hover:text-red-600"
+                                                                onClick={() => setDeleteBookingId(booking.id)}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                     </>
+                                                )}
+
+                                                {roles.includes('Peluncur') &&
+                                                    Boolean(booking.car_id) &&
+                                                    (booking.status === 'Confirmed' || booking.status === 'Pending') && (
+                                                    <Link href={`/bookings/${booking.id}/checklist?type=delivery`}>
+                                                        <Button
+                                                            size="sm"
+                                                            className="flex items-center gap-1.5 h-8 text-xs font-semibold px-2.5 bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                                                            title="Antar Unit & Checklist Serah Terima"
+                                                        >
+                                                            <Car className="h-3.5 w-3.5" /> Antar Unit
+                                                        </Button>
+                                                    </Link>
+                                                )}
+
+                                                {roles.includes('Peluncur') &&
+                                                    booking.status === 'On Trip' && (
+                                                    <Link href={`/bookings/${booking.id}/checklist?type=return`}>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="flex items-center gap-1.5 h-8 text-xs font-semibold px-2.5 border-purple-500 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-950/40 shadow-xs"
+                                                            title="Terima Unit & Checklist Pengembalian"
+                                                        >
+                                                            <ClipboardCheck className="h-3.5 w-3.5" /> Terima Unit
+                                                        </Button>
+                                                    </Link>
                                                 )}
 
                                                 {(hasRole('Petugas Cuci') || hasRole('Admin')) && booking.status === 'Returned' && (
@@ -966,13 +996,13 @@ export default function BookingsIndex({
                                                             {booking.status === 'Cancelled' && booking.cancellation_reason && (
                                                                 <span className="text-[11px] text-muted-foreground line-clamp-2 max-w-[160px]" title={`Alasan: ${booking.cancellation_reason}`}>
                                                                     Alasan: {booking.cancellation_reason}
-                                                                </span>
+                                                </span>
                                                             )}
                                                         </div>
                                                     </td>
                                                     <td className="px-4 py-4 text-right whitespace-nowrap">
                                                         <div className="flex items-center justify-end gap-1.5">
-                                                            {booking.status === 'Pending' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
+                                                            {(booking.status === 'Pending' || booking.status === 'Confirmed') && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
                                                                 <Button
                                                                     size="sm"
                                                                     variant="destructive"
@@ -998,16 +1028,46 @@ export default function BookingsIndex({
                                                                     >
                                                                         <Edit className="h-4 w-4" />
                                                                     </Button>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className="h-8 w-8 text-red-500 hover:text-red-600"
-                                                                        title="Hapus Booking"
-                                                                        onClick={() => setDeleteBookingId(booking.id)}
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4" />
-                                                                    </Button>
+                                                                    {roles.includes('Super Admin') && (
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8 text-red-500 hover:text-red-600"
+                                                                            title="Hapus Booking"
+                                                                            onClick={() => setDeleteBookingId(booking.id)}
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    )}
                                                                 </>
+                                                            )}
+
+                                                            {roles.includes('Peluncur') &&
+                                                                Boolean(booking.car_id) &&
+                                                                (booking.status === 'Confirmed' || booking.status === 'Pending') && (
+                                                                <Link href={`/bookings/${booking.id}/checklist?type=delivery`}>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                                                                        title="Antar Unit & Checklist Serah Terima"
+                                                                    >
+                                                                        <Car className="h-3.5 w-3.5" /> Antar Unit
+                                                                    </Button>
+                                                                </Link>
+                                                            )}
+
+                                                            {roles.includes('Peluncur') &&
+                                                                booking.status === 'On Trip' && (
+                                                                <Link href={`/bookings/${booking.id}/checklist?type=return`}>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 border-purple-500 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-950/40 shadow-xs"
+                                                                        title="Terima Unit & Checklist Pengembalian"
+                                                                    >
+                                                                        <ClipboardCheck className="h-3.5 w-3.5" /> Terima Unit
+                                                                    </Button>
+                                                                </Link>
                                                             )}
 
                                                             {(hasRole('Petugas Cuci') || hasRole('Admin')) && booking.status === 'Returned' && (

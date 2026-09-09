@@ -12,8 +12,12 @@ use Inertia\Response;
 
 class BlacklistController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Akses ditolak. Halaman ini hanya untuk Admin.');
+        }
+
         $blacklists = Blacklist::with('creator:id,name')
             ->orderBy('created_at', 'desc')
             ->paginate(10)
