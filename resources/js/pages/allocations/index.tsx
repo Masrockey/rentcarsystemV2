@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm, usePoll } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage, usePoll } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
-import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight, Download } from 'lucide-react';
+import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight, Download, RefreshCw } from 'lucide-react';
 import { index as allocationsIndex } from '@/routes/allocations';
 
 import Pagination, { PaginatedData } from '@/components/pagination';
@@ -83,6 +83,11 @@ export default function AllocationsIndex({
     allocatedCount,
     blacklists = [],
 }: Props) {
+    const { auth } = usePage().props;
+    const user = auth?.user as any;
+    const roles: string[] = user?.roles || [];
+    const hasRole = (role: string) => roles.includes(role) || roles.includes('Super Admin');
+
     const bookingList = useMemo(() => Array.isArray(bookings) ? bookings : (bookings?.data || []), [bookings]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | 'unallocated' | 'allocated'>('all');
@@ -733,7 +738,7 @@ export default function AllocationsIndex({
                                                     <span className="font-semibold text-foreground">Staf:</span> Supir: {b.driver?.name ?? '-'}, Peluncur: {b.peluncur?.name ?? '-'}, Cuci: {b.petugas_cuci?.name ?? '-'}
                                                 </div>
                                             </div>
-                                            {!b.car_id && (
+                                            {!b.car_id ? (
                                                 <div className="flex justify-end pt-2 border-t mt-1">
                                                     <Button
                                                         size="sm"
@@ -743,6 +748,19 @@ export default function AllocationsIndex({
                                                         <Settings className="h-3.5 w-3.5" /> Alokasi Mobil & Staf
                                                     </Button>
                                                 </div>
+                                            ) : (
+                                                (hasRole('Admin') || hasRole('Super Admin')) && (
+                                                    <div className="flex justify-end pt-2 border-t mt-1">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => openAllocateDialog(b)}
+                                                            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10"
+                                                        >
+                                                            <RefreshCw className="h-3.5 w-3.5" /> Tukar Unit Armada & Staf
+                                                        </Button>
+                                                    </div>
+                                                )
                                             )}
                                         </div>
                                     );
@@ -840,7 +858,7 @@ export default function AllocationsIndex({
                                                 </td>
                                                 <td className="px-4 py-4 font-semibold text-xs">{formatCurrency(b.amount)}</td>
                                                 <td className="px-4 py-4 text-right">
-                                                    {!b.car_id && (
+                                                    {!b.car_id ? (
                                                         <Button
                                                             size="sm"
                                                             onClick={() => handleStartAllocation(b)}
@@ -848,6 +866,18 @@ export default function AllocationsIndex({
                                                         >
                                                             <Settings className="h-3.5 w-3.5" /> Alokasi
                                                         </Button>
+                                                    ) : (
+                                                        (hasRole('Admin') || hasRole('Super Admin')) && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => openAllocateDialog(b)}
+                                                                className="font-semibold text-xs flex items-center gap-1.5 ml-auto border-primary/40 text-primary hover:bg-primary/10"
+                                                                title="Tukar unit armada mobil atau ubah penugasan staf"
+                                                            >
+                                                                <RefreshCw className="h-3.5 w-3.5" /> Tukar Unit
+                                                            </Button>
+                                                        )
                                                     )}
                                                 </td>
                                             </tr>
@@ -1026,8 +1056,17 @@ export default function AllocationsIndex({
                     <DialogContent className="max-w-md">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
-                                <Settings className="h-5 w-5 text-primary" />
-                                Alokasi Armada Mobil & Staf
+                                {selectedBooking?.car_id ? (
+                                    <>
+                                        <RefreshCw className="h-5 w-5 text-primary" />
+                                        Tukar Unit Armada & Penugasan Staf
+                                    </>
+                                ) : (
+                                    <>
+                                        <Settings className="h-5 w-5 text-primary" />
+                                        Alokasi Armada Mobil & Staf
+                                    </>
+                                )}
                             </DialogTitle>
                         </DialogHeader>
                         {selectedBooking && (
@@ -1142,7 +1181,9 @@ export default function AllocationsIndex({
 
                                 <DialogFooter className="pt-4">
                                     <Button type="button" variant="outline" onClick={() => setIsAllocateOpen(false)}>Batal</Button>
-                                    <Button type="submit" disabled={processingAssign}>Simpan Alokasi</Button>
+                                    <Button type="submit" disabled={processingAssign} className="flex items-center gap-1.5">
+                                        {processingAssign ? 'Menyimpan...' : (selectedBooking?.car_id ? 'Simpan Perubahan Unit' : 'Simpan Alokasi')}
+                                    </Button>
                                 </DialogFooter>
                             </form>
                         )}

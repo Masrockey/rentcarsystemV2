@@ -231,8 +231,11 @@ class AllocationController extends Controller
             'amount' => ['nullable', 'numeric', 'min:0'],
         ]);
 
+        $oldCarId = $booking->car_id;
+        $newCarId = $validated['car_id'] ?? $booking->car_id;
+
         $booking->update([
-            'car_id' => $validated['car_id'] ?? $booking->car_id,
+            'car_id' => $newCarId,
             'driver_id' => $validated['driver_id'] ?? $booking->driver_id,
             'peluncur_id' => $validated['peluncur_id'] ?? $booking->peluncur_id,
             'petugas_cuci_id' => $validated['petugas_cuci_id'] ?? $booking->petugas_cuci_id,
@@ -243,9 +246,13 @@ class AllocationController extends Controller
             $booking->update(['status' => 'Confirmed']);
         }
 
+        if ($oldCarId && $newCarId && $oldCarId != $newCarId) {
+            $booking->rentals()->where('status', 'Active')->update(['car_id' => $newCarId]);
+        }
+
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => 'Alokasi mobil dan staf berhasil disimpan.',
+            'message' => $oldCarId && $oldCarId != $newCarId ? 'Unit armada berhasil ditukar.' : 'Alokasi armada mobil dan staf berhasil disimpan.',
         ]);
 
         return back();
