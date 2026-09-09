@@ -732,7 +732,7 @@ export default function AllocationsIndex({
                                                     <span className="font-semibold text-foreground">Tanggal & Jam:</span> {b.booking_date} {b.pickup_time ? `(${b.pickup_time.substring(0, 5)})` : ''} {b.return_date ? `s/d ${b.return_date}` : ''}
                                                 </div>
                                                 <div>
-                                                    <span className="font-semibold text-foreground">Marketing:</span> {b.user?.name ?? 'Admin / System'}
+                                                    <span className="font-semibold text-foreground">Nama Marketing:</span> {b.user?.name ?? 'Admin / System'}
                                                 </div>
                                                 <div>
                                                     <span className="font-semibold text-foreground">Staf:</span> Supir: {b.driver?.name ?? '-'}, Peluncur: {b.peluncur?.name ?? '-'}, Cuci: {b.petugas_cuci?.name ?? '-'}
@@ -778,7 +778,7 @@ export default function AllocationsIndex({
                                         <th className="px-4 py-3">Armada Mobil Alokasi</th>
                                         <th className="px-4 py-3">Tanggal & Jam Sewa</th>
                                         <th className="px-4 py-3">Penugasan Staf</th>
-                                        <th className="px-4 py-3">Marketing</th>
+                                        <th className="px-4 py-3">Nama Marketing</th>
                                         <th className="px-4 py-3">Harga Sewa</th>
                                         <th className="px-4 py-3 text-right">Aksi</th>
                                     </tr>
@@ -835,55 +835,55 @@ export default function AllocationsIndex({
                                                             </div>
                                                         )}
                                                     </td>
-                                                <td className="px-4 py-4 text-xs space-y-0.5">
-                                                    {b.rental_type === 'With Driver' && (
+                                                    <td className="px-4 py-4 text-xs space-y-0.5">
+                                                        {b.rental_type === 'With Driver' && (
+                                                            <div>
+                                                                <span className="font-medium text-muted-foreground">Supir:</span>{' '}
+                                                                {b.driver ? <span className="font-semibold">{b.driver.name}</span> : <span className="text-red-500 font-bold italic">Belum Dialokasi</span>}
+                                                            </div>
+                                                        )}
                                                         <div>
-                                                            <span className="font-medium text-muted-foreground">Supir:</span>{' '}
-                                                            {b.driver ? <span className="font-semibold">{b.driver.name}</span> : <span className="text-red-500 font-bold italic">Belum Dialokasi</span>}
+                                                            <span className="font-medium text-muted-foreground">Peluncur:</span>{' '}
+                                                            {b.peluncur ? b.peluncur.name : <span className="text-muted-foreground italic">Belum ada</span>}
                                                         </div>
-                                                    )}
-                                                    <div>
-                                                        <span className="font-medium text-muted-foreground">Peluncur:</span>{' '}
-                                                        {b.peluncur ? b.peluncur.name : <span className="text-muted-foreground italic">Belum ada</span>}
-                                                    </div>
-                                                    <div>
-                                                        <span className="font-medium text-muted-foreground">Petugas Cuci:</span>{' '}
-                                                        {b.petugas_cuci ? b.petugas_cuci.name : <span className="text-muted-foreground italic">Belum ada</span>}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4 text-xs">
-                                                    <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
-                                                        {b.user ? b.user.name : <span className="text-muted-foreground italic">Admin / System</span>}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-4 font-semibold text-xs">{formatCurrency(b.amount)}</td>
-                                                <td className="px-4 py-4 text-right">
-                                                    {!b.car_id ? (
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => handleStartAllocation(b)}
-                                                            className="font-semibold text-xs flex items-center gap-1.5 ml-auto"
-                                                        >
-                                                            <Settings className="h-3.5 w-3.5" /> Alokasi
-                                                        </Button>
-                                                    ) : (
-                                                        (hasRole('Admin') || hasRole('Super Admin')) && (
+                                                        <div>
+                                                            <span className="font-medium text-muted-foreground">Petugas Cuci:</span>{' '}
+                                                            {b.petugas_cuci ? b.petugas_cuci.name : <span className="text-muted-foreground italic">Belum ada</span>}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-xs">
+                                                        <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
+                                                            {b.user ? b.user.name : <span className="text-muted-foreground italic">Admin / System</span>}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-4 font-semibold text-xs">{formatCurrency(b.amount)}</td>
+                                                    <td className="px-4 py-4 text-right">
+                                                        {!b.car_id ? (
                                                             <Button
                                                                 size="sm"
-                                                                variant="outline"
-                                                                onClick={() => openAllocateDialog(b)}
-                                                                className="font-semibold text-xs flex items-center gap-1.5 ml-auto border-primary/40 text-primary hover:bg-primary/10"
-                                                                title="Tukar unit armada mobil atau ubah penugasan staf"
+                                                                onClick={() => handleStartAllocation(b)}
+                                                                className="font-semibold text-xs flex items-center gap-1.5 ml-auto"
                                                             >
-                                                                <RefreshCw className="h-3.5 w-3.5" /> Tukar Unit
+                                                                <Settings className="h-3.5 w-3.5" /> Alokasi
                                                             </Button>
-                                                        )
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
+                                                        ) : (
+                                                            (hasRole('Admin') || hasRole('Super Admin')) && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => openAllocateDialog(b)}
+                                                                    className="font-semibold text-xs flex items-center gap-1.5 ml-auto border-primary/40 text-primary hover:bg-primary/10"
+                                                                    title="Tukar unit armada mobil atau ubah penugasan staf"
+                                                                >
+                                                                    <RefreshCw className="h-3.5 w-3.5" /> Tukar Unit
+                                                                </Button>
+                                                            )
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -1072,7 +1072,7 @@ export default function AllocationsIndex({
                         {selectedBooking && (
                             <form onSubmit={handleAssignSubmit} className="space-y-4 py-2">
                                 <div className="rounded-lg bg-muted p-3 text-xs space-y-1 border">
-                                    <div><span className="font-semibold">Marketing / Dibuat Oleh:</span> {selectedBooking.user?.name ?? 'Admin / System'}</div>
+                                    <div><span className="font-semibold">Nama Marketing:</span> {selectedBooking.user?.name ?? 'Admin / System'}</div>
                                     <div><span className="font-semibold">Pelanggan:</span> {selectedBooking.customer?.name}</div>
                                     <div><span className="font-semibold">Tipe Mobil Dipesan:</span> {selectedBooking.car_type}</div>
                                     <div><span className="font-semibold">Type Sewa:</span> <Badge variant="outline" className="text-[10px] ml-1">{selectedBooking.rental_type ?? 'Lepas Kunci'}</Badge></div>

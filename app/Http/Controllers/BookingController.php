@@ -66,7 +66,7 @@ class BookingController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'user_id' => ['nullable', 'exists:users,id'],
+            'user_id' => [$request->user()->isAdmin() ? 'required' : 'nullable', 'exists:users,id'],
             'customer_id' => ['nullable', 'exists:customers,id'],
             'new_customer_name' => ['nullable', 'string', 'max:255'],
             'new_customer_nik' => ['nullable', 'string', 'max:50'],
@@ -90,6 +90,9 @@ class BookingController extends Controller
             'payment_method' => ['required', Rule::in(['Cash', 'Transfer', 'DP'])],
             'payment_status' => ['nullable', Rule::in(['Pending', 'Paid', 'Down Payment'])],
             'amount' => ['nullable', 'numeric', 'min:0'],
+        ], [
+            'user_id.required' => 'Nama Marketing wajib dipilih.',
+            'user_id.exists' => 'Marketing yang dipilih tidak valid.',
         ]);
 
         if (empty($validated['customer_id']) && empty($validated['new_customer_name'])) {
@@ -208,6 +211,12 @@ class BookingController extends Controller
         ]);
 
         $updateData = array_filter($validated, fn ($val) => $val !== null);
+
+        // Only Super Admin can manually override booking status from edit booking form
+        if (! $request->user()->isSuperAdmin()) {
+            unset($updateData['status']);
+        }
+
         if (isset($updateData['status']) && $updateData['status'] === 'Cancelled' && ! $booking->cancelled_at) {
             $updateData['cancelled_at'] = now();
         }

@@ -395,7 +395,7 @@ export default function BookingsIndex({
         setIsCustomCarType(false);
         setCreateData((prev) => ({
             ...prev,
-            user_id: user?.id ? user.id.toString() : '',
+            user_id: '',
             customer_id: customers.length > 0 ? customers[0].id.toString() : '',
         }));
         setIsCreateOpen(true);
@@ -404,7 +404,7 @@ export default function BookingsIndex({
     const openEditDialog = (booking: Booking) => {
         setSelectedBooking(booking);
         setEditData({
-            user_id: booking.user_id ? booking.user_id.toString() : (user?.id ? user.id.toString() : ''),
+            user_id: booking.user_id ? booking.user_id.toString() : '',
             customer_id: booking.customer_id ? booking.customer_id.toString() : '',
             car_type: booking.car_type || '',
             rental_type: (booking.rental_type as any) || 'Lepas Kunci',
@@ -778,91 +778,91 @@ export default function BookingsIndex({
                                                     </Badge>
                                                 </div>
                                             </div>
-                                        <div className="text-xs text-muted-foreground space-y-1">
-                                            <div>
-                                                <span className="font-semibold text-foreground">Tipe Mobil:</span> {booking.car_type}{' '}
-                                                <Badge variant="outline" className="ml-1 text-[10px] bg-primary/5 font-medium">
-                                                    {booking.rental_type ?? 'Lepas Kunci'}
-                                                </Badge>
-                                            </div>
-                                            <div><span className="font-semibold text-foreground">Armada Alokasi:</span> {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="italic text-muted-foreground text-xs">Belum Dialokasi</span>}</div>
-                                            <div>
-                                                <span className="font-semibold text-foreground">Tanggal & Jam:</span> Start: {booking.booking_date} {booking.pickup_time ? `(${booking.pickup_time.substring(0, 5)})` : ''} {booking.return_date ? `| End: ${booking.return_date} ${booking.return_time ? `(${booking.return_time.substring(0, 5)})` : ''}` : ''}
-                                            </div>
-                                            {(booking.pickup_location || booking.dropoff_location) && (
-                                                <div className="text-[11px] text-muted-foreground">
-                                                    <span className="font-semibold text-foreground">Lokasi:</span> {booking.pickup_location ? `Jemput: ${booking.pickup_location}` : ''} {booking.dropoff_location ? `| Antar: ${booking.dropoff_location}` : ''}
+                                            <div className="text-xs text-muted-foreground space-y-1">
+                                                <div>
+                                                    <span className="font-semibold text-foreground">Tipe Mobil:</span> {booking.car_type}{' '}
+                                                    <Badge variant="outline" className="ml-1 text-[10px] bg-primary/5 font-medium">
+                                                        {booking.rental_type ?? 'Lepas Kunci'}
+                                                    </Badge>
                                                 </div>
-                                            )}
-                                            <div><span className="font-semibold text-foreground">Pembayaran:</span> {formatCurrency(booking.amount)} ({booking.payment_status} via {booking.payment_method})</div>
-                                            <div>
-                                                <span className="font-semibold text-foreground">Penugasan Staf:</span> Peluncur: {booking.peluncur?.name ?? 'Belum ada'}, Wash: {booking.petugas_cuci?.name ?? 'Belum ada'}
-                                                {booking.rental_type === 'With Driver' && (
-                                                    <span>, Supir: {booking.driver?.name ?? <span className="text-red-500 font-semibold italic">Belum Dialokasi</span>}</span>
+                                                <div><span className="font-semibold text-foreground">Armada Alokasi:</span> {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="italic text-muted-foreground text-xs">Belum Dialokasi</span>}</div>
+                                                <div>
+                                                    <span className="font-semibold text-foreground">Tanggal & Jam:</span> Start: {booking.booking_date} {booking.pickup_time ? `(${booking.pickup_time.substring(0, 5)})` : ''} {booking.return_date ? `| End: ${booking.return_date} ${booking.return_time ? `(${booking.return_time.substring(0, 5)})` : ''}` : ''}
+                                                </div>
+                                                {(booking.pickup_location || booking.dropoff_location) && (
+                                                    <div className="text-[11px] text-muted-foreground">
+                                                        <span className="font-semibold text-foreground">Lokasi:</span> {booking.pickup_location ? `Jemput: ${booking.pickup_location}` : ''} {booking.dropoff_location ? `| Antar: ${booking.dropoff_location}` : ''}
+                                                    </div>
+                                                )}
+                                                <div><span className="font-semibold text-foreground">Pembayaran:</span> {formatCurrency(booking.amount)} ({booking.payment_status} via {booking.payment_method})</div>
+                                                <div>
+                                                    <span className="font-semibold text-foreground">Penugasan Staf:</span> Peluncur: {booking.peluncur?.name ?? 'Belum ada'}, Wash: {booking.petugas_cuci?.name ?? 'Belum ada'}
+                                                    {booking.rental_type === 'With Driver' && (
+                                                        <span>, Supir: {booking.driver?.name ?? <span className="text-red-500 font-semibold italic">Belum Dialokasi</span>}</span>
+                                                    )}
+                                                </div>
+                                                {(hasRole('Admin') || hasRole('Super Admin')) && (
+                                                    <div><span className="font-semibold text-foreground">Marketing:</span> <span className="font-medium text-foreground">{booking.user?.name ?? 'Admin / System'}</span></div>
                                                 )}
                                             </div>
-                                            {(hasRole('Admin') || hasRole('Super Admin')) && (
-                                                <div><span className="font-semibold text-foreground">Dibuat Oleh:</span> <span className="font-medium text-foreground">{booking.user?.name ?? 'Admin / System'}</span></div>
-                                            )}
-                                        </div>
-                                        <div className="flex justify-end gap-2 pt-2 border-t mt-1">
-                                            {booking.status === 'Pending' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="destructive"
-                                                    className="flex items-center gap-1 h-8 text-xs font-semibold px-2.5 shadow-xs"
-                                                    onClick={() => {
-                                                        setCancelBooking(booking);
-                                                        setCancelReason('');
-                                                    }}
-                                                >
-                                                    <Ban className="h-3.5 w-3.5" /> Cancel
-                                                </Button>
-                                            )}
-                                            {(hasRole('Admin') || hasRole('Super Admin')) && (
-                                                <>
+                                            <div className="flex justify-end gap-2 pt-2 border-t mt-1">
+                                                {booking.status === 'Pending' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
                                                     <Button
-                                                        variant="outline"
                                                         size="sm"
-                                                        className="flex items-center gap-1 h-8 text-xs"
-                                                        onClick={() => openAssignDialog(booking)}
+                                                        variant="destructive"
+                                                        className="flex items-center gap-1 h-8 text-xs font-semibold px-2.5 shadow-xs"
+                                                        onClick={() => {
+                                                            setCancelBooking(booking);
+                                                            setCancelReason('');
+                                                        }}
                                                     >
-                                                        <Settings className="h-3 w-3" /> Alokasi
+                                                        <Ban className="h-3.5 w-3.5" /> Cancel
                                                     </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8"
-                                                        onClick={() => openEditDialog(booking)}
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 text-red-500 hover:text-red-600"
-                                                        onClick={() => setDeleteBookingId(booking.id)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </>
-                                            )}
+                                                )}
+                                                {(hasRole('Admin') || hasRole('Super Admin')) && (
+                                                    <>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="flex items-center gap-1 h-8 text-xs"
+                                                            onClick={() => openAssignDialog(booking)}
+                                                        >
+                                                            <Settings className="h-3 w-3" /> Alokasi
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8"
+                                                            onClick={() => openEditDialog(booking)}
+                                                        >
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-red-500 hover:text-red-600"
+                                                            onClick={() => setDeleteBookingId(booking.id)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
+                                                )}
 
-                                            {(hasRole('Petugas Cuci') || hasRole('Admin')) && booking.status === 'Returned' && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="default"
-                                                    className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
-                                                    onClick={() => handleCompleteWash(booking.id)}
-                                                >
-                                                    Cuci Selesai
-                                                </Button>
-                                            )}
+                                                {(hasRole('Petugas Cuci') || hasRole('Admin')) && booking.status === 'Returned' && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="default"
+                                                        className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+                                                        onClick={() => handleCompleteWash(booking.id)}
+                                                    >
+                                                        Cuci Selesai
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })
-                        )}
+                                    );
+                                })
+                            )}
                         </div>
 
                         {/* Desktop Table View */}
@@ -877,7 +877,7 @@ export default function BookingsIndex({
                                         <th className="px-4 py-3">Pembayaran</th>
                                         <th className="px-4 py-3">Penugasan Staf</th>
                                         {(hasRole('Admin') || hasRole('Super Admin')) && (
-                                            <th className="px-4 py-3">Dibuat Oleh</th>
+                                            <th className="px-4 py-3">Marketing</th>
                                         )}
                                         <th className="px-4 py-3">Status</th>
                                         <th className="px-4 py-3 text-right">Aksi</th>
@@ -936,96 +936,96 @@ export default function BookingsIndex({
                                                             </div>
                                                         )}
                                                     </td>
-                                                <td className="px-4 py-4">
-                                                    <div className="font-medium text-xs">{formatCurrency(booking.amount)}</div>
-                                                    <Badge variant="outline" className={`mt-1 text-[10px] ${getPaymentStatusColor(booking.payment_status)}`}>
-                                                        {booking.payment_status} ({booking.payment_method})
-                                                    </Badge>
-                                                </td>
-                                                <td className="px-4 py-4 text-xs">
-                                                    {booking.rental_type === 'With Driver' && (
-                                                        <div className="mb-1 font-medium">
-                                                            Supir: {booking.driver ? <span className="font-semibold text-foreground">{booking.driver.name}</span> : <span className="text-red-500 italic font-semibold">Belum Dialokasi</span>}
-                                                        </div>
-                                                    )}
-                                                    <div>Peluncur: {booking.peluncur ? booking.peluncur.name : <span className="text-muted-foreground italic">Belum ada</span>}</div>
-                                                    <div className="mt-1">Wash: {booking.petugas_cuci ? booking.petugas_cuci.name : <span className="text-muted-foreground italic">Belum ada</span>}</div>
-                                                </td>
-                                                {(hasRole('Admin') || hasRole('Super Admin')) && (
-                                                    <td className="px-4 py-4 text-xs">
-                                                        <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
-                                                            {booking.user ? booking.user.name : <span className="text-muted-foreground italic">Admin / System</span>}
-                                                        </span>
-                                                    </td>
-                                                )}
-                                                <td className="px-4 py-4">
-                                                    <div className="flex flex-col gap-1 items-start">
-                                                        <Badge variant="outline" className={getStatusColor(booking.status)}>
-                                                            {booking.status}
+                                                    <td className="px-4 py-4">
+                                                        <div className="font-medium text-xs">{formatCurrency(booking.amount)}</div>
+                                                        <Badge variant="outline" className={`mt-1 text-[10px] ${getPaymentStatusColor(booking.payment_status)}`}>
+                                                            {booking.payment_status} ({booking.payment_method})
                                                         </Badge>
-                                                        {booking.status === 'Cancelled' && booking.cancellation_reason && (
-                                                            <span className="text-[11px] text-muted-foreground line-clamp-2 max-w-[160px]" title={`Alasan: ${booking.cancellation_reason}`}>
-                                                                Alasan: {booking.cancellation_reason}
+                                                    </td>
+                                                    <td className="px-4 py-4 text-xs">
+                                                        {booking.rental_type === 'With Driver' && (
+                                                            <div className="mb-1 font-medium">
+                                                                Supir: {booking.driver ? <span className="font-semibold text-foreground">{booking.driver.name}</span> : <span className="text-red-500 italic font-semibold">Belum Dialokasi</span>}
+                                                            </div>
+                                                        )}
+                                                        <div>Peluncur: {booking.peluncur ? booking.peluncur.name : <span className="text-muted-foreground italic">Belum ada</span>}</div>
+                                                        <div className="mt-1">Wash: {booking.petugas_cuci ? booking.petugas_cuci.name : <span className="text-muted-foreground italic">Belum ada</span>}</div>
+                                                    </td>
+                                                    {(hasRole('Admin') || hasRole('Super Admin')) && (
+                                                        <td className="px-4 py-4 text-xs">
+                                                            <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
+                                                                {booking.user ? booking.user.name : <span className="text-muted-foreground italic">Admin / System</span>}
                                                             </span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-4 text-right whitespace-nowrap">
-                                                    <div className="flex items-center justify-end gap-1.5">
-                                                        {booking.status === 'Pending' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="destructive"
-                                                                className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 shadow-xs"
-                                                                title="Batalkan Booking"
-                                                                onClick={() => {
-                                                                    setCancelBooking(booking);
-                                                                    setCancelReason('');
-                                                                }}
-                                                            >
-                                                                <Ban className="h-3.5 w-3.5" /> Cancel
-                                                            </Button>
-                                                        )}
-
-                                                        {(hasRole('Admin') || hasRole('Super Admin')) && (
-                                                            <>
+                                                        </td>
+                                                    )}
+                                                    <td className="px-4 py-4">
+                                                        <div className="flex flex-col gap-1 items-start">
+                                                            <Badge variant="outline" className={getStatusColor(booking.status)}>
+                                                                {booking.status}
+                                                            </Badge>
+                                                            {booking.status === 'Cancelled' && booking.cancellation_reason && (
+                                                                <span className="text-[11px] text-muted-foreground line-clamp-2 max-w-[160px]" title={`Alasan: ${booking.cancellation_reason}`}>
+                                                                    Alasan: {booking.cancellation_reason}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-right whitespace-nowrap">
+                                                        <div className="flex items-center justify-end gap-1.5">
+                                                            {booking.status === 'Pending' && (hasRole('Marketing') || hasRole('Admin') || hasRole('Super Admin')) && (
                                                                 <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-8 w-8"
-                                                                    title="Edit Booking"
-                                                                    onClick={() => openEditDialog(booking)}
+                                                                    size="sm"
+                                                                    variant="destructive"
+                                                                    className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 shadow-xs"
+                                                                    title="Batalkan Booking"
+                                                                    onClick={() => {
+                                                                        setCancelBooking(booking);
+                                                                        setCancelReason('');
+                                                                    }}
                                                                 >
-                                                                    <Edit className="h-4 w-4" />
+                                                                    <Ban className="h-3.5 w-3.5" /> Cancel
                                                                 </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-8 w-8 text-red-500 hover:text-red-600"
-                                                                    title="Hapus Booking"
-                                                                    onClick={() => setDeleteBookingId(booking.id)}
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </>
-                                                        )}
+                                                            )}
 
-                                                        {(hasRole('Petugas Cuci') || hasRole('Admin')) && booking.status === 'Returned' && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="default"
-                                                                className="bg-green-600 hover:bg-green-700 text-white"
-                                                                onClick={() => handleCompleteWash(booking.id)}
-                                                            >
-                                                                Wash Complete
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
+                                                            {(hasRole('Admin') || hasRole('Super Admin')) && (
+                                                                <>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8"
+                                                                        title="Edit Booking"
+                                                                        onClick={() => openEditDialog(booking)}
+                                                                    >
+                                                                        <Edit className="h-4 w-4" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-red-500 hover:text-red-600"
+                                                                        title="Hapus Booking"
+                                                                        onClick={() => setDeleteBookingId(booking.id)}
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </>
+                                                            )}
+
+                                                            {(hasRole('Petugas Cuci') || hasRole('Admin')) && booking.status === 'Returned' && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="default"
+                                                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                                                    onClick={() => handleCompleteWash(booking.id)}
+                                                                >
+                                                                    Wash Complete
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -1043,12 +1043,14 @@ export default function BookingsIndex({
                         <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
                             {hasRole('Admin') && (
                                 <div className="space-y-1">
-                                    <Label htmlFor="create_user_id" className="text-xs font-semibold">Nama Marketing / Dibuat Oleh</Label>
+                                    <Label htmlFor="create_user_id" className="text-xs font-semibold">
+                                        Nama Marketing <span className="text-red-500">*</span>
+                                    </Label>
                                     <Select
-                                        value={createData.user_id || (user?.id ? user.id.toString() : '')}
+                                        value={createData.user_id}
                                         onValueChange={(val) => setCreateData('user_id', val)}
                                     >
-                                        <SelectTrigger id="create_user_id" className="h-9">
+                                        <SelectTrigger id="create_user_id" className={`h-9 ${errorsCreate.user_id ? 'border-destructive' : ''}`}>
                                             <SelectValue placeholder="Pilih Marketing..." />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1059,6 +1061,9 @@ export default function BookingsIndex({
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    {errorsCreate.user_id && (
+                                        <p className="text-xs text-destructive font-medium">{errorsCreate.user_id}</p>
+                                    )}
                                 </div>
                             )}
 
@@ -1573,12 +1578,14 @@ export default function BookingsIndex({
                         <form onSubmit={handleEditSubmit} className="space-y-4 py-2">
                             {hasRole('Admin') && (
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_user_id" className="text-xs font-semibold">Nama Marketing / Dibuat Oleh</Label>
+                                    <Label htmlFor="edit_user_id" className="text-xs font-semibold">
+                                        Nama Marketing <span className="text-red-500">*</span>
+                                    </Label>
                                     <Select
                                         value={editData.user_id}
                                         onValueChange={(val) => setEditData('user_id', val)}
                                     >
-                                        <SelectTrigger id="edit_user_id" className="h-9">
+                                        <SelectTrigger id="edit_user_id" className={`h-9 ${errorsEdit.user_id ? 'border-destructive' : ''}`}>
                                             <SelectValue placeholder="Pilih Marketing..." />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1589,6 +1596,9 @@ export default function BookingsIndex({
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    {errorsEdit.user_id && (
+                                        <p className="text-xs text-destructive font-medium">{errorsEdit.user_id}</p>
+                                    )}
                                 </div>
                             )}
 
@@ -1723,20 +1733,31 @@ export default function BookingsIndex({
                                 </div>
                                 <div className="space-y-1">
                                     <Label htmlFor="edit_status">Status Booking</Label>
-                                    <Select
-                                        value={editData.status}
-                                        onValueChange={(val) => setEditData('status', val)}
-                                    >
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Pending">Pending</SelectItem>
-                                            <SelectItem value="Confirmed">Confirmed</SelectItem>
-                                            <SelectItem value="On Trip">On Trip</SelectItem>
-                                            <SelectItem value="Returned">Returned</SelectItem>
-                                            <SelectItem value="Completed">Completed</SelectItem>
-                                            <SelectItem value="Cancelled">Cancelled (Dibatalkan)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    {roles.includes('Super Admin') ? (
+                                        <Select
+                                            value={editData.status}
+                                            onValueChange={(val) => setEditData('status', val)}
+                                        >
+                                            <SelectTrigger id="edit_status"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Pending">Pending</SelectItem>
+                                                <SelectItem value="Confirmed">Confirmed</SelectItem>
+                                                <SelectItem value="On Trip">On Trip</SelectItem>
+                                                <SelectItem value="Returned">Returned</SelectItem>
+                                                <SelectItem value="Completed">Completed</SelectItem>
+                                                <SelectItem value="Cancelled">Cancelled (Dibatalkan)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    ) : (
+                                        <div className="h-9 px-3 py-1.5 rounded-md border bg-muted/40 flex items-center justify-between">
+                                            <Badge variant="outline" className={getStatusColor(editData.status)}>
+                                                {editData.status}
+                                            </Badge>
+                                            <span className="text-[10px] text-muted-foreground italic">
+                                                (Otomatis via alokasi & alur sewa)
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
