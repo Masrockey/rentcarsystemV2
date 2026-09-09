@@ -278,6 +278,63 @@ export default function AllocationsIndex({
     const formatCurrency = (val: string | number) =>
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(val));
 
+    const getReturnUrgency = (b: Booking): { level: 'overdue' | 'due-soon' | 'normal'; label?: string } => {
+        if (b.status === 'Completed' || b.status === 'Cancelled') {
+            return { level: 'normal' };
+        }
+
+        const returnDateStr = b.return_date || b.booking_date;
+        if (!returnDateStr) return { level: 'normal' };
+
+        const cleanDate = returnDateStr.substring(0, 10);
+        const returnTimeStr = b.return_time ? b.return_time.substring(0, 5) : '23:59';
+
+        const targetDate = new Date(`${cleanDate}T${returnTimeStr}:00`);
+        if (isNaN(targetDate.getTime())) return { level: 'normal' };
+
+        const now = new Date();
+        const diffMs = targetDate.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        if (diffMs < 0) {
+            return { level: 'overdue', label: '⚠️ Lewat Batas Kembali' };
+        }
+
+        if (diffHours <= 48) {
+            if (diffHours <= 12) {
+                return { level: 'due-soon', label: `⏳ Kembali dlm ${Math.max(1, Math.round(diffHours))} jam` };
+            }
+            if (diffHours <= 24) {
+                return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
+            }
+            return { level: 'due-soon', label: '⏳ Mendekati Tanggal Kembali' };
+        }
+
+        return { level: 'normal' };
+    };
+
+    const getRowHighlightClass = (b: Booking) => {
+        const { level } = getReturnUrgency(b);
+        if (level === 'overdue') {
+            return 'bg-red-50/75 hover:bg-red-100/90 dark:bg-red-950/35 dark:hover:bg-red-950/50 border-l-4 border-l-red-500 transition-colors';
+        }
+        if (level === 'due-soon') {
+            return 'bg-amber-50/75 hover:bg-amber-100/90 dark:bg-amber-950/35 dark:hover:bg-amber-950/50 border-l-4 border-l-amber-500 transition-colors';
+        }
+        return 'hover:bg-muted/50 transition-colors';
+    };
+
+    const getCardHighlightClass = (b: Booking) => {
+        const { level } = getReturnUrgency(b);
+        if (level === 'overdue') {
+            return 'border-l-4 border-l-red-500 border-red-300 bg-red-50/35 dark:border-red-900/50 dark:bg-red-950/20';
+        }
+        if (level === 'due-soon') {
+            return 'border-l-4 border-l-amber-500 border-amber-300 bg-amber-50/35 dark:border-amber-900/50 dark:bg-amber-950/20';
+        }
+        return 'border bg-card text-card-foreground shadow-xs';
+    };
+
     // Dynamic counts based on active date range
     const currentUnallocatedCount = useMemo(() => {
         return bookingList.filter((b) => {
@@ -629,52 +686,67 @@ export default function AllocationsIndex({
                                     {searchQuery ? 'Tidak ada data alokasi yang cocok.' : 'Belum ada data booking.'}
                                 </div>
                             ) : (
-                                filteredBookings.map((b) => (
-                                    <div key={b.id} className="flex flex-col gap-2 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <span className="font-semibold text-sm">{b.customer?.name}</span>
-                                                {b.booking_number && (
-                                                    <div className="text-[11px] font-mono text-muted-foreground">{b.booking_number}</div>
-                                                )}
+                                filteredBookings.map((b) => {
+                                    const urgency = getReturnUrgency(b);
+                                    return (
+                                        <div key={b.id} className={`flex flex-col gap-2 p-4 rounded-lg shadow-xs ${getCardHighlightClass(b)}`}>
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="font-semibold text-sm">{b.customer?.name}</span>
+                                                    {b.booking_number && (
+                                                        <div className="text-[11px] font-mono text-muted-foreground">{b.booking_number}</div>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    {urgency.level === 'overdue' && (
+                                                        <span className="text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded border border-red-200">
+                                                            {urgency.label}
+                                                        </span>
+                                                    )}
+                                                    {urgency.level === 'due-soon' && (
+                                                        <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded border border-amber-200">
+                                                            {urgency.label}
+                                                        </span>
+                                                    )}
+                                                    <Badge variant="outline" className="text-[10px] bg-primary/5 font-medium">
+                                                        {b.rental_type ?? 'Lepas Kunci'}
+                                                    </Badge>
+                                                </div>
                                             </div>
-                                            <Badge variant="outline" className="text-[10px] bg-primary/5 font-medium">
-                                                {b.rental_type ?? 'Lepas Kunci'}
-                                            </Badge>
+                                            <div className="text-xs text-muted-foreground space-y-1 pt-1">
+                                                <div><span className="font-semibold text-foreground">Tipe Dipesan:</span> {b.car_type}</div>
+                                                <div>
+                                                    <span className="font-semibold text-foreground">Armada Mobil:</span>{' '}
+                                                    {b.car ? (
+                                                        <span className="font-semibold text-green-600 dark:text-green-400">{b.car.name} ({b.car.plate_number})</span>
+                                                    ) : (
+                                                        <span className="text-red-500 font-bold italic">⚠️ Belum Dialokasi</span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-foreground">Tanggal & Jam:</span> {b.booking_date} {b.pickup_time ? `(${b.pickup_time.substring(0, 5)})` : ''} {b.return_date ? `s/d ${b.return_date}` : ''}
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-foreground">Marketing:</span> {b.user?.name ?? 'Admin / System'}
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-foreground">Staf:</span> Supir: {b.driver?.name ?? '-'}, Peluncur: {b.peluncur?.name ?? '-'}, Cuci: {b.petugas_cuci?.name ?? '-'}
+                                                </div>
+                                            </div>
+                                            {!b.car_id && (
+                                                <div className="flex justify-end pt-2 border-t mt-1">
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => handleStartAllocation(b)}
+                                                        className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold"
+                                                    >
+                                                        <Settings className="h-3.5 w-3.5" /> Alokasi Mobil & Staf
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="text-xs text-muted-foreground space-y-1 pt-1">
-                                            <div><span className="font-semibold text-foreground">Tipe Dipesan:</span> {b.car_type}</div>
-                                            <div>
-                                                <span className="font-semibold text-foreground">Armada Mobil:</span>{' '}
-                                                {b.car ? (
-                                                    <span className="font-semibold text-green-600 dark:text-green-400">{b.car.name} ({b.car.plate_number})</span>
-                                                ) : (
-                                                    <span className="text-red-500 font-bold italic">⚠️ Belum Dialokasi</span>
-                                                )}
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold text-foreground">Tanggal & Jam:</span> {b.booking_date} {b.pickup_time ? `(${b.pickup_time.substring(0, 5)})` : ''} {b.return_date ? `s/d ${b.return_date}` : ''}
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold text-foreground">Marketing:</span> {b.user?.name ?? 'Admin / System'}
-                                            </div>
-                                            <div>
-                                                <span className="font-semibold text-foreground">Staf:</span> Supir: {b.driver?.name ?? '-'}, Peluncur: {b.peluncur?.name ?? '-'}, Cuci: {b.petugas_cuci?.name ?? '-'}
-                                            </div>
-                                        </div>
-                                        {!b.car_id && (
-                                            <div className="flex justify-end pt-2 border-t mt-1">
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleStartAllocation(b)}
-                                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold"
-                                                >
-                                                    <Settings className="h-3.5 w-3.5" /> Alokasi Mobil & Staf
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
 
@@ -701,34 +773,50 @@ export default function AllocationsIndex({
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredBookings.map((b) => (
-                                            <tr key={b.id} className="hover:bg-muted/50">
-                                                <td className="px-4 py-4">
-                                                    <div className="font-semibold text-foreground">{b.customer?.name}</div>
-                                                    {b.booking_number && (
-                                                        <div className="text-[11px] font-mono text-muted-foreground">{b.booking_number}</div>
-                                                    )}
-                                                    <Badge variant="outline" className="mt-1 text-[10px] bg-primary/5 font-medium">
-                                                        {b.rental_type ?? 'Lepas Kunci'}
-                                                    </Badge>
-                                                </td>
-                                                <td className="px-4 py-4 font-medium">{b.car_type}</td>
-                                                <td className="px-4 py-4">
-                                                    {b.car ? (
-                                                        <div className="flex flex-col">
-                                                            <span className="font-semibold text-green-600 dark:text-green-400">{b.car.name}</span>
-                                                            <span className="font-mono text-xs text-muted-foreground">{b.car.plate_number}</span>
-                                                        </div>
-                                                    ) : (
-                                                        <Badge variant="outline" className="border-red-500 text-red-600 bg-red-500/10 font-bold animate-pulse">
-                                                            ⚠️ Belum Dialokasi
+                                        filteredBookings.map((b) => {
+                                            const urgency = getReturnUrgency(b);
+                                            return (
+                                                <tr key={b.id} className={getRowHighlightClass(b)}>
+                                                    <td className="px-4 py-4">
+                                                        <div className="font-semibold text-foreground">{b.customer?.name}</div>
+                                                        {b.booking_number && (
+                                                            <div className="text-[11px] font-mono text-muted-foreground">{b.booking_number}</div>
+                                                        )}
+                                                        <Badge variant="outline" className="mt-1 text-[10px] bg-primary/5 font-medium">
+                                                            {b.rental_type ?? 'Lepas Kunci'}
                                                         </Badge>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-4 text-xs">
-                                                    <div className="whitespace-nowrap">Start: {b.booking_date} {b.pickup_time ? `(${b.pickup_time.substring(0, 5)})` : ''}</div>
-                                                    {b.return_date && <div className="whitespace-nowrap text-muted-foreground">End: {b.return_date} {b.return_time ? `(${b.return_time.substring(0, 5)})` : ''}</div>}
-                                                </td>
+                                                    </td>
+                                                    <td className="px-4 py-4 font-medium">{b.car_type}</td>
+                                                    <td className="px-4 py-4">
+                                                        {b.car ? (
+                                                            <div className="flex flex-col">
+                                                                <span className="font-semibold text-green-600 dark:text-green-400">{b.car.name}</span>
+                                                                <span className="font-mono text-xs text-muted-foreground">{b.car.plate_number}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <Badge variant="outline" className="border-red-500 text-red-600 bg-red-500/10 font-bold animate-pulse">
+                                                                ⚠️ Belum Dialokasi
+                                                            </Badge>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-4 text-xs">
+                                                        <div className="whitespace-nowrap">Start: {b.booking_date} {b.pickup_time ? `(${b.pickup_time.substring(0, 5)})` : ''}</div>
+                                                        {b.return_date && <div className="whitespace-nowrap font-medium text-foreground">End: {b.return_date} {b.return_time ? `(${b.return_time.substring(0, 5)})` : ''}</div>}
+                                                        {urgency.level === 'overdue' && (
+                                                            <div className="mt-1">
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800">
+                                                                    {urgency.label}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                        {urgency.level === 'due-soon' && (
+                                                            <div className="mt-1">
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                                                    {urgency.label}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                 <td className="px-4 py-4 text-xs space-y-0.5">
                                                     {b.rental_type === 'With Driver' && (
                                                         <div>
@@ -763,8 +851,9 @@ export default function AllocationsIndex({
                                                     )}
                                                 </td>
                                             </tr>
-                                        ))
-                                    )}
+                                        );
+                                    })
+                                )}
                                 </tbody>
                             </table>
                         </div>

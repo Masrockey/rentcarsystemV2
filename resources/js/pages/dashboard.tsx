@@ -249,6 +249,65 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
         return tStr.substring(0, 5);
     };
 
+    const getReturnUrgency = (b: any): { level: 'overdue' | 'due-soon' | 'normal'; label?: string } => {
+        if (!b || b.status === 'Completed' || b.status === 'Cancelled') {
+            return { level: 'normal' };
+        }
+
+        const returnDateStr = b.return_date || b.booking_date;
+        if (!returnDateStr) return { level: 'normal' };
+
+        const cleanDate = typeof returnDateStr === 'string' ? returnDateStr.substring(0, 10) : '';
+        if (!cleanDate) return { level: 'normal' };
+
+        const returnTimeStr = b.return_time ? (typeof b.return_time === 'string' ? b.return_time.substring(0, 5) : '23:59') : '23:59';
+
+        const targetDate = new Date(`${cleanDate}T${returnTimeStr}:00`);
+        if (isNaN(targetDate.getTime())) return { level: 'normal' };
+
+        const now = new Date();
+        const diffMs = targetDate.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        if (diffMs < 0) {
+            return { level: 'overdue', label: '⚠️ Lewat Batas Kembali' };
+        }
+
+        if (diffHours <= 48) {
+            if (diffHours <= 12) {
+                return { level: 'due-soon', label: `⏳ Kembali dlm ${Math.max(1, Math.round(diffHours))} jam` };
+            }
+            if (diffHours <= 24) {
+                return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
+            }
+            return { level: 'due-soon', label: '⏳ Mendekati Tanggal Kembali' };
+        }
+
+        return { level: 'normal' };
+    };
+
+    const getRowHighlightClass = (b: any) => {
+        const { level } = getReturnUrgency(b);
+        if (level === 'overdue') {
+            return 'bg-red-50/75 hover:bg-red-100/90 dark:bg-red-950/35 dark:hover:bg-red-950/50 border-l-4 border-l-red-500 transition-colors';
+        }
+        if (level === 'due-soon') {
+            return 'bg-amber-50/75 hover:bg-amber-100/90 dark:bg-amber-950/35 dark:hover:bg-amber-950/50 border-l-4 border-l-amber-500 transition-colors';
+        }
+        return 'hover:bg-muted/50 transition-colors';
+    };
+
+    const getCardHighlightClass = (b: any) => {
+        const { level } = getReturnUrgency(b);
+        if (level === 'overdue') {
+            return 'border-l-4 border-l-red-500 border-red-300 bg-red-50/35 dark:border-red-900/50 dark:bg-red-950/20';
+        }
+        if (level === 'due-soon') {
+            return 'border-l-4 border-l-amber-500 border-amber-300 bg-amber-50/35 dark:border-amber-900/50 dark:bg-amber-950/20';
+        }
+        return 'border bg-card text-card-foreground shadow-xs';
+    };
+
     const filteredMarketingCars = useMemo(() => {
         const list = stats.marketing?.cars_status || [];
         return list.filter((car: any) => {
@@ -590,20 +649,41 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                                 Belum ada booking tercatat.
                                             </div>
                                         ) : (
-                                            stats.admin.recent_bookings.map((booking: any) => (
-                                                <div key={booking.id} className="flex flex-col gap-2 p-3 rounded-lg border bg-card text-card-foreground shadow-xs">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="font-semibold text-sm">{booking.customer?.name}</span>
-                                                        <Badge variant="outline" className={getStatusColor(booking.status)}>
-                                                            {booking.status}
-                                                        </Badge>
+                                            stats.admin.recent_bookings.map((booking: any) => {
+                                                const urgency = getReturnUrgency(booking);
+                                                return (
+                                                    <div key={booking.id} className={`flex flex-col gap-2 p-3 rounded-lg shadow-xs ${getCardHighlightClass(booking)}`}>
+                                                        <div className="flex items-center justify-between">
+                                                            <div>
+                                                                <span className="font-semibold text-sm">{booking.customer?.name}</span>
+                                                                {booking.booking_number && (
+                                                                    <div className="text-[10px] font-mono text-muted-foreground">{booking.booking_number}</div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                {urgency.level === 'overdue' && (
+                                                                    <span className="text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded border border-red-200">
+                                                                        {urgency.label}
+                                                                    </span>
+                                                                )}
+                                                                {urgency.level === 'due-soon' && (
+                                                                    <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded border border-amber-200">
+                                                                        {urgency.label}
+                                                                    </span>
+                                                                )}
+                                                                <Badge variant="outline" className={getStatusColor(booking.status)}>
+                                                                    {booking.status}
+                                                                </Badge>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground space-y-0.5">
+                                                            <div>Mobil: <span className="font-medium text-foreground">{booking.car_type}</span> {booking.car ? `(${booking.car.plate_number})` : ''}</div>
+                                                            <div>Tanggal Sewa: <span className="font-medium text-foreground">{formatShortDate(booking.booking_date)}</span> {booking.pickup_time ? `(${formatShortTime(booking.pickup_time)})` : ''}</div>
+                                                            <div>Tanggal Kembali: <span className="font-medium text-foreground">{formatShortDate(booking.return_date)}</span> {booking.return_time ? `(${formatShortTime(booking.return_time)})` : ''}</div>
+                                                        </div>
                                                     </div>
-                                                    <div className="text-xs text-muted-foreground">
-                                                        <div>Mobil: {booking.car_type} {booking.car ? `(${booking.car.plate_number})` : ''}</div>
-                                                        <div>Tanggal: {booking.booking_date}</div>
-                                                    </div>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         )}
                                     </div>
 
@@ -614,30 +694,66 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                                 <tr>
                                                     <th className="px-4 py-3">Pelanggan</th>
                                                     <th className="px-4 py-3">Tipe Mobil</th>
-                                                    <th className="px-4 py-3">Tanggal Booking</th>
+                                                    <th className="px-4 py-3">Tanggal Sewa</th>
+                                                    <th className="px-4 py-3">Tanggal Kembali</th>
                                                     <th className="px-4 py-3">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y">
                                                 {stats.admin.recent_bookings.length === 0 ? (
                                                     <tr>
-                                                        <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+                                                        <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                                                             Belum ada booking tercatat.
                                                         </td>
                                                     </tr>
                                                 ) : (
-                                                    stats.admin.recent_bookings.map((booking: any) => (
-                                                        <tr key={booking.id} className="hover:bg-muted/50">
-                                                            <td className="px-4 py-3 font-medium">{booking.customer?.name}</td>
-                                                            <td className="px-4 py-3">{booking.car_type} {booking.car ? `(${booking.car.plate_number})` : ''}</td>
-                                                            <td className="px-4 py-3">{booking.booking_date}</td>
-                                                            <td className="px-4 py-3">
-                                                                <Badge variant="outline" className={getStatusColor(booking.status)}>
-                                                                    {booking.status}
-                                                                </Badge>
-                                                            </td>
-                                                        </tr>
-                                                    ))
+                                                    stats.admin.recent_bookings.map((booking: any) => {
+                                                        const urgency = getReturnUrgency(booking);
+                                                        return (
+                                                            <tr key={booking.id} className={getRowHighlightClass(booking)}>
+                                                                <td className="px-4 py-3 font-medium">
+                                                                    <div>{booking.customer?.name}</div>
+                                                                    {booking.booking_number && (
+                                                                        <div className="text-[10px] font-mono text-muted-foreground">{booking.booking_number}</div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <div className="font-medium">{booking.car_type}</div>
+                                                                    {booking.car && (
+                                                                        <div className="text-xs text-muted-foreground">{booking.car.name} ({booking.car.plate_number})</div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-xs whitespace-nowrap">
+                                                                    <div>{formatShortDate(booking.booking_date)}</div>
+                                                                    {booking.pickup_time && <div className="text-muted-foreground">({formatShortTime(booking.pickup_time)})</div>}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-xs">
+                                                                    <div className="whitespace-nowrap font-medium text-foreground">
+                                                                        {formatShortDate(booking.return_date)} {booking.return_time ? `(${formatShortTime(booking.return_time)})` : ''}
+                                                                    </div>
+                                                                    {urgency.level === 'overdue' && (
+                                                                        <div className="mt-1">
+                                                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800">
+                                                                                {urgency.label}
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                    {urgency.level === 'due-soon' && (
+                                                                        <div className="mt-1">
+                                                                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                                                                {urgency.label}
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <Badge variant="outline" className={getStatusColor(booking.status)}>
+                                                                        {booking.status}
+                                                                    </Badge>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
                                                 )}
                                             </tbody>
                                         </table>
@@ -962,13 +1078,61 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="relative overflow-x-auto rounded-lg border">
+                                {/* Mobile Cards View */}
+                                <div className="space-y-3 md:hidden">
+                                    {stats.marketing.recent_bookings.length === 0 ? (
+                                        <div className="text-center py-6 text-muted-foreground text-sm">
+                                            Belum ada booking yang dibuat.
+                                        </div>
+                                    ) : (
+                                        stats.marketing.recent_bookings.map((booking: any) => {
+                                            const urgency = getReturnUrgency(booking);
+                                            return (
+                                                <div key={booking.id} className={`flex flex-col gap-2 p-3 rounded-lg shadow-xs ${getCardHighlightClass(booking)}`}>
+                                                    <div className="flex items-center justify-between">
+                                                        <div>
+                                                            <span className="font-semibold text-sm">{booking.customer?.name}</span>
+                                                            {booking.booking_number && (
+                                                                <div className="text-[10px] font-mono text-muted-foreground">{booking.booking_number}</div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5">
+                                                            {urgency.level === 'overdue' && (
+                                                                <span className="text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded border border-red-200">
+                                                                    {urgency.label}
+                                                                </span>
+                                                            )}
+                                                            {urgency.level === 'due-soon' && (
+                                                                <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded border border-amber-200">
+                                                                    {urgency.label}
+                                                                </span>
+                                                            )}
+                                                            <Badge variant="outline" className={getStatusColor(booking.status)}>
+                                                                {booking.status}
+                                                            </Badge>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground space-y-0.5">
+                                                        <div>Mobil: <span className="font-medium text-foreground">{booking.car_type}</span> {booking.car ? `(${booking.car.plate_number})` : ''}</div>
+                                                        <div>Tanggal Sewa: <span className="font-medium text-foreground">{formatShortDate(booking.booking_date)}</span> {booking.pickup_time ? `(${formatShortTime(booking.pickup_time)})` : ''}</div>
+                                                        <div>Tanggal Kembali: <span className="font-medium text-foreground">{formatShortDate(booking.return_date)}</span> {booking.return_time ? `(${formatShortTime(booking.return_time)})` : ''}</div>
+                                                        <div>Pembayaran: {booking.payment_method}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                {/* Desktop Table View */}
+                                <div className="hidden md:block relative overflow-x-auto rounded-lg border">
                                     <table className="w-full text-left text-sm">
                                         <thead className="bg-muted text-xs uppercase text-muted-foreground">
                                             <tr>
                                                 <th className="px-4 py-3">Pelanggan</th>
                                                 <th className="px-4 py-3">Tipe Mobil</th>
-                                                <th className="px-4 py-3">Tanggal Booking</th>
+                                                <th className="px-4 py-3">Tanggal Sewa</th>
+                                                <th className="px-4 py-3">Tanggal Kembali</th>
                                                 <th className="px-4 py-3">Metode Pembayaran</th>
                                                 <th className="px-4 py-3">Status</th>
                                             </tr>
@@ -976,24 +1140,59 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                         <tbody className="divide-y">
                                             {stats.marketing.recent_bookings.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                                                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                                                         Belum ada booking yang dibuat.
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                stats.marketing.recent_bookings.map((booking: any) => (
-                                                    <tr key={booking.id} className="hover:bg-muted/50">
-                                                        <td className="px-4 py-3 font-medium">{booking.customer?.name}</td>
-                                                        <td className="px-4 py-3">{booking.car_type}</td>
-                                                        <td className="px-4 py-3">{booking.booking_date}</td>
-                                                        <td className="px-4 py-3">{booking.payment_method}</td>
-                                                        <td className="px-4 py-3">
-                                                            <Badge variant="outline" className={getStatusColor(booking.status)}>
-                                                                {booking.status}
-                                                            </Badge>
-                                                        </td>
-                                                    </tr>
-                                                ))
+                                                stats.marketing.recent_bookings.map((booking: any) => {
+                                                    const urgency = getReturnUrgency(booking);
+                                                    return (
+                                                        <tr key={booking.id} className={getRowHighlightClass(booking)}>
+                                                            <td className="px-4 py-3 font-medium">
+                                                                <div>{booking.customer?.name}</div>
+                                                                {booking.booking_number && (
+                                                                    <div className="text-[10px] font-mono text-muted-foreground">{booking.booking_number}</div>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="font-medium">{booking.car_type}</div>
+                                                                {booking.car && (
+                                                                    <div className="text-xs text-muted-foreground">{booking.car.name} ({booking.car.plate_number})</div>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-xs whitespace-nowrap">
+                                                                <div>{formatShortDate(booking.booking_date)}</div>
+                                                                {booking.pickup_time && <div className="text-muted-foreground">({formatShortTime(booking.pickup_time)})</div>}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-xs">
+                                                                <div className="whitespace-nowrap font-medium text-foreground">
+                                                                    {formatShortDate(booking.return_date)} {booking.return_time ? `(${formatShortTime(booking.return_time)})` : ''}
+                                                                </div>
+                                                                {urgency.level === 'overdue' && (
+                                                                    <div className="mt-1">
+                                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800">
+                                                                            {urgency.label}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                                {urgency.level === 'due-soon' && (
+                                                                    <div className="mt-1">
+                                                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                                                            {urgency.label}
+                                                                        </span>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-xs">{booking.payment_method}</td>
+                                                            <td className="px-4 py-3">
+                                                                <Badge variant="outline" className={getStatusColor(booking.status)}>
+                                                                    {booking.status}
+                                                                </Badge>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
                                             )}
                                         </tbody>
                                     </table>

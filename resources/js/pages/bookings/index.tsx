@@ -511,6 +511,65 @@ export default function BookingsIndex({
         }
     };
 
+    const getReturnUrgency = (booking: Booking): { level: 'overdue' | 'due-soon' | 'normal'; label?: string } => {
+        if (booking.status === 'Completed' || booking.status === 'Cancelled') {
+            return { level: 'normal' };
+        }
+
+        const returnDateStr = booking.return_date || booking.booking_date;
+        if (!returnDateStr) return { level: 'normal' };
+
+        const cleanDate = returnDateStr.substring(0, 10);
+        const returnTimeStr = booking.return_time ? booking.return_time.substring(0, 5) : '23:59';
+
+        const targetDate = new Date(`${cleanDate}T${returnTimeStr}:00`);
+        if (isNaN(targetDate.getTime())) return { level: 'normal' };
+
+        const now = new Date();
+        const diffMs = targetDate.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        // Terlambat / lewat tanggal dan jam harus kembali
+        if (diffMs < 0) {
+            return { level: 'overdue', label: '⚠️ Lewat Batas Kembali' };
+        }
+
+        // Mendekati tanggal/jam harus kembali (<= 48 jam / hari ini & besok)
+        if (diffHours <= 48) {
+            if (diffHours <= 12) {
+                return { level: 'due-soon', label: `⏳ Kembali dlm ${Math.max(1, Math.round(diffHours))} jam` };
+            }
+            if (diffHours <= 24) {
+                return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
+            }
+            return { level: 'due-soon', label: '⏳ Mendekati Tanggal Kembali' };
+        }
+
+        return { level: 'normal' };
+    };
+
+    const getRowHighlightClass = (booking: Booking) => {
+        const { level } = getReturnUrgency(booking);
+        if (level === 'overdue') {
+            return 'bg-red-50/75 hover:bg-red-100/90 dark:bg-red-950/35 dark:hover:bg-red-950/50 border-l-4 border-l-red-500 transition-colors';
+        }
+        if (level === 'due-soon') {
+            return 'bg-amber-50/75 hover:bg-amber-100/90 dark:bg-amber-950/35 dark:hover:bg-amber-950/50 border-l-4 border-l-amber-500 transition-colors';
+        }
+        return 'hover:bg-muted/50 transition-colors';
+    };
+
+    const getCardHighlightClass = (booking: Booking) => {
+        const { level } = getReturnUrgency(booking);
+        if (level === 'overdue') {
+            return 'border-l-4 border-l-red-500 border-red-300 bg-red-50/35 dark:border-red-900/50 dark:bg-red-950/20';
+        }
+        if (level === 'due-soon') {
+            return 'border-l-4 border-l-amber-500 border-amber-300 bg-amber-50/35 dark:border-amber-900/50 dark:bg-amber-950/20';
+        }
+        return 'border bg-card text-card-foreground shadow-xs';
+    };
+
     return (
         <>
             <Head title="Data Booking" />
@@ -692,19 +751,33 @@ export default function BookingsIndex({
                                         : 'Belum ada data booking.'}
                                 </div>
                             ) : (
-                                filteredBookings.map((booking) => (
-                                    <div key={booking.id} className="flex flex-col gap-2 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <span className="font-semibold text-sm">{booking.customer?.name}</span>
-                                                {booking.booking_number && (
-                                                    <div className="text-[11px] font-mono text-muted-foreground">{booking.booking_number}</div>
-                                                )}
+                                filteredBookings.map((booking) => {
+                                    const urgency = getReturnUrgency(booking);
+                                    return (
+                                        <div key={booking.id} className={`flex flex-col gap-2 p-4 rounded-lg shadow-xs ${getCardHighlightClass(booking)}`}>
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <span className="font-semibold text-sm">{booking.customer?.name}</span>
+                                                    {booking.booking_number && (
+                                                        <div className="text-[11px] font-mono text-muted-foreground">{booking.booking_number}</div>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    {urgency.level === 'overdue' && (
+                                                        <span className="text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded border border-red-200">
+                                                            {urgency.label}
+                                                        </span>
+                                                    )}
+                                                    {urgency.level === 'due-soon' && (
+                                                        <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded border border-amber-200">
+                                                            {urgency.label}
+                                                        </span>
+                                                    )}
+                                                    <Badge variant="outline" className={getStatusColor(booking.status)}>
+                                                        {booking.status}
+                                                    </Badge>
+                                                </div>
                                             </div>
-                                            <Badge variant="outline" className={getStatusColor(booking.status)}>
-                                                {booking.status}
-                                            </Badge>
-                                        </div>
                                         <div className="text-xs text-muted-foreground space-y-1">
                                             <div>
                                                 <span className="font-semibold text-foreground">Tipe Mobil:</span> {booking.car_type}{' '}
@@ -787,8 +860,9 @@ export default function BookingsIndex({
                                             )}
                                         </div>
                                     </div>
-                                ))
-                            )}
+                                );
+                            })
+                        )}
                         </div>
 
                         {/* Desktop Table View */}
@@ -819,33 +893,49 @@ export default function BookingsIndex({
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredBookings.map((booking) => (
-                                            <tr key={booking.id} className="hover:bg-muted/50">
-                                                <td className="px-4 py-4">
-                                                    <div className="font-semibold">{booking.customer?.name}</div>
-                                                    {booking.booking_number && (
-                                                        <div className="text-[11px] font-mono text-muted-foreground">{booking.booking_number}</div>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-4">
-                                                    <div className="font-medium">{booking.car_type}</div>
-                                                    <Badge variant="outline" className="mt-1 text-[10px] bg-primary/5 font-medium">
-                                                        {booking.rental_type ?? 'Lepas Kunci'}
-                                                    </Badge>
-                                                </td>
-                                                <td className="px-4 py-4 font-mono font-medium">
-                                                    {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="text-muted-foreground text-xs italic">Belum Dialokasi</span>}
-                                                </td>
-                                                <td className="px-4 py-4 text-xs">
-                                                    <div className="whitespace-nowrap">Start: {booking.booking_date} {booking.pickup_time ? `(${booking.pickup_time.substring(0, 5)})` : ''}</div>
-                                                    {booking.return_date && <div className="whitespace-nowrap">End: {booking.return_date} {booking.return_time ? `(${booking.return_time.substring(0, 5)})` : ''}</div>}
-                                                    {(booking.pickup_location || booking.dropoff_location) && (
-                                                        <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5 max-w-[180px] truncate">
-                                                            {booking.pickup_location && <div title={`Jemput: ${booking.pickup_location}`} className="truncate">Jemput: {booking.pickup_location}</div>}
-                                                            {booking.dropoff_location && <div title={`Antar: ${booking.dropoff_location}`} className="truncate">Antar: {booking.dropoff_location}</div>}
-                                                        </div>
-                                                    )}
-                                                </td>
+                                        filteredBookings.map((booking) => {
+                                            const urgency = getReturnUrgency(booking);
+                                            return (
+                                                <tr key={booking.id} className={getRowHighlightClass(booking)}>
+                                                    <td className="px-4 py-4">
+                                                        <div className="font-semibold">{booking.customer?.name}</div>
+                                                        {booking.booking_number && (
+                                                            <div className="text-[11px] font-mono text-muted-foreground">{booking.booking_number}</div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-4">
+                                                        <div className="font-medium">{booking.car_type}</div>
+                                                        <Badge variant="outline" className="mt-1 text-[10px] bg-primary/5 font-medium">
+                                                            {booking.rental_type ?? 'Lepas Kunci'}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="px-4 py-4 font-mono font-medium">
+                                                        {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : <span className="text-muted-foreground text-xs italic">Belum Dialokasi</span>}
+                                                    </td>
+                                                    <td className="px-4 py-4 text-xs">
+                                                        <div className="whitespace-nowrap">Start: {booking.booking_date} {booking.pickup_time ? `(${booking.pickup_time.substring(0, 5)})` : ''}</div>
+                                                        {booking.return_date && <div className="whitespace-nowrap font-medium">End: {booking.return_date} {booking.return_time ? `(${booking.return_time.substring(0, 5)})` : ''}</div>}
+                                                        {urgency.level === 'overdue' && (
+                                                            <div className="mt-1">
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/60 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-800">
+                                                                    {urgency.label}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                        {urgency.level === 'due-soon' && (
+                                                            <div className="mt-1">
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                                                    {urgency.label}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                        {(booking.pickup_location || booking.dropoff_location) && (
+                                                            <div className="mt-1 text-[11px] text-muted-foreground space-y-0.5 max-w-[180px] truncate">
+                                                                {booking.pickup_location && <div title={`Jemput: ${booking.pickup_location}`} className="truncate">Jemput: {booking.pickup_location}</div>}
+                                                                {booking.dropoff_location && <div title={`Antar: ${booking.dropoff_location}`} className="truncate">Antar: {booking.dropoff_location}</div>}
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                 <td className="px-4 py-4">
                                                     <div className="font-medium text-xs">{formatCurrency(booking.amount)}</div>
                                                     <Badge variant="outline" className={`mt-1 text-[10px] ${getPaymentStatusColor(booking.payment_status)}`}>
@@ -933,8 +1023,9 @@ export default function BookingsIndex({
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))
-                                    )}
+                                        );
+                                    })
+                                )}
                                 </tbody>
                             </table>
                         </div>
