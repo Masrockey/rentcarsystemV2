@@ -279,15 +279,15 @@ export default function AllocationsIndex({
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(val));
 
     const getReturnUrgency = (b: Booking): { level: 'overdue' | 'due-soon' | 'normal'; label?: string } => {
-        if (b.status === 'Completed' || b.status === 'Cancelled') {
+        // Return urgency only applies to active rentals that have return_date and are currently active (On Trip / Confirmed)
+        if (!b || !b.return_date || b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Returned' || b.status === 'Pending') {
             return { level: 'normal' };
         }
 
-        const returnDateStr = b.return_date || b.booking_date;
-        if (!returnDateStr) return { level: 'normal' };
+        const cleanDate = b.return_date.substring(0, 10);
+        if (!cleanDate) return { level: 'normal' };
 
-        const cleanDate = returnDateStr.substring(0, 10);
-        const returnTimeStr = b.return_time ? b.return_time.substring(0, 5) : '23:59';
+        const returnTimeStr = b.return_time ? b.return_time.substring(0, 5) : (b.pickup_time ? b.pickup_time.substring(0, 5) : '23:59');
 
         const targetDate = new Date(`${cleanDate}T${returnTimeStr}:00`);
         if (isNaN(targetDate.getTime())) return { level: 'normal' };

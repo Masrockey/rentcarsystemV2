@@ -512,15 +512,15 @@ export default function BookingsIndex({
     };
 
     const getReturnUrgency = (booking: Booking): { level: 'overdue' | 'due-soon' | 'normal'; label?: string } => {
-        if (booking.status === 'Completed' || booking.status === 'Cancelled') {
+        // Return urgency only applies to active rentals that have return_date and are currently active (On Trip / Confirmed)
+        if (!booking || !booking.return_date || booking.status === 'Completed' || booking.status === 'Cancelled' || booking.status === 'Returned' || booking.status === 'Pending') {
             return { level: 'normal' };
         }
 
-        const returnDateStr = booking.return_date || booking.booking_date;
-        if (!returnDateStr) return { level: 'normal' };
+        const cleanDate = booking.return_date.substring(0, 10);
+        if (!cleanDate) return { level: 'normal' };
 
-        const cleanDate = returnDateStr.substring(0, 10);
-        const returnTimeStr = booking.return_time ? booking.return_time.substring(0, 5) : '23:59';
+        const returnTimeStr = booking.return_time ? booking.return_time.substring(0, 5) : (booking.pickup_time ? booking.pickup_time.substring(0, 5) : '23:59');
 
         const targetDate = new Date(`${cleanDate}T${returnTimeStr}:00`);
         if (isNaN(targetDate.getTime())) return { level: 'normal' };

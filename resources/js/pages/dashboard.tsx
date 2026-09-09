@@ -250,17 +250,17 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
     };
 
     const getReturnUrgency = (b: any): { level: 'overdue' | 'due-soon' | 'normal'; label?: string } => {
-        if (!b || b.status === 'Completed' || b.status === 'Cancelled') {
+        // Return urgency only applies to active rentals that have return_date and are currently active (On Trip / Confirmed)
+        if (!b || !b.return_date || b.status === 'Completed' || b.status === 'Cancelled' || b.status === 'Returned' || b.status === 'Pending') {
             return { level: 'normal' };
         }
 
-        const returnDateStr = b.return_date || b.booking_date;
-        if (!returnDateStr) return { level: 'normal' };
-
-        const cleanDate = typeof returnDateStr === 'string' ? returnDateStr.substring(0, 10) : '';
+        const cleanDate = typeof b.return_date === 'string' ? b.return_date.substring(0, 10) : '';
         if (!cleanDate) return { level: 'normal' };
 
-        const returnTimeStr = b.return_time ? (typeof b.return_time === 'string' ? b.return_time.substring(0, 5) : '23:59') : '23:59';
+        const returnTimeStr = b.return_time
+            ? (typeof b.return_time === 'string' ? b.return_time.substring(0, 5) : '23:59')
+            : (b.pickup_time ? (typeof b.pickup_time === 'string' ? b.pickup_time.substring(0, 5) : '23:59') : '23:59');
 
         const targetDate = new Date(`${cleanDate}T${returnTimeStr}:00`);
         if (isNaN(targetDate.getTime())) return { level: 'normal' };
