@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rent-a-car-v1';
+const CACHE_NAME = 'masrockey-rental-v1';
 const ASSET_DESTINATIONS = new Set([
     'script',
     'style',

@@ -1,6 +1,6 @@
 {
-    "name": "Rent A Car System",
-    "short_name": "Rent A Car",
+    "name": "PT Cahaya Auto Nusantara - Rent A Car System",
+    "short_name": "CAN Rental",
     "description": "Vehicle rental management system",
     "start_url": "/",
     "scope": "/",
