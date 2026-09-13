@@ -1,4 +1,4 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -74,6 +74,11 @@ type Props = {
 };
 
 export default function RentalsIndex({ rentals, confirmedBookings = [], bookings, cars, customers, officers }: Props) {
+    const page = usePage();
+    const user = page.props.auth?.user as any;
+    const roles: string[] = user?.roles || [];
+    const isSuperAdmin = roles.includes('Super Admin');
+
     const rentalList = useMemo(() => Array.isArray(rentals) ? rentals : (rentals?.data || []), [rentals]);
     const [isOpen, setIsOpen] = useState(false);
     const [isReturnOpen, setIsReturnOpen] = useState(false);
@@ -422,9 +427,11 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                         <h1 className="text-3xl font-bold tracking-tight">Data Serah Terima</h1>
                         <p className="text-muted-foreground">Kelola penyerahan kendaraan & pengembalian ke penyewa.</p>
                     </div>
-                    <Button onClick={openCreate} className="flex items-center gap-1">
-                        <Plus className="h-4 w-4" /> Buat Kontrak Manual
-                    </Button>
+                    {isSuperAdmin && (
+                        <Button onClick={openCreate} className="flex items-center gap-1">
+                            <Plus className="h-4 w-4" /> Buat Kontrak Manual
+                        </Button>
+                    )}
                 </div>
 
                 {/* Filter Tanggal & Status Bar */}

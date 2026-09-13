@@ -273,13 +273,25 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
             return { level: 'overdue', label: '⚠️ Lewat Batas Kembali' };
         }
 
-        if (diffHours <= 48) {
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+        const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+        // Hari Ini (H-0)
+        if (cleanDate === todayStr) {
             if (diffHours <= 12) {
                 return { level: 'due-soon', label: `⏳ Kembali dlm ${Math.max(1, Math.round(diffHours))} jam` };
             }
-            if (diffHours <= 24) {
-                return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
-            }
+            return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
+        }
+
+        // H-1 (Besok / mendekati kembali hanya pada H-1)
+        if (cleanDate === tomorrowStr || (diffHours > 0 && diffHours <= 24)) {
             return { level: 'due-soon', label: '⏳ Mendekati Tanggal Kembali' };
         }
 

@@ -1,4 +1,4 @@
-import { Head, Link, usePoll } from '@inertiajs/react';
+import { Head, Link, usePoll, usePage } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Search, RotateCcw, Car, Calendar, ClipboardCheck, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { index as returnsIndex } from '@/routes/returns';
 import { checklist as bookingChecklist } from '@/routes/bookings';
+import { maskPhoneNumber } from '@/lib/utils';
 
 import Pagination, { PaginatedData } from '@/components/pagination';
 
@@ -68,6 +69,12 @@ export default function ReturnsIndex({
     completedChecklist: initialCompletedChecklist,
     onTripBookings,
 }: Props) {
+    const { auth } = usePage().props;
+    const authUser = (auth as any)?.user;
+    const roles: string[] = authUser?.roles || [];
+    const isSuperAdmin = roles.includes('Super Admin');
+    const shouldMaskPhone = roles.includes('Admin') && !isSuperAdmin;
+
     const [searchQuery, setSearchQuery] = useState('');
     const rentalList = Array.isArray(rentals) ? rentals : (rentals?.data || []);
 
@@ -208,7 +215,13 @@ export default function ReturnsIndex({
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <div className="font-semibold text-foreground">{rental.customer?.name || booking?.customer?.name || '-'}</div>
-                                                        <div className="text-xs text-muted-foreground">{rental.customer?.phone || booking?.customer?.phone || '-'}</div>
+                                                        <div className="text-xs text-muted-foreground font-mono">
+                                                            {rental.customer?.phone || booking?.customer?.phone
+                                                                ? (shouldMaskPhone
+                                                                    ? maskPhoneNumber(rental.customer?.phone || booking?.customer?.phone)
+                                                                    : (rental.customer?.phone || booking?.customer?.phone))
+                                                                : '-'}
+                                                        </div>
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <div className="font-semibold text-foreground">{rental.car?.name || booking?.car?.name || '-'}</div>

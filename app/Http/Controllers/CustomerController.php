@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -68,16 +69,20 @@ class CustomerController extends Controller
             'sim_number' => ['nullable', 'string', 'max:50'],
             'sim_expiry' => ['nullable', 'date'],
             'emergency_contact' => ['nullable', 'string', 'max:50'],
-            'ktp_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'sim_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'ktp_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'sim_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ];
 
         if ($request->user()->isAdmin()) {
             $rules['user_id'] = ['nullable', 'exists:users,id'];
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, [
+            'name.required' => 'Nama customer wajib diisi.',
+        ]);
+
+        $this->validateCustomerDuplicates($request);
 
         foreach (['ktp_photo', 'sim_photo', 'selfie_photo'] as $field) {
             if ($request->hasFile($field)) {
@@ -114,16 +119,20 @@ class CustomerController extends Controller
             'sim_number' => ['nullable', 'string', 'max:50'],
             'sim_expiry' => ['nullable', 'date'],
             'emergency_contact' => ['nullable', 'string', 'max:50'],
-            'ktp_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'sim_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'ktp_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'sim_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ];
 
         if ($request->user()->isAdmin()) {
             $rules['user_id'] = ['nullable', 'exists:users,id'];
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, [
+            'name.required' => 'Nama customer wajib diisi.',
+        ]);
+
+        $this->validateCustomerDuplicates($request, $customer->id);
 
         foreach (['ktp_photo', 'sim_photo', 'selfie_photo'] as $field) {
             if ($request->hasFile($field)) {
@@ -138,11 +147,55 @@ class CustomerController extends Controller
             unset($validated['user_id']);
         }
 
+        // If phone is masked (contains *), do not overwrite original phone
+        if (isset($validated['phone']) && str_contains($validated['phone'], '*')) {
+            unset($validated['phone']);
+        }
+
         $customer->update($validated);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Customer updated successfully.']);
 
         return to_route('customers.index');
+    }
+
+    /**
+     * Check customer duplicate fields and throw validation exception with marketing name.
+     */
+    private function validateCustomerDuplicates(Request $request, ?int $ignoreCustomerId = null): void
+    {
+        $errors = [];
+
+        $fields = [
+            'name' => 'Nama customer',
+            'nik' => 'NIK',
+            'phone' => 'Nomor HP',
+            'email' => 'Email',
+        ];
+
+        foreach ($fields as $field => $label) {
+            $value = $request->input($field);
+            if (! empty($value)) {
+                // Ignore masked phone containing *
+                if ($field === 'phone' && str_contains($value, '*')) {
+                    continue;
+                }
+
+                $query = Customer::with('user')->where($field, $value);
+                if ($ignoreCustomerId) {
+                    $query->where('id', '!=', $ignoreCustomerId);
+                }
+                $existing = $query->first();
+                if ($existing) {
+                    $marketingName = $existing->user?->name ?? 'Admin / System';
+                    $errors[$field] = "{$label} sudah terdaftar untuk customer lain dengan marketing {$marketingName}. Silakan hubungi admin atau marketing yang bersangkutan.";
+                }
+            }
+        }
+
+        if (! empty($errors)) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     /**

@@ -24,6 +24,10 @@ test('full rent car booking workflow', function () {
         'rental_type' => 'Lepas Kunci',
         'booking_date' => '2026-07-12',
         'return_date' => '2026-07-15',
+        'pickup_time' => '08:00',
+        'return_time' => '08:00',
+        'pickup_location' => 'Garasi',
+        'dropoff_location' => 'Garasi',
         'payment_method' => 'DP',
         'payment_status' => 'Down Payment',
         'amount' => 1500000,
@@ -137,6 +141,10 @@ test('marketing can create booking with new customer on the fly', function () {
         'rental_type' => 'Lepas Kunci',
         'booking_date' => '2026-07-25',
         'return_date' => '2026-07-28',
+        'pickup_time' => '09:00',
+        'return_time' => '09:00',
+        'pickup_location' => 'Bandara',
+        'dropoff_location' => 'Bandara',
         'payment_method' => 'Cash',
         'payment_status' => 'Paid',
         'amount' => 2000000,
@@ -296,4 +304,61 @@ test('user can cancel booking with optional cancellation reason', function () {
     expect($booking->status)->toBe('Cancelled');
     expect($booking->cancellation_reason)->toBe('Konsumen berubah rencana liburan');
     expect($booking->cancelled_at)->not->toBeNull();
+});
+
+test('admin sees bookings created by marketing', function () {
+    $marketing = User::factory()->create(['name' => 'Marketing User', 'roles' => ['Marketing']]);
+    $admin = User::factory()->create(['name' => 'Admin User', 'roles' => ['Admin']]);
+
+    $customer = Customer::create([
+        'user_id' => $marketing->id,
+        'name' => 'Client of Marketing',
+        'phone' => '081234567890',
+    ]);
+
+    $this->actingAs($marketing);
+    $response = $this->post(route('bookings.store'), [
+        'customer_id' => $customer->id,
+        'car_type' => 'Innova Reborn',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-10-01',
+        'return_date' => '2026-10-03',
+        'pickup_time' => '09:00',
+        'return_time' => '09:00',
+        'pickup_location' => 'Bandara',
+        'dropoff_location' => 'Bandara',
+        'payment_method' => 'Cash',
+        'amount' => 1200000,
+    ]);
+    $response->assertRedirect(route('bookings.index'));
+
+    $booking = Booking::where('car_type', 'Innova Reborn')->first();
+    expect($booking)->not->toBeNull();
+    expect($booking->user_id)->toBe($marketing->id);
+
+    // Marketing sees the booking
+    $this->actingAs($marketing);
+    $marketingView = $this->get(route('bookings.index'));
+    $marketingView->assertOk();
+    $marketingView->assertInertia(fn ($page) => $page
+        ->component('bookings/index')
+        ->where('bookings.data.0.id', $booking->id)
+    );
+
+    // Admin also sees the booking created by Marketing
+    $this->actingAs($admin);
+    $adminView = $this->get(route('bookings.index'));
+    $adminView->assertOk();
+    $adminView->assertInertia(fn ($page) => $page
+        ->component('bookings/index')
+        ->where('bookings.data.0.id', $booking->id)
+    );
+
+    // Admin also sees in allocations index
+    $allocationView = $this->get(route('allocations.index'));
+    $allocationView->assertOk();
+    $allocationView->assertInertia(fn ($page) => $page
+        ->component('allocations/index')
+        ->where('bookings.data.0.id', $booking->id)
+    );
 });

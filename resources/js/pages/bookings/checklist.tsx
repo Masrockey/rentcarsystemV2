@@ -1,13 +1,15 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useState } from 'react';
-import { ArrowLeft, Fuel, Key, FileText, Wrench, Volume2, Snowflake, Disc, ShieldCheck, Printer, Check, AlertCircle, User, Car, Camera, UploadCloud, X, Image as ImageIcon, CheckSquare, Lock } from 'lucide-react';
+import { ArrowLeft, Fuel, Key, FileText, Wrench, Volume2, Snowflake, Disc, ShieldCheck, Printer, Check, AlertCircle, AlertTriangle, User, Car, Camera, UploadCloud, X, Image as ImageIcon, CheckSquare, Lock, MapPin, Navigation, Crosshair, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { Link } from '@inertiajs/react';
+import { maskPhoneNumber } from '@/lib/utils';
 
 type Booking = {
     id: number;
@@ -51,6 +53,8 @@ type FormFields = {
     fuel_out: number;
     fuel_range_km: number;
     handover_location: string;
+    latitude: string;
+    longitude: string;
     checkout_date: string;
     checkout_time: string;
     checkout_datetime: string;
@@ -76,6 +80,12 @@ const CHECKLIST_ITEMS = [
 ];
 
 export default function BookingChecklist({ booking }: Props) {
+    const { auth } = usePage().props;
+    const authUser = (auth as any)?.user;
+    const roles: string[] = authUser?.roles || [];
+    const isSuperAdmin = roles.includes('Super Admin');
+    const shouldMaskPhone = roles.includes('Admin') && !isSuperAdmin;
+
     const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
     const typeParam = urlParams.get('type');
 
@@ -110,97 +120,203 @@ export default function BookingChecklist({ booking }: Props) {
         return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     };
 
+    const [validationErrors, setValidationErrors] = useState<string[]>([]);
+    const [showFuelWarningDialog, setShowFuelWarningDialog] = useState(false);
+    const [isLocating, setIsLocating] = useState(false);
+    const [geoError, setGeoError] = useState<string | null>(null);
+    const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null);
+
     const initialChecklist = isDelivery
         ? (booking.delivery_checklist || {})
-        : (booking.return_checklist || {});
+        : (booking.return_checklist && Object.keys(booking.return_checklist).length > 0
+            ? booking.return_checklist
+            : (booking.delivery_checklist || {}));
 
     const initialKm = isDelivery
-        ? (initialChecklist.km_out ?? booking.rental?.km_out ?? booking.car?.last_km ?? 0)
-        : (initialChecklist.km_out ?? booking.rental?.km_in ?? booking.car?.last_km ?? 0);
+        ? (booking.delivery_checklist?.km_out ?? booking.rental?.km_out ?? booking.car?.last_km ?? 0)
+        : (booking.return_checklist?.km_out ?? booking.rental?.km_in ?? booking.delivery_checklist?.km_out ?? booking.car?.last_km ?? 0);
 
     const initialFuel = isDelivery
-        ? (initialChecklist.fuel_out ?? booking.rental?.fuel_out ?? 100)
-        : (initialChecklist.fuel_out ?? booking.rental?.fuel_in ?? 100);
+        ? (booking.delivery_checklist?.fuel_out ?? booking.rental?.fuel_out ?? 100)
+        : (booking.return_checklist?.fuel_out ?? booking.rental?.fuel_in ?? booking.delivery_checklist?.fuel_out ?? 100);
+
+    const initialLat = isDelivery
+        ? (booking.delivery_latitude || booking.delivery_checklist?.latitude || '')
+        : (booking.return_latitude || booking.return_checklist?.latitude || booking.delivery_latitude || booking.delivery_checklist?.latitude || '');
+
+    const initialLng = isDelivery
+        ? (booking.delivery_longitude || booking.delivery_checklist?.longitude || '')
+        : (booking.return_longitude || booking.return_checklist?.longitude || booking.delivery_longitude || booking.delivery_checklist?.longitude || '');
 
     const { data, setData, post, processing, errors, transform } = useForm<FormFields>({
         checklist: {
-            kunci_kontak: 'Tidak' as ItemStatus,
-            copy_stnk: 'Tidak' as ItemStatus,
-            ban_serep: 'Tidak' as ItemStatus,
-            dongkrak: 'Tidak' as ItemStatus,
-            kunci_roda: 'Tidak' as ItemStatus,
-            stang_dongkrak: 'Tidak' as ItemStatus,
-            ac_mobil: 'Tidak' as ItemStatus,
-            audio_mobil: 'Tidak' as ItemStatus,
-            body_depan: 'Baik',
-            body_belakang: 'Baik',
-            body_kiri: 'Baik',
-            body_kanan: 'Baik',
-            body_atap: 'Baik',
-            body_depan_note: '',
-            body_belakang_note: '',
-            body_kiri_note: '',
-            body_kanan_note: '',
-            body_atap_note: '',
+            kunci_kontak: initialChecklist.kunci_kontak || '',
+            copy_stnk: initialChecklist.copy_stnk || '',
+            ban_serep: initialChecklist.ban_serep || '',
+            dongkrak: initialChecklist.dongkrak || '',
+            kunci_roda: initialChecklist.kunci_roda || '',
+            stang_dongkrak: initialChecklist.stang_dongkrak || '',
+            ac_mobil: initialChecklist.ac_mobil || '',
+            audio_mobil: initialChecklist.audio_mobil || '',
+            body_depan: initialChecklist.body_depan || '',
+            body_belakang: initialChecklist.body_belakang || '',
+            body_kiri: initialChecklist.body_kiri || '',
+            body_kanan: initialChecklist.body_kanan || '',
+            body_atap: initialChecklist.body_atap || '',
+            body_depan_note: initialChecklist.body_depan_note || '',
+            body_belakang_note: initialChecklist.body_belakang_note || '',
+            body_kiri_note: initialChecklist.body_kiri_note || '',
+            body_kanan_note: initialChecklist.body_kanan_note || '',
+            body_atap_note: initialChecklist.body_atap_note || '',
             ...initialChecklist,
         } as Record<string, string>,
         km_out: initialKm,
         fuel_out: initialFuel,
         fuel_range_km: initialChecklist.fuel_range_km ?? (booking.fuel_range_km ?? 0),
         handover_location: initialChecklist.handover_location || '',
-        checkout_date: initialChecklist.checkout_date || getCurrentDate(),
-        checkout_time: initialChecklist.checkout_time || getCurrentTime(),
+        latitude: String(initialLat || ''),
+        longitude: String(initialLng || ''),
+        checkout_date: (isDelivery ? booking.delivery_checklist?.checkout_date : booking.return_checklist?.checkout_date) || getCurrentDate(),
+        checkout_time: (isDelivery ? booking.delivery_checklist?.checkout_time : booking.return_checklist?.checkout_time) || getCurrentTime(),
         checkout_datetime: '',
-        notes: isDelivery ? (booking.delivery_notes || '') : (booking.return_notes || ''),
+        notes: isDelivery ? (booking.delivery_notes || '') : (booking.return_notes || booking.delivery_notes || ''),
         photos: (Array.isArray(initialChecklist.photos) ? initialChecklist.photos : []) as (File | string)[],
     });
 
     const handleSwitchMode = (newMode: 'delivery' | 'return') => {
         setMode(newMode);
-        const saved = newMode === 'delivery' ? booking.delivery_checklist : booking.return_checklist;
-        const photos = Array.isArray(saved?.photos) ? saved.photos : [];
+        setValidationErrors([]);
+        setGeoError(null);
+        const isDel = newMode === 'delivery';
+        const saved = isDel
+            ? booking.delivery_checklist
+            : (booking.return_checklist && Object.keys(booking.return_checklist).length > 0
+                ? booking.return_checklist
+                : booking.delivery_checklist);
+
+        const photos = isDel
+            ? (Array.isArray(booking.delivery_checklist?.photos) ? booking.delivery_checklist.photos : [])
+            : (Array.isArray(booking.return_checklist?.photos) && booking.return_checklist.photos.length > 0
+                ? booking.return_checklist.photos
+                : (Array.isArray(booking.delivery_checklist?.photos) ? booking.delivery_checklist.photos : []));
         setPhotoPreviews(photos);
 
-        const isDel = newMode === 'delivery';
         const targetKm = isDel
-            ? (saved?.km_out ?? booking.rental?.km_out ?? booking.car?.last_km ?? 0)
-            : (saved?.km_out ?? booking.rental?.km_in ?? booking.car?.last_km ?? 0);
+            ? (booking.delivery_checklist?.km_out ?? booking.rental?.km_out ?? booking.car?.last_km ?? 0)
+            : (booking.return_checklist?.km_out ?? booking.rental?.km_in ?? booking.delivery_checklist?.km_out ?? booking.car?.last_km ?? 0);
         const targetFuel = isDel
-            ? (saved?.fuel_out ?? booking.rental?.fuel_out ?? 100)
-            : (saved?.fuel_out ?? booking.rental?.fuel_in ?? 100);
+            ? (booking.delivery_checklist?.fuel_out ?? booking.rental?.fuel_out ?? 100)
+            : (booking.return_checklist?.fuel_out ?? booking.rental?.fuel_in ?? booking.delivery_checklist?.fuel_out ?? 100);
+        const targetLat = isDel
+            ? (booking.delivery_latitude || booking.delivery_checklist?.latitude || '')
+            : (booking.return_latitude || booking.return_checklist?.latitude || booking.delivery_latitude || booking.delivery_checklist?.latitude || '');
+        const targetLng = isDel
+            ? (booking.delivery_longitude || booking.delivery_checklist?.longitude || '')
+            : (booking.return_longitude || booking.return_checklist?.longitude || booking.delivery_longitude || booking.delivery_checklist?.longitude || '');
 
         setData({
             checklist: {
-                kunci_kontak: 'Tidak',
-                copy_stnk: 'Tidak',
-                ban_serep: 'Tidak',
-                dongkrak: 'Tidak',
-                kunci_roda: 'Tidak',
-                stang_dongkrak: 'Tidak',
-                ac_mobil: 'Tidak',
-                audio_mobil: 'Tidak',
-                body_depan: 'Baik',
-                body_belakang: 'Baik',
-                body_kiri: 'Baik',
-                body_kanan: 'Baik',
-                body_atap: 'Baik',
-                body_depan_note: '',
-                body_belakang_note: '',
-                body_kiri_note: '',
-                body_kanan_note: '',
-                body_atap_note: '',
+                kunci_kontak: saved?.kunci_kontak || '',
+                copy_stnk: saved?.copy_stnk || '',
+                ban_serep: saved?.ban_serep || '',
+                dongkrak: saved?.dongkrak || '',
+                kunci_roda: saved?.kunci_roda || '',
+                stang_dongkrak: saved?.stang_dongkrak || '',
+                ac_mobil: saved?.ac_mobil || '',
+                audio_mobil: saved?.audio_mobil || '',
+                body_depan: saved?.body_depan || '',
+                body_belakang: saved?.body_belakang || '',
+                body_kiri: saved?.body_kiri || '',
+                body_kanan: saved?.body_kanan || '',
+                body_atap: saved?.body_atap || '',
+                body_depan_note: saved?.body_depan_note || '',
+                body_belakang_note: saved?.body_belakang_note || '',
+                body_kiri_note: saved?.body_kiri_note || '',
+                body_kanan_note: saved?.body_kanan_note || '',
+                body_atap_note: saved?.body_atap_note || '',
                 ...(saved || {}),
             } as Record<string, string>,
             km_out: targetKm,
             fuel_out: targetFuel,
             fuel_range_km: saved?.fuel_range_km ?? (booking.fuel_range_km ?? 0),
-            handover_location: saved?.handover_location || '',
-            checkout_date: saved?.checkout_date || getCurrentDate(),
-            checkout_time: saved?.checkout_time || getCurrentTime(),
+            handover_location: (isDel ? booking.delivery_checklist?.handover_location : (booking.return_checklist?.handover_location || booking.delivery_checklist?.handover_location)) || '',
+            latitude: String(targetLat || ''),
+            longitude: String(targetLng || ''),
+            checkout_date: (isDel ? booking.delivery_checklist?.checkout_date : booking.return_checklist?.checkout_date) || getCurrentDate(),
+            checkout_time: (isDel ? booking.delivery_checklist?.checkout_time : booking.return_checklist?.checkout_time) || getCurrentTime(),
             checkout_datetime: '',
-            notes: isDel ? (booking.delivery_notes || '') : (booking.return_notes || ''),
+            notes: isDel ? (booking.delivery_notes || '') : (booking.return_notes || booking.delivery_notes || ''),
             photos: photos,
         });
+    };
+
+    const handleCheckIn = () => {
+        if (isFilled) return;
+        setGeoError(null);
+
+        if (!navigator.geolocation) {
+            setGeoError('Browser Anda tidak mendukung Geolocation GPS.');
+            return;
+        }
+
+        setIsLocating(true);
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const lat = position.coords.latitude.toFixed(6);
+                const lng = position.coords.longitude.toFixed(6);
+                setData((prev) => ({
+                    ...prev,
+                    latitude: lat,
+                    longitude: lng,
+                }));
+                setLocationAccuracy(Math.round(position.coords.accuracy));
+                setIsLocating(false);
+
+                // Optional reverse geocoding via OpenStreetMap Nominatim if handover_location is empty
+                if (!data.handover_location || data.handover_location.trim() === '') {
+                    try {
+                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+                        if (res.ok) {
+                            const json = await res.json();
+                            if (json && json.display_name) {
+                                const addr = json.address;
+                                const road = addr?.road || addr?.suburb || addr?.village || '';
+                                const city = addr?.city || addr?.town || addr?.county || '';
+                                const cleanName = [road, city].filter(Boolean).join(', ') || json.display_name.split(',').slice(0, 3).join(',');
+                                setData((prev) => ({
+                                    ...prev,
+                                    handover_location: cleanName || json.display_name,
+                                }));
+                            }
+                        }
+                    } catch (e) {
+                        // Reverse geocoding failed silently
+                    }
+                }
+            },
+            (error) => {
+                setIsLocating(false);
+                switch (error.code) {
+                    case error.PERMISSION_DENIED:
+                        setGeoError('Izin akses lokasi ditolak. Mohon aktifkan izin GPS di browser Anda.');
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        setGeoError('Informasi lokasi GPS tidak tersedia saat ini.');
+                        break;
+                    case error.TIMEOUT:
+                        setGeoError('Waktu permintaan lokasi habis (timeout). Silakan coba lagi.');
+                        break;
+                    default:
+                        setGeoError('Gagal mendapatkan lokasi GPS: ' + error.message);
+                        break;
+                }
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0,
+            }
+        );
     };
 
     const handlePhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -233,6 +349,58 @@ export default function BookingChecklist({ booking }: Props) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+
+        const uncompleted: string[] = [];
+
+        // 1. Checklist Kelengkapan Unit (8 items)
+        CHECKLIST_ITEMS.forEach((item) => {
+            if (!data.checklist[item.key]) {
+                uncompleted.push(`Kelengkapan: ${item.label}`);
+            }
+        });
+
+        // 2. Inspeksi 5 Sisi Bodi
+        const bodyParts = [
+            { key: 'body_depan', label: 'Bodi Tampak Depan' },
+            { key: 'body_belakang', label: 'Bodi Tampak Belakang' },
+            { key: 'body_kiri', label: 'Bodi Samping Kiri' },
+            { key: 'body_kanan', label: 'Bodi Samping Kanan' },
+            { key: 'body_atap', label: 'Bodi Tampak Atas / Atap' },
+        ];
+        bodyParts.forEach((bp) => {
+            if (!data.checklist[bp.key]) {
+                uncompleted.push(`Inspeksi Bodi: ${bp.label}`);
+            }
+        });
+
+        // 3. Form Input Utama
+        if (!data.handover_location || !data.handover_location.trim()) {
+            uncompleted.push(isDelivery ? 'Lokasi Penyerahan' : 'Lokasi Pengembalian');
+        }
+        if (!data.checkout_date) {
+            uncompleted.push(isDelivery ? 'Tanggal Keluar / Masuk' : 'Tanggal Masuk');
+        }
+        if (!data.checkout_time) {
+            uncompleted.push(isDelivery ? 'Jam Keluar / Masuk' : 'Jam Masuk');
+        }
+        if (data.km_out === undefined || data.km_out === null || String(data.km_out).trim() === '') {
+            uncompleted.push(isDelivery ? 'KM Speedometer Keluar' : 'KM Speedometer Masuk');
+        }
+
+        if (uncompleted.length > 0) {
+            setValidationErrors(uncompleted);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
+        // POP UP peringatan jika BBM pengembalian kurang dari saat serah terima
+        if (!isDelivery && data.fuel_out < deliveryFuel) {
+            setShowFuelWarningDialog(true);
+            return;
+        }
+
+        setValidationErrors([]);
+
         if (isDelivery) {
             transform((data) => ({
                 ...data,
@@ -312,10 +480,28 @@ export default function BookingChecklist({ booking }: Props) {
                     </div>
                 )}
 
+                {/* Info Notice when Return Checklist is Auto-Prefilled from Delivery Checklist */}
+                {!isDelivery && !isFilled && booking.delivery_checklist && Object.keys(booking.delivery_checklist).length > 0 && (
+                    <div className="p-3.5 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-between gap-3 text-blue-900 dark:text-blue-200 shadow-xs">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                                <CheckSquare className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Data Disalin Dari Checklist Serah Terima</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">Seluruh status kelengkapan unit, fisik bodi, meteran & lokasi otomatis disalin dari Serah Terima (Unit Jalan). Silakan periksa kembali dan ubah jika terdapat perbedaan kondisi saat pengembalian.</p>
+                            </div>
+                        </div>
+                        <Badge variant="outline" className="border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold text-xs shrink-0 flex items-center gap-1">
+                            ✓ Auto-Prefilled
+                        </Badge>
+                    </div>
+                )}
+
                 {/* PIHAK PENYEWA & UNIT ARMADA CARD (Mirroring physical paper form) */}
                 <div className="bg-card rounded-xl border shadow-xs p-4 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        
+
                         {/* PIHAK PENYEWA */}
                         <div className="space-y-2 border-b md:border-b-0 md:border-r pb-4 md:pb-0 md:pr-6">
                             <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5 border-b pb-2">
@@ -336,7 +522,9 @@ export default function BookingChecklist({ booking }: Props) {
                                 </div>
                                 <div className="grid grid-cols-12 items-baseline py-1 border-b border-dashed border-muted">
                                     <span className="col-span-5 text-muted-foreground font-medium">No. Telpon Aktif</span>
-                                    <span className="col-span-7 font-mono font-semibold text-foreground text-right">{booking.customer?.phone || '-'}</span>
+                                    <span className="col-span-7 font-mono font-semibold text-foreground text-right">
+                                        {booking.customer?.phone ? (shouldMaskPhone ? maskPhoneNumber(booking.customer.phone) : booking.customer.phone) : '-'}
+                                    </span>
                                 </div>
                                 <div className="grid grid-cols-12 items-baseline py-1">
                                     <span className="col-span-5 text-muted-foreground font-medium">Kelengkapan Penyewa</span>
@@ -382,7 +570,7 @@ export default function BookingChecklist({ booking }: Props) {
                             <Card className="border-2 border-primary/20 shadow-xs h-full flex flex-col justify-between">
                                 <CardHeader className="bg-primary/5 border-b pb-3">
                                     <CardTitle className="text-base font-bold flex items-center justify-between">
-                                        <span>{isDelivery ? 'SEBELUM SEWA' : 'SESUDAH SEWA (PENGEMBALIAN)'}</span>
+                                        <span>{isDelivery ? 'Detail Unit Sebelum Sewa' : 'Detail Unit Sesudah Sewa'}</span>
                                         <span className="text-xs font-normal text-muted-foreground">Detail Meteran Unit</span>
                                     </CardTitle>
                                 </CardHeader>
@@ -390,7 +578,7 @@ export default function BookingChecklist({ booking }: Props) {
                                     {/* Range / KM Keluar / Masuk */}
                                     <div className="space-y-1.5">
                                         <Label htmlFor="km_out" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                            {isDelivery ? 'Range (KM Keluar)' : 'Range / KM Masuk (Saat Kembali)'}
+                                            {isDelivery ? 'Range Odometer (KM Keluar)' : 'Range Odometer / KM Masuk (Saat Kembali)'}
                                         </Label>
                                         <div className="relative">
                                             <Input
@@ -452,13 +640,129 @@ export default function BookingChecklist({ booking }: Props) {
                                         />
                                     </div>
 
+                                    {/* Map OpenStreetMap & Tombol Check-in */}
+                                    <div className="space-y-2 pt-1">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                    Peta & Titik GPS (OpenStreetMap)
+                                                </span>
+                                                {data.latitude && data.longitude && (
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                                                        <Check className="h-3 w-3" /> Terkunci
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Tombol Check-in di atas box map */}
+                                            {!isFilled ? (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={data.latitude && data.longitude ? 'outline' : 'default'}
+                                                    onClick={handleCheckIn}
+                                                    disabled={isLocating}
+                                                    className={`h-8 text-xs font-semibold gap-1.5 shadow-xs transition-all ${
+                                                        !data.latitude || !data.longitude
+                                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                            : 'border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                                                    }`}
+                                                >
+                                                    {isLocating ? (
+                                                        <>
+                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                            <span>Mencari Lokasi...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Crosshair className="h-3.5 w-3.5" />
+                                                            <span>{data.latitude && data.longitude ? 'Lock / Perbarui GPS' : 'Check-in Lokasi'}</span>
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            ) : (
+                                                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                                                    <Lock className="h-3 w-3" /> Lokasi Telah Dikunci
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Koordinat Info Bar */}
+                                        {data.latitude && data.longitude && (
+                                            <div className="flex flex-wrap items-center justify-between text-xs bg-muted/60 dark:bg-muted/30 px-3 py-1.5 rounded-md border text-muted-foreground gap-2 font-mono">
+                                                <span className="flex items-center gap-1">
+                                                    <Navigation className="h-3 w-3 text-emerald-600" />
+                                                    Lat: <strong className="text-foreground">{data.latitude}</strong>, Lng: <strong className="text-foreground">{data.longitude}</strong>
+                                                    {locationAccuracy && <span className="text-[10px] text-muted-foreground ml-1">(±{locationAccuracy}m)</span>}
+                                                </span>
+                                                <a
+                                                    href={`https://www.openstreetmap.org/?mlat=${data.latitude}&mlon=${data.longitude}#map=17/${data.latitude}/${data.longitude}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline font-sans text-[11px]"
+                                                >
+                                                    Buka di OpenStreetMap <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            </div>
+                                        )}
+
+                                        {/* Error notification if geolocation fails */}
+                                        {geoError && (
+                                            <div className="flex items-start gap-2 p-2.5 rounded-md bg-destructive/10 border border-destructive/20 text-xs text-destructive">
+                                                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                                <div className="flex-1">
+                                                    <p className="font-semibold">Gagal Mengunci Lokasi GPS</p>
+                                                    <p className="text-[11px] opacity-90">{geoError}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Box Map OpenStreetMap */}
+                                        <div className="relative w-full h-56 rounded-xl border border-border overflow-hidden shadow-inner bg-muted/30 flex items-center justify-center group">
+                                            {data.latitude && data.longitude ? (
+                                                <iframe
+                                                    title="OpenStreetMap Location"
+                                                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(data.longitude) - 0.006}%2C${Number(data.latitude) - 0.004}%2C${Number(data.longitude) + 0.006}%2C${Number(data.latitude) + 0.004}&layer=mapnik&marker=${data.latitude}%2C${data.longitude}`}
+                                                    className="w-full h-full border-0 pointer-events-auto"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center p-6 text-center space-y-2">
+                                                    <div className="p-3 bg-background rounded-full border shadow-xs text-muted-foreground group-hover:scale-105 transition-transform">
+                                                        <MapPin className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-semibold text-foreground">Titik Lokasi Belum Dikunci</p>
+                                                        <p className="text-[11px] text-muted-foreground max-w-xs mt-0.5">
+                                                            Klik tombol <strong>Check-in Lokasi</strong> di atas untuk mengunci titik GPS {isDelivery ? 'serah terima' : 'pengembalian'} secara akurat.
+                                                        </p>
+                                                    </div>
+                                                    {!isFilled && (
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            onClick={handleCheckIn}
+                                                            disabled={isLocating}
+                                                            className="mt-1 h-7 text-xs gap-1.5"
+                                                        >
+                                                            {isLocating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Crosshair className="h-3.5 w-3.5" />}
+                                                            Check-in Sekarang
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
                                     {/* Three Fuel Indicators with Dropdown Selector */}
                                     <div className="pt-2 border-t mt-4 space-y-3">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <Label htmlFor="gauge_model" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                                                 <Fuel className="h-4 w-4 text-amber-500" /> Indicator Fuel (BBM)
                                             </Label>
-                                             <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2">
                                                 <select
                                                     id="gauge_model"
                                                     disabled={isFilled}
@@ -537,13 +841,14 @@ export default function BookingChecklist({ booking }: Props) {
 
                                             {/* Model 2: Tangga (Vertikal) */}
                                             {gaugeModel === 'tangga' && (
-                                                <div className="flex flex-col items-center justify-center py-2">
+                                                <div className="flex flex-col items-center justify-center py-2 w-full max-w-xs">
                                                     <span className="text-xs font-bold text-muted-foreground uppercase mb-2">Tampilan Model Tangga (Vertikal)</span>
-                                                    <div className="flex items-center gap-3">
+                                                    <div className="flex items-center justify-center gap-3 w-full">
                                                         <span className="text-xs font-bold text-muted-foreground">F (Full)</span>
-                                                        <div className="flex flex-col gap-1 w-8 h-28 justify-end border-2 p-1 rounded-md bg-muted/20">
-                                                            {[7, 6, 5, 4, 3, 2, 1, 0].map((step) => {
-                                                                const active = data.fuel_out >= (step + 1) * 12.5;
+                                                        <div className="flex flex-col-reverse gap-1.5 w-16 p-2 border-2 rounded-lg bg-muted/20">
+                                                            {[1, 2, 3, 4, 5, 6, 7, 8].map((step) => {
+                                                                const threshold = step * 12.5;
+                                                                const active = data.fuel_out >= threshold;
                                                                 return (
                                                                     <div
                                                                         key={step}
@@ -635,11 +940,10 @@ export default function BookingChecklist({ booking }: Props) {
                                                 {/* Note / Warning for Return Fuel Shortage */}
                                                 {!isDelivery && (
                                                     <div className="pt-3 border-t w-full transition-all">
-                                                        <div className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
-                                                            data.fuel_out < deliveryFuel
-                                                                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
-                                                                : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
-                                                        }`}>
+                                                        <div className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${data.fuel_out < deliveryFuel
+                                                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                                                            : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                                                            }`}>
                                                             <AlertCircle className={`h-4 w-4 shrink-0 mt-0.5 ${data.fuel_out < deliveryFuel ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
                                                             <div className="space-y-1">
                                                                 <div className="font-bold">
@@ -671,7 +975,7 @@ export default function BookingChecklist({ booking }: Props) {
                             <Card className="border-2 border-primary/20 shadow-xs h-full flex flex-col justify-between">
                                 <CardHeader className="bg-primary/5 border-b pb-3">
                                     <div className="flex items-center justify-between">
-                                        <CardTitle className="text-base font-bold">Status Kelengkapan Unit</CardTitle>
+                                        <CardTitle className="text-base font-bold">Status Kelengkapan Unit <span className="text-red-500 text-xs font-normal">*Wajib Semua</span></CardTitle>
                                         <div className="flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-muted-foreground pr-2">
                                             <span className="text-green-600 dark:text-green-400">OK</span>
                                             <span className="text-red-600 dark:text-red-400">TIDAK</span>
@@ -681,12 +985,13 @@ export default function BookingChecklist({ booking }: Props) {
                                 <CardContent className="divide-y p-0 flex-1">
                                     {CHECKLIST_ITEMS.map((item) => {
                                         const ItemIcon = item.icon;
-                                        const currentStatus = data.checklist[item.key] || 'Tidak';
+                                        const currentStatus = data.checklist[item.key] || '';
+                                        const isMissing = !currentStatus && validationErrors.some(err => err.includes(item.label));
                                         return (
-                                            <div key={item.key} className="flex items-center justify-between p-3 px-4 hover:bg-muted/30 transition-colors">
+                                            <div key={item.key} className={`flex items-center justify-between p-3 px-4 transition-colors ${isMissing ? 'bg-red-50/50 dark:bg-red-950/20' : 'hover:bg-muted/30'}`}>
                                                 <div className="flex items-center gap-2.5">
-                                                    <ItemIcon className="h-4 w-4 text-muted-foreground" />
-                                                    <span className="text-sm font-medium">{item.label}</span>
+                                                    <ItemIcon className={`h-4 w-4 ${isMissing ? 'text-red-500' : 'text-muted-foreground'}`} />
+                                                    <span className={`text-sm font-medium ${isMissing ? 'text-red-700 dark:text-red-400 font-bold' : ''}`}>{item.label}</span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <Button
@@ -695,7 +1000,9 @@ export default function BookingChecklist({ booking }: Props) {
                                                         disabled={isFilled}
                                                         variant={currentStatus === 'OK' ? 'default' : 'outline'}
                                                         className={`h-8 px-3 text-xs font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${currentStatus === 'OK'
-                                                                ? 'bg-green-600 hover:bg-green-700 text-white shadow-xs'
+                                                            ? 'bg-green-600 hover:bg-green-700 text-white shadow-xs'
+                                                            : isMissing
+                                                                ? 'border-red-400 text-red-600 hover:text-foreground'
                                                                 : 'text-muted-foreground hover:text-foreground'
                                                             }`}
                                                         onClick={() => !isFilled && handleItemToggle(item.key, 'OK')}
@@ -708,7 +1015,9 @@ export default function BookingChecklist({ booking }: Props) {
                                                         disabled={isFilled}
                                                         variant={currentStatus === 'Tidak' ? 'destructive' : 'outline'}
                                                         className={`h-8 px-3 text-xs font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${currentStatus === 'Tidak'
-                                                                ? 'bg-red-600 hover:bg-red-700 text-white shadow-xs'
+                                                            ? 'bg-red-600 hover:bg-red-700 text-white shadow-xs'
+                                                            : isMissing
+                                                                ? 'border-red-400 text-red-600 hover:text-foreground'
                                                                 : 'text-muted-foreground hover:text-foreground'
                                                             }`}
                                                         onClick={() => !isFilled && handleItemToggle(item.key, 'Tidak')}
@@ -730,9 +1039,9 @@ export default function BookingChecklist({ booking }: Props) {
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
                                     <CardTitle className="text-base font-bold flex items-center gap-2">
-                                        <Car className="h-5 w-5 text-primary" /> Inspeksi Kondisi Fisik Bodi Mobil
+                                        <Car className="h-5 w-5 text-primary" /> Inspeksi Kondisi Fisik Bodi Mobil <span className="text-red-500 text-xs font-normal">*Wajib Semua</span>
                                     </CardTitle>
-                                    <CardDescription>Diagram kondisi bodi kendaraan 5 sisi (Tandai kondisi baret, penyok, atau rusak).</CardDescription>
+                                    <CardDescription>Diagram kondisi bodi kendaraan 5 sisi (Tandai kondisi Baik, Baret, Penyok, atau Rusak).</CardDescription>
                                 </div>
 
                                 {/* Legend Badges */}
@@ -753,18 +1062,20 @@ export default function BookingChecklist({ booking }: Props) {
                                     {/* Column 1: Samping Kiri & Samping Kanan */}
                                     <div className="space-y-4 flex flex-col justify-between">
                                         {/* Samping Kiri Card */}
-                                        <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 ${
-                                            data.checklist.body_kiri === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
+                                        <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 ${data.checklist.body_kiri === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
                                             data.checklist.body_kiri === 'Penyok' ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/20 shadow-xs' :
-                                            data.checklist.body_kiri === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
-                                        }`}>
+                                                data.checklist.body_kiri === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' :
+                                                    data.checklist.body_kiri === 'Baik' ? 'border-emerald-500/50 bg-emerald-50/10 dark:bg-emerald-950/10 shadow-xs' :
+                                                        !data.checklist.body_kiri && validationErrors.some(err => err.includes('Bodi Samping Kiri')) ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
+                                            }`}>
                                             <div className="flex items-center justify-between w-full">
-                                                <span className="text-xs font-bold text-foreground">Samping Kiri</span>
-                                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
-                                                    data.checklist.body_kiri === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
+                                                <span className="text-xs font-bold text-foreground">Samping Kiri <span className="text-red-500">*</span></span>
+                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${data.checklist.body_kiri === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
                                                     data.checklist.body_kiri === 'Penyok' ? 'bg-orange-500 text-white border-orange-600' :
-                                                    data.checklist.body_kiri === 'Rusak' ? 'bg-red-500 text-white border-red-600' : 'bg-emerald-600 text-white border-emerald-700'
-                                                }`}>{data.checklist.body_kiri || 'Baik'}</span>
+                                                        data.checklist.body_kiri === 'Rusak' ? 'bg-red-500 text-white border-red-600' :
+                                                            data.checklist.body_kiri === 'Baik' ? 'bg-emerald-600 text-white border-emerald-700' :
+                                                                'bg-muted text-amber-600 dark:text-amber-400 border-dashed border-amber-500/50'
+                                                    }`}>{data.checklist.body_kiri || 'Belum Diisi'}</span>
                                             </div>
                                             <div className="py-2 flex items-center justify-center w-full min-h-[90px]">
                                                 <svg viewBox="0 0 160 65" className="w-full h-20 max-w-[220px]">
@@ -789,10 +1100,9 @@ export default function BookingChecklist({ booking }: Props) {
                                                         type="button"
                                                         size="sm"
                                                         disabled={isFilled}
-                                                        variant={(data.checklist.body_kiri || 'Baik') === st.status ? 'default' : 'outline'}
-                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${
-                                                            (data.checklist.body_kiri || 'Baik') === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
-                                                        }`}
+                                                        variant={data.checklist.body_kiri === st.status ? 'default' : 'outline'}
+                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${data.checklist.body_kiri === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
+                                                            }`}
                                                         onClick={() => !isFilled && setData('checklist', { ...data.checklist, body_kiri: st.status })}
                                                     >
                                                         {st.label}
@@ -810,18 +1120,20 @@ export default function BookingChecklist({ booking }: Props) {
                                         </div>
 
                                         {/* Samping Kanan Card */}
-                                        <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 ${
-                                            data.checklist.body_kanan === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
+                                        <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 ${data.checklist.body_kanan === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
                                             data.checklist.body_kanan === 'Penyok' ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/20 shadow-xs' :
-                                            data.checklist.body_kanan === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
-                                        }`}>
+                                                data.checklist.body_kanan === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' :
+                                                    data.checklist.body_kanan === 'Baik' ? 'border-emerald-500/50 bg-emerald-50/10 dark:bg-emerald-950/10 shadow-xs' :
+                                                        !data.checklist.body_kanan && validationErrors.some(err => err.includes('Bodi Samping Kanan')) ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
+                                            }`}>
                                             <div className="flex items-center justify-between w-full">
-                                                <span className="text-xs font-bold text-foreground">Samping Kanan</span>
-                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
-                                                    data.checklist.body_kanan === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
+                                                <span className="text-xs font-bold text-foreground">Samping Kanan <span className="text-red-500">*</span></span>
+                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${data.checklist.body_kanan === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
                                                     data.checklist.body_kanan === 'Penyok' ? 'bg-orange-500 text-white border-orange-600' :
-                                                    data.checklist.body_kanan === 'Rusak' ? 'bg-red-500 text-white border-red-600' : 'bg-emerald-600 text-white border-emerald-700'
-                                                }`}>{data.checklist.body_kanan || 'Baik'}</span>
+                                                        data.checklist.body_kanan === 'Rusak' ? 'bg-red-500 text-white border-red-600' :
+                                                            data.checklist.body_kanan === 'Baik' ? 'bg-emerald-600 text-white border-emerald-700' :
+                                                                'bg-muted text-amber-600 dark:text-amber-400 border-dashed border-amber-500/50'
+                                                    }`}>{data.checklist.body_kanan || 'Belum Diisi'}</span>
                                             </div>
                                             <div className="py-2 flex items-center justify-center w-full min-h-[90px]">
                                                 <svg viewBox="0 0 160 65" className="w-full h-20 max-w-[220px] scale-x-[-1]">
@@ -846,10 +1158,9 @@ export default function BookingChecklist({ booking }: Props) {
                                                         type="button"
                                                         size="sm"
                                                         disabled={isFilled}
-                                                        variant={(data.checklist.body_kanan || 'Baik') === st.status ? 'default' : 'outline'}
-                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${
-                                                            (data.checklist.body_kanan || 'Baik') === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
-                                                        }`}
+                                                        variant={data.checklist.body_kanan === st.status ? 'default' : 'outline'}
+                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${data.checklist.body_kanan === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
+                                                            }`}
                                                         onClick={() => !isFilled && setData('checklist', { ...data.checklist, body_kanan: st.status })}
                                                     >
                                                         {st.label}
@@ -868,18 +1179,20 @@ export default function BookingChecklist({ booking }: Props) {
                                     </div>
 
                                     {/* Column 2: Tampak Atas (Top View) */}
-                                    <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 h-full ${
-                                        data.checklist.body_atap === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
+                                    <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 h-full ${data.checklist.body_atap === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
                                         data.checklist.body_atap === 'Penyok' ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/20 shadow-xs' :
-                                        data.checklist.body_atap === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
-                                    }`}>
+                                            data.checklist.body_atap === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' :
+                                                data.checklist.body_atap === 'Baik' ? 'border-emerald-500/50 bg-emerald-50/10 dark:bg-emerald-950/10 shadow-xs' :
+                                                    !data.checklist.body_atap && validationErrors.some(err => err.includes('Bodi Tampak Atas / Atap')) ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
+                                        }`}>
                                         <div className="flex items-center justify-between w-full">
-                                            <span className="text-xs font-bold text-foreground">Tampak Atas / Atap</span>
-                                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
-                                                data.checklist.body_atap === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
+                                            <span className="text-xs font-bold text-foreground">Tampak Atas / Atap <span className="text-red-500">*</span></span>
+                                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${data.checklist.body_atap === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
                                                 data.checklist.body_atap === 'Penyok' ? 'bg-orange-500 text-white border-orange-600' :
-                                                data.checklist.body_atap === 'Rusak' ? 'bg-red-500 text-white border-red-600' : 'bg-emerald-600 text-white border-emerald-700'
-                                            }`}>{data.checklist.body_atap || 'Baik'}</span>
+                                                    data.checklist.body_atap === 'Rusak' ? 'bg-red-500 text-white border-red-600' :
+                                                        data.checklist.body_atap === 'Baik' ? 'bg-emerald-600 text-white border-emerald-700' :
+                                                            'bg-muted text-amber-600 dark:text-amber-400 border-dashed border-amber-500/50'
+                                                }`}>{data.checklist.body_atap || 'Belum Diisi'}</span>
                                         </div>
                                         <div className="py-2 flex items-center justify-center w-full flex-1">
                                             <svg viewBox="0 0 80 130" className="w-24 h-40 my-1">
@@ -904,10 +1217,9 @@ export default function BookingChecklist({ booking }: Props) {
                                                         type="button"
                                                         size="sm"
                                                         disabled={isFilled}
-                                                        variant={(data.checklist.body_atap || 'Baik') === st.status ? 'default' : 'outline'}
-                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${
-                                                            (data.checklist.body_atap || 'Baik') === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
-                                                        }`}
+                                                        variant={data.checklist.body_atap === st.status ? 'default' : 'outline'}
+                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${data.checklist.body_atap === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
+                                                            }`}
                                                         onClick={() => !isFilled && setData('checklist', { ...data.checklist, body_atap: st.status })}
                                                     >
                                                         {st.label}
@@ -928,18 +1240,20 @@ export default function BookingChecklist({ booking }: Props) {
                                     {/* Column 3: Tampak Depan & Belakang */}
                                     <div className="space-y-4 flex flex-col justify-between">
                                         {/* Tampak Depan Card */}
-                                        <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 ${
-                                            data.checklist.body_depan === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
+                                        <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 ${data.checklist.body_depan === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
                                             data.checklist.body_depan === 'Penyok' ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/20 shadow-xs' :
-                                            data.checklist.body_depan === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
-                                        }`}>
+                                                data.checklist.body_depan === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' :
+                                                    data.checklist.body_depan === 'Baik' ? 'border-emerald-500/50 bg-emerald-50/10 dark:bg-emerald-950/10 shadow-xs' :
+                                                        !data.checklist.body_depan && validationErrors.some(err => err.includes('Bodi Tampak Depan')) ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
+                                            }`}>
                                             <div className="flex items-center justify-between w-full">
-                                                <span className="text-xs font-bold text-foreground">Tampak Depan</span>
-                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
-                                                    data.checklist.body_depan === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
+                                                <span className="text-xs font-bold text-foreground">Tampak Depan <span className="text-red-500">*</span></span>
+                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${data.checklist.body_depan === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
                                                     data.checklist.body_depan === 'Penyok' ? 'bg-orange-500 text-white border-orange-600' :
-                                                    data.checklist.body_depan === 'Rusak' ? 'bg-red-500 text-white border-red-600' : 'bg-emerald-600 text-white border-emerald-700'
-                                                }`}>{data.checklist.body_depan || 'Baik'}</span>
+                                                        data.checklist.body_depan === 'Rusak' ? 'bg-red-500 text-white border-red-600' :
+                                                            data.checklist.body_depan === 'Baik' ? 'bg-emerald-600 text-white border-emerald-700' :
+                                                                'bg-muted text-amber-600 dark:text-amber-400 border-dashed border-amber-500/50'
+                                                    }`}>{data.checklist.body_depan || 'Belum Diisi'}</span>
                                             </div>
                                             <div className="py-2 flex items-center justify-center w-full min-h-[90px]">
                                                 <svg viewBox="0 0 110 65" className="w-full h-20 max-w-[180px]">
@@ -962,10 +1276,9 @@ export default function BookingChecklist({ booking }: Props) {
                                                         type="button"
                                                         size="sm"
                                                         disabled={isFilled}
-                                                        variant={(data.checklist.body_depan || 'Baik') === st.status ? 'default' : 'outline'}
-                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${
-                                                            (data.checklist.body_depan || 'Baik') === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
-                                                        }`}
+                                                        variant={data.checklist.body_depan === st.status ? 'default' : 'outline'}
+                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${data.checklist.body_depan === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
+                                                            }`}
                                                         onClick={() => !isFilled && setData('checklist', { ...data.checklist, body_depan: st.status })}
                                                     >
                                                         {st.label}
@@ -983,18 +1296,20 @@ export default function BookingChecklist({ booking }: Props) {
                                         </div>
 
                                         {/* Tampak Belakang Card */}
-                                        <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 ${
-                                            data.checklist.body_belakang === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
+                                        <div className={`p-3.5 rounded-xl border flex flex-col justify-between transition-all space-y-3 ${data.checklist.body_belakang === 'Baret' ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/20 shadow-xs' :
                                             data.checklist.body_belakang === 'Penyok' ? 'border-orange-500 bg-orange-50/20 dark:bg-orange-950/20 shadow-xs' :
-                                            data.checklist.body_belakang === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
-                                        }`}>
+                                                data.checklist.body_belakang === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' :
+                                                    data.checklist.body_belakang === 'Baik' ? 'border-emerald-500/50 bg-emerald-50/10 dark:bg-emerald-950/10 shadow-xs' :
+                                                        !data.checklist.body_belakang && validationErrors.some(err => err.includes('Bodi Tampak Belakang')) ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-card border-border'
+                                            }`}>
                                             <div className="flex items-center justify-between w-full">
-                                                <span className="text-xs font-bold text-foreground">Tampak Belakang</span>
-                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${
-                                                    data.checklist.body_belakang === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
+                                                <span className="text-xs font-bold text-foreground">Tampak Belakang <span className="text-red-500">*</span></span>
+                                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded border ${data.checklist.body_belakang === 'Baret' ? 'bg-amber-500 text-white border-amber-600' :
                                                     data.checklist.body_belakang === 'Penyok' ? 'bg-orange-500 text-white border-orange-600' :
-                                                    data.checklist.body_belakang === 'Rusak' ? 'border-red-500 bg-red-50/20 dark:bg-red-950/20 shadow-xs' : 'bg-emerald-600 text-white border-emerald-700'
-                                                }`}>{data.checklist.body_belakang || 'Baik'}</span>
+                                                        data.checklist.body_belakang === 'Rusak' ? 'bg-red-500 text-white border-red-600' :
+                                                            data.checklist.body_belakang === 'Baik' ? 'bg-emerald-600 text-white border-emerald-700' :
+                                                                'bg-muted text-amber-600 dark:text-amber-400 border-dashed border-amber-500/50'
+                                                    }`}>{data.checklist.body_belakang || 'Belum Diisi'}</span>
                                             </div>
                                             <div className="py-2 flex items-center justify-center w-full min-h-[90px]">
                                                 <svg viewBox="0 0 110 65" className="w-full h-20 max-w-[180px]">
@@ -1017,10 +1332,9 @@ export default function BookingChecklist({ booking }: Props) {
                                                         type="button"
                                                         size="sm"
                                                         disabled={isFilled}
-                                                        variant={(data.checklist.body_belakang || 'Baik') === st.status ? 'default' : 'outline'}
-                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${
-                                                            (data.checklist.body_belakang || 'Baik') === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
-                                                        }`}
+                                                        variant={data.checklist.body_belakang === st.status ? 'default' : 'outline'}
+                                                        className={`h-7 px-1 text-[10px] font-bold disabled:opacity-60 disabled:cursor-not-allowed ${data.checklist.body_belakang === st.status ? st.activeClass : 'hover:bg-muted text-muted-foreground'
+                                                            }`}
                                                         onClick={() => !isFilled && setData('checklist', { ...data.checklist, body_belakang: st.status })}
                                                     >
                                                         {st.label}
@@ -1152,6 +1466,71 @@ export default function BookingChecklist({ booking }: Props) {
                         </Button>
                     )}
                 </form>
+
+                {/* Pop Up Peringatan BBM Pengembalian Kurang */}
+                <Dialog open={showFuelWarningDialog} onOpenChange={setShowFuelWarningDialog}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader className="flex flex-col items-center text-center">
+                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 mb-2 ring-8 ring-amber-500/10">
+                                <AlertTriangle className="h-7 w-7" />
+                            </div>
+                            <DialogTitle className="text-lg font-bold text-foreground">
+                                Peringatan: BBM Pengembalian Kurang!
+                            </DialogTitle>
+                            <DialogDescription className="text-xs text-muted-foreground mt-1">
+                                Level BBM saat unit kembali lebih rendah dari saat serah terima awal.
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-3 py-2 text-xs">
+                            <div className="rounded-xl border bg-muted/40 p-4 space-y-2.5">
+                                <div className="flex justify-between items-center py-1 border-b border-dashed">
+                                    <span className="text-muted-foreground font-medium">BBM Serah Terima Awal:</span>
+                                    <span className="font-bold text-foreground font-mono text-sm">{deliveryFuel}%</span>
+                                </div>
+                                <div className="flex justify-between items-center py-1 border-b border-dashed">
+                                    <span className="text-muted-foreground font-medium">BBM Pengembalian Saat Ini:</span>
+                                    <span className="font-bold text-red-600 dark:text-red-400 font-mono text-sm">{data.fuel_out}%</span>
+                                </div>
+                                <div className="flex justify-between items-center py-1 text-amber-700 dark:text-amber-300 font-semibold">
+                                    <span>Selisih Kekurangan BBM:</span>
+                                    <span className="font-extrabold font-mono text-sm">-{deliveryFuel - data.fuel_out}%</span>
+                                </div>
+                            </div>
+
+                            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-900 dark:text-amber-200 text-center leading-relaxed font-medium">
+                                BBM pengembalian <strong>wajib disamakan (minimal {deliveryFuel}%)</strong> atau dilebihkan dari saat serah terima sebelum dapat menyimpan checklist pengembalian.
+                            </div>
+                        </div>
+
+                        <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full sm:w-auto text-xs font-semibold"
+                                onClick={() => {
+                                    setShowFuelWarningDialog(false);
+                                    const gaugeEl = document.getElementById('gauge_model');
+                                    if (gaugeEl) {
+                                        gaugeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    }
+                                }}
+                            >
+                                Tutup & Sesuaikan Manual
+                            </Button>
+                            <Button
+                                type="button"
+                                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs"
+                                onClick={() => {
+                                    setData('fuel_out', deliveryFuel);
+                                    setShowFuelWarningDialog(false);
+                                }}
+                            >
+                                Samakan Jadi {deliveryFuel}% (OK)
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         </>
     );

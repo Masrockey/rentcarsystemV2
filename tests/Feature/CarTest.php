@@ -84,3 +84,55 @@ test('admin can view cars page with search and status filters', function () {
             ->where('cars.data.0.id', $car1->id)
         );
 });
+
+test('super admin can change car status', function () {
+    $superAdmin = User::factory()->create([
+        'roles' => ['Super Admin'],
+    ]);
+
+    $car = Car::create([
+        'name' => 'Avanza Test',
+        'plate_number' => 'B 1111 SA',
+        'year' => 2022,
+        'status' => 'Ready',
+    ]);
+
+    $this->actingAs($superAdmin)
+        ->put(route('cars.update', $car), [
+            'name' => 'Avanza Test Updated',
+            'plate_number' => 'B 1111 SA',
+            'year' => 2022,
+            'status' => 'Service',
+        ])
+        ->assertRedirect(route('cars.index'));
+
+    $car->refresh();
+    expect($car->status)->toBe('Service');
+    expect($car->name)->toBe('Avanza Test Updated');
+});
+
+test('regular admin cannot change car status on edit', function () {
+    $admin = User::factory()->create([
+        'roles' => ['Admin'],
+    ]);
+
+    $car = Car::create([
+        'name' => 'Innova Test',
+        'plate_number' => 'B 2222 AD',
+        'year' => 2023,
+        'status' => 'Ready',
+    ]);
+
+    $this->actingAs($admin)
+        ->put(route('cars.update', $car), [
+            'name' => 'Innova Test Updated',
+            'plate_number' => 'B 2222 AD',
+            'year' => 2023,
+            'status' => 'Service',
+        ])
+        ->assertRedirect(route('cars.index'));
+
+    $car->refresh();
+    expect($car->status)->toBe('Ready'); // Status remains unchanged
+    expect($car->name)->toBe('Innova Test Updated'); // Other details updated
+});

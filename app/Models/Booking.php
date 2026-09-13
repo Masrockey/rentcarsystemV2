@@ -37,6 +37,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'delivery_longitude',
     'delivery_notes',
     'return_checklist',
+    'return_latitude',
+    'return_longitude',
     'return_notes',
     'fuel_range_km',
 ])]

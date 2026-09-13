@@ -40,6 +40,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('drivers', DriverController::class)->only(['index', 'store', 'update', 'destroy']);
 
     // Bookings & Workflows
+    Route::get('bookings/export', [BookingController::class, 'export'])->name('bookings.export');
     Route::resource('bookings', BookingController::class)->only(['index', 'store', 'update', 'destroy']);
     Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
     Route::get('bookings/{booking}/checklist', [BookingController::class, 'showChecklist'])->name('bookings.checklist');
@@ -51,6 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('allocations/export', [AllocationController::class, 'export'])->name('allocations.export');
     Route::get('allocations', [AllocationController::class, 'index'])->name('allocations.index');
     Route::put('allocations/{booking}', [AllocationController::class, 'update'])->name('allocations.update');
+    Route::delete('allocations/{booking}', [AllocationController::class, 'destroy'])->name('allocations.destroy');
 
     // Payments CRUD
     Route::resource('payments', PaymentController::class)->only(['index', 'store', 'update', 'destroy']);

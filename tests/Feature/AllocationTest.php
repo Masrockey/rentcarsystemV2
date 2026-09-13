@@ -59,3 +59,43 @@ test('all user roles can access car status page', function (string $role) {
         ->get(route('cars.index', ['status' => 'Ready']))
         ->assertStatus(200);
 })->with(['Admin', 'Super Admin']);
+
+test('super admin can delete allocation record', function () {
+    $superAdmin = User::factory()->create(['roles' => ['Super Admin']]);
+    $customer = Customer::create(['name' => 'Wayan Test']);
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-09-15',
+        'payment_method' => 'Cash',
+        'status' => 'Pending',
+        'amount' => 350000,
+    ]);
+
+    $response = $this->actingAs($superAdmin)
+        ->delete(route('allocations.destroy', $booking));
+
+    $response->assertRedirect();
+    expect(Booking::find($booking->id))->toBeNull();
+});
+
+test('non super admin cannot delete allocation record', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $customer = Customer::create(['name' => 'Made Test']);
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-09-15',
+        'payment_method' => 'Cash',
+        'status' => 'Pending',
+        'amount' => 350000,
+    ]);
+
+    $response = $this->actingAs($admin)
+        ->delete(route('allocations.destroy', $booking));
+
+    $response->assertForbidden();
+    expect(Booking::find($booking->id))->not->toBeNull();
+});

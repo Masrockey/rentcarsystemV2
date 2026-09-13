@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Car;
 use App\Models\Driver;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,9 +17,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AllocationController extends Controller
 {
     /**
-     * Export car & staff allocations to CSV.
+     * Export car & staff allocations to Excel/CSV or JSON.
      */
-    public function export(Request $request): StreamedResponse
+    public function export(Request $request): StreamedResponse|JsonResponse
     {
         $user = $request->user();
 
@@ -105,7 +106,17 @@ class AllocationController extends Controller
             });
         }
 
+        if ($request->filled('marketing_id') && $request->query('marketing_id') !== 'all') {
+            $query->where('user_id', $request->query('marketing_id'));
+        }
+
         $bookings = $query->get();
+
+        if ($request->wantsJson() || $request->query('format') === 'json') {
+            return response()->json([
+                'data' => $bookings,
+            ]);
+        }
 
         $filename = 'alokasi-armada-'.now()->format('Y-m-d-His').'.csv';
 
@@ -253,6 +264,25 @@ class AllocationController extends Controller
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => $oldCarId && $oldCarId != $newCarId ? 'Unit armada berhasil ditukar.' : 'Alokasi armada mobil dan staf berhasil disimpan.',
+        ]);
+
+        return back();
+    }
+
+    /**
+     * Remove the allocation / booking record (Super Admin only).
+     */
+    public function destroy(Request $request, Booking $booking): RedirectResponse
+    {
+        if (! $request->user()->isSuperAdmin()) {
+            abort(403, 'Hanya Super Admin yang diizinkan menghapus data alokasi.');
+        }
+
+        $booking->delete();
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => 'Data alokasi / booking berhasil dihapus.',
         ]);
 
         return back();

@@ -9,6 +9,7 @@ import {
 import { useState } from 'react';
 import { Plus, Edit, Trash2, Search, X } from 'lucide-react';
 import { index as customersIndex } from '@/routes/customers';
+import { maskPhoneNumber } from '@/lib/utils';
 
 import Pagination, { PaginatedData } from '@/components/pagination';
 
@@ -39,7 +40,9 @@ export default function CustomersIndex({ customers, marketingUsers = [], search 
     const { auth } = usePage().props;
     const authUser = (auth as any)?.user;
     const roles: string[] = authUser?.roles || [];
-    const isAdmin = roles.includes('Admin') || roles.includes('Super Admin');
+    const isSuperAdmin = roles.includes('Super Admin');
+    const isAdmin = roles.includes('Admin') || isSuperAdmin;
+    const shouldMaskPhone = roles.includes('Admin') && !isSuperAdmin;
 
     const customerList = Array.isArray(customers) ? customers : (customers?.data || []);
     const totalCount = Array.isArray(customers) ? customers.length : (customers?.total ?? customerList.length);
@@ -98,7 +101,7 @@ export default function CustomersIndex({ customers, marketingUsers = [], search 
             name: c.name,
             user_id: c.user_id ? String(c.user_id) : (c.user?.id ? String(c.user.id) : ''),
             nik: c.nik ?? '',
-            phone: c.phone ?? '',
+            phone: c.phone ? (shouldMaskPhone ? maskPhoneNumber(c.phone) : c.phone) : '',
             email: c.email ?? '',
             address: c.address ?? '',
             sim_number: c.sim_number ?? '',
@@ -191,7 +194,7 @@ export default function CustomersIndex({ customers, marketingUsers = [], search 
                                                 <div className="text-xs text-muted-foreground">{customer.email ?? '-'}</div>
                                             </td>
                                             <td className="px-6 py-4 font-mono text-xs">{customer.nik ?? '-'}</td>
-                                            <td className="px-6 py-4">{customer.phone ?? '-'}</td>
+                                            <td className="px-6 py-4 font-mono text-xs">{customer.phone ? (shouldMaskPhone ? maskPhoneNumber(customer.phone) : customer.phone) : '-'}</td>
                                             <td className="px-6 py-4 font-mono">{customer.sim_number ?? '-'}</td>
                                             <td className="px-6 py-4">{customer.sim_expiry ?? '-'}</td>
                                             <td className="px-6 py-4">{customer.emergency_contact ?? '-'}</td>
@@ -260,22 +263,43 @@ export default function CustomersIndex({ customers, marketingUsers = [], search 
                                 <div className="space-y-2">
                                     <Label htmlFor="nik">NIK (KTP)</Label>
                                     <Input id="nik" value={data.nik} onChange={e => setData('nik', e.target.value)} placeholder="16 digit NIK" maxLength={20} />
+                                    {errors.nik && <p className="text-xs text-red-500">{errors.nik}</p>}
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="phone">No. HP</Label>
-                                    <Input id="phone" value={data.phone} onChange={e => setData('phone', e.target.value)} placeholder="08xxxxxxxxxx" />
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="phone">No. HP</Label>
+                                        {shouldMaskPhone && editingCustomer && (
+                                            <span className="text-[10px] text-muted-foreground font-medium">Disamarkan</span>
+                                        )}
+                                    </div>
+                                    <Input
+                                        id="phone"
+                                        value={data.phone}
+                                        onChange={e => setData('phone', e.target.value)}
+                                        placeholder="08xxxxxxxxxx"
+                                        className={shouldMaskPhone && editingCustomer && data.phone.includes('*') ? 'font-mono' : ''}
+                                    />
+                                    {shouldMaskPhone && editingCustomer && (
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Biarkan bertanda bintang jika tidak ingin mengubah nomor HP. Masukkan nomor baru jika ingin memperbarui.
+                                        </p>
+                                    )}
+                                    {errors.phone && <p className="text-xs text-red-500">{errors.phone}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="email">Email</Label>
                                     <Input id="email" type="email" value={data.email} onChange={e => setData('email', e.target.value)} placeholder="email@example.com" />
+                                    {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="emergency_contact">Kontak Darurat</Label>
                                     <Input id="emergency_contact" value={data.emergency_contact} onChange={e => setData('emergency_contact', e.target.value)} placeholder="No. HP keluarga" />
+                                    {errors.emergency_contact && <p className="text-xs text-red-500">{errors.emergency_contact}</p>}
                                 </div>
                                 <div className="col-span-2 space-y-2">
                                     <Label htmlFor="address">Alamat</Label>
                                     <Input id="address" value={data.address} onChange={e => setData('address', e.target.value)} placeholder="Alamat lengkap" />
+                                    {errors.address && <p className="text-xs text-red-500">{errors.address}</p>}
                                 </div>
                             </div>
 
@@ -284,10 +308,12 @@ export default function CustomersIndex({ customers, marketingUsers = [], search 
                                 <div className="space-y-2">
                                     <Label htmlFor="sim_number">No. SIM</Label>
                                     <Input id="sim_number" value={data.sim_number} onChange={e => setData('sim_number', e.target.value)} placeholder="Nomor SIM" />
+                                    {errors.sim_number && <p className="text-xs text-red-500">{errors.sim_number}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="sim_expiry">Masa Berlaku SIM</Label>
                                     <Input id="sim_expiry" type="date" value={data.sim_expiry} onChange={e => setData('sim_expiry', e.target.value)} />
+                                    {errors.sim_expiry && <p className="text-xs text-red-500">{errors.sim_expiry}</p>}
                                 </div>
                             </div>
 
@@ -296,14 +322,17 @@ export default function CustomersIndex({ customers, marketingUsers = [], search 
                                 <div className="space-y-2">
                                     <Label htmlFor="ktp_photo">Foto KTP</Label>
                                     <Input id="ktp_photo" type="file" accept="image/*" onChange={e => setData('ktp_photo', e.target.files?.[0] ?? null)} />
+                                    {errors.ktp_photo && <p className="text-xs text-red-500">{errors.ktp_photo}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="sim_photo">Foto SIM</Label>
                                     <Input id="sim_photo" type="file" accept="image/*" onChange={e => setData('sim_photo', e.target.files?.[0] ?? null)} />
+                                    {errors.sim_photo && <p className="text-xs text-red-500">{errors.sim_photo}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="selfie_photo">Foto Selfie</Label>
                                     <Input id="selfie_photo" type="file" accept="image/*" onChange={e => setData('selfie_photo', e.target.files?.[0] ?? null)} />
+                                    {errors.selfie_photo && <p className="text-xs text-red-500">{errors.selfie_photo}</p>}
                                 </div>
                             </div>
 

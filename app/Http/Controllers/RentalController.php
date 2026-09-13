@@ -44,6 +44,10 @@ class RentalController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        if (! $request->user()->isSuperAdmin()) {
+            abort(403, 'Hanya Super Admin yang diizinkan membuat kontrak serah terima manual.');
+        }
+
         $validated = $request->validate([
             'booking_id' => ['required', 'exists:bookings,id'],
             'car_id' => ['required', 'exists:cars,id'],

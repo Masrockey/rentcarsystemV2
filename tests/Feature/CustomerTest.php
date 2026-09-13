@@ -126,6 +126,10 @@ test('creating customer inline in booking associates with the booking user', fun
         'rental_type' => 'Lepas Kunci',
         'booking_date' => '2026-09-10',
         'return_date' => '2026-09-12',
+        'pickup_time' => '10:00',
+        'return_time' => '10:00',
+        'pickup_location' => 'Garasi',
+        'dropoff_location' => 'Garasi',
         'payment_method' => 'Cash',
         'payment_status' => 'Paid',
     ]);
@@ -236,4 +240,126 @@ test('users can search customers by name, nik, phone, email, address, sim_number
             ->has('customers.data', 1)
             ->where('customers.data.0.id', $cust1->id)
         );
+});
+
+test('customer cannot be created with duplicate name, nik, phone, or email and displays marketing name', function () {
+    $marketing = User::factory()->create(['name' => 'Budi Marketing', 'roles' => ['Marketing']]);
+
+    Customer::create([
+        'user_id' => $marketing->id,
+        'name' => 'John Doe',
+        'nik' => '1234567890123456',
+        'phone' => '08123456789',
+        'email' => 'john@example.com',
+    ]);
+
+    $this->actingAs($marketing);
+
+    // Duplicate name
+    $response = $this->post(route('customers.store'), [
+        'name' => 'John Doe',
+        'nik' => '9999999999999999',
+        'phone' => '08999999999',
+        'email' => 'other@example.com',
+    ]);
+    $response->assertSessionHasErrors(['name' => 'Nama customer sudah terdaftar untuk customer lain dengan marketing Budi Marketing. Silakan hubungi admin atau marketing yang bersangkutan.']);
+
+    // Duplicate NIK
+    $response = $this->post(route('customers.store'), [
+        'name' => 'Jane Doe',
+        'nik' => '1234567890123456',
+        'phone' => '08999999999',
+        'email' => 'other@example.com',
+    ]);
+    $response->assertSessionHasErrors(['nik' => 'NIK sudah terdaftar untuk customer lain dengan marketing Budi Marketing. Silakan hubungi admin atau marketing yang bersangkutan.']);
+
+    // Duplicate Phone
+    $response = $this->post(route('customers.store'), [
+        'name' => 'Jane Doe',
+        'nik' => '9999999999999999',
+        'phone' => '08123456789',
+        'email' => 'other@example.com',
+    ]);
+    $response->assertSessionHasErrors(['phone' => 'Nomor HP sudah terdaftar untuk customer lain dengan marketing Budi Marketing. Silakan hubungi admin atau marketing yang bersangkutan.']);
+
+    // Duplicate Email
+    $response = $this->post(route('customers.store'), [
+        'name' => 'Jane Doe',
+        'nik' => '9999999999999999',
+        'phone' => '08999999999',
+        'email' => 'john@example.com',
+    ]);
+    $response->assertSessionHasErrors(['email' => 'Email sudah terdaftar untuk customer lain dengan marketing Budi Marketing. Silakan hubungi admin atau marketing yang bersangkutan.']);
+});
+
+test('booking cannot be created with duplicate inline customer and displays marketing name', function () {
+    $marketing = User::factory()->create(['name' => 'Agus Marketing', 'roles' => ['Marketing']]);
+
+    Customer::create([
+        'user_id' => $marketing->id,
+        'name' => 'Existing Customer',
+        'nik' => '3201010101019999',
+        'phone' => '081299998888',
+        'email' => 'existing@example.com',
+    ]);
+
+    $this->actingAs($marketing);
+
+    $this->post(route('bookings.store'), [
+        'new_customer_name' => 'Existing Customer',
+        'new_customer_nik' => '1111111111111111',
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-09-15',
+        'return_date' => '2026-09-17',
+        'pickup_time' => '10:00',
+        'return_time' => '10:00',
+        'pickup_location' => 'Garasi',
+        'dropoff_location' => 'Garasi',
+        'payment_method' => 'Cash',
+    ])->assertSessionHasErrors(['new_customer_name' => 'Nama customer sudah terdaftar untuk customer lain dengan marketing Agus Marketing. Silakan hubungi admin atau marketing yang bersangkutan.']);
+
+    $this->post(route('bookings.store'), [
+        'new_customer_name' => 'Brand New Name',
+        'new_customer_nik' => '3201010101019999',
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-09-15',
+        'return_date' => '2026-09-17',
+        'pickup_time' => '10:00',
+        'return_time' => '10:00',
+        'pickup_location' => 'Garasi',
+        'dropoff_location' => 'Garasi',
+        'payment_method' => 'Cash',
+    ])->assertSessionHasErrors(['new_customer_nik' => 'NIK sudah terdaftar untuk customer lain dengan marketing Agus Marketing. Silakan hubungi admin atau marketing yang bersangkutan.']);
+});
+
+test('admin can edit customer phone and preserving original phone if masked', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $customer = Customer::create([
+        'name' => 'Original Customer',
+        'phone' => '081234567890',
+        'nik' => '3201010101010099',
+    ]);
+
+    $this->actingAs($admin);
+
+    // 1. Updating with masked phone keeps the original phone
+    $response = $this->put(route('customers.update', $customer), [
+        'name' => 'Updated Customer Name',
+        'phone' => '08123456****',
+    ]);
+    $response->assertRedirect(route('customers.index'));
+    $customer->refresh();
+    expect($customer->name)->toBe('Updated Customer Name');
+    expect($customer->phone)->toBe('081234567890');
+
+    // 2. Updating with new phone number updates the phone
+    $response2 = $this->put(route('customers.update', $customer), [
+        'name' => 'Updated Customer Name 2',
+        'phone' => '089988776655',
+    ]);
+    $response2->assertRedirect(route('customers.index'));
+    $customer->refresh();
+    expect($customer->phone)->toBe('089988776655');
 });

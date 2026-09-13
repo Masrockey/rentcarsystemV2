@@ -14,22 +14,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class BookingController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Build bookings query with role scopes and optional filters.
      */
-    public function index(Request $request): Response
+    private function buildBookingsQuery(Request $request)
     {
         $user = $request->user();
 
         $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
 
-        // Admin and Peluncur can see ALL bookings.
-        // Other users (e.g. Marketing, Petugas Cuci) can only see their own created/assigned bookings.
         if (! ($user->isAdmin() || $user->isPeluncur())) {
             $query->where(function ($q) use ($user) {
                 $q->where('user_id', $user->id)
@@ -37,6 +36,102 @@ class BookingController extends Controller
                     ->orWhere('petugas_cuci_id', $user->id);
             });
         }
+
+        // Apply Status Filter
+        if ($request->filled('status') && $request->query('status') !== 'all') {
+            $query->where('status', $request->query('status'));
+        }
+
+        // Apply Marketing Filter
+        if ($request->filled('marketing_id') && $request->query('marketing_id') !== 'all') {
+            $query->where('user_id', $request->query('marketing_id'));
+        }
+
+        // Apply Date Filters
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+        $dateField = $request->query('date_field', 'booking_date');
+
+        if ($startDate || $endDate) {
+            if ($dateField === 'booking_date') {
+                if ($startDate) {
+                    $query->whereDate('booking_date', '>=', $startDate);
+                }
+                if ($endDate) {
+                    $query->whereDate('booking_date', '<=', $endDate);
+                }
+            } elseif ($dateField === 'return_date') {
+                if ($startDate) {
+                    $query->whereDate('return_date', '>=', $startDate);
+                }
+                if ($endDate) {
+                    $query->whereDate('return_date', '<=', $endDate);
+                }
+            } elseif ($dateField === 'active_period') {
+                $rangeStart = $startDate ?: $endDate;
+                $rangeEnd = $endDate ?: $startDate;
+                $query->where(function ($q) use ($rangeStart, $rangeEnd) {
+                    $q->whereDate('booking_date', '<=', $rangeEnd)
+                        ->where(function ($sub) use ($rangeStart) {
+                            $sub->whereDate('return_date', '>=', $rangeStart)
+                                ->orWhereNull('return_date');
+                        });
+                });
+            }
+        }
+
+        // Apply Search Filter
+        if ($request->filled('search')) {
+            $search = $request->query('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('booking_number', 'like', "%{$search}%")
+                    ->orWhere('car_type', 'like', "%{$search}%")
+                    ->orWhereHas('customer', function ($c) use ($search) {
+                        $c->where('name', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%")
+                            ->orWhere('nik', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('car', function ($c) use ($search) {
+                        $c->where('name', 'like', "%{$search}%")
+                            ->orWhere('plate_number', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('user', function ($u) use ($search) {
+                        $u->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('driver', function ($d) use ($search) {
+                        $d->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('peluncur', function ($p) use ($search) {
+                        $p->where('name', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('petugasCuci', function ($pc) use ($search) {
+                        $pc->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        return $query;
+    }
+
+    /**
+     * Export bookings data for Excel generation.
+     */
+    public function export(Request $request)
+    {
+        $bookings = $this->buildBookingsQuery($request)->get();
+
+        return response()->json([
+            'data' => $bookings,
+        ]);
+    }
+
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(Request $request): Response
+    {
+        $user = $request->user();
+        $query = $this->buildBookingsQuery($request);
 
         $customerQuery = Customer::orderBy('name');
         if (! ($user->isAdmin() || $user->isPeluncur())) {
@@ -82,21 +177,35 @@ class BookingController extends Controller
             'car_type' => ['required', 'string', 'max:255'],
             'rental_type' => ['required', Rule::in(['Lepas Kunci', 'With Driver'])],
             'booking_date' => ['required', 'date'],
-            'return_date' => ['nullable', 'date', 'after_or_equal:booking_date'],
-            'pickup_time' => ['nullable', 'string', 'max:20'],
-            'return_time' => ['nullable', 'string', 'max:20'],
-            'pickup_location' => ['nullable', 'string', 'max:255'],
-            'dropoff_location' => ['nullable', 'string', 'max:255'],
+            'return_date' => ['required', 'date', 'after_or_equal:booking_date'],
+            'pickup_time' => ['required', 'string', 'max:20'],
+            'return_time' => ['required', 'string', 'max:20'],
+            'pickup_location' => ['required', 'string', 'max:255'],
+            'dropoff_location' => ['required', 'string', 'max:255'],
             'payment_method' => ['required', Rule::in(['Cash', 'Transfer', 'DP'])],
             'payment_status' => ['nullable', Rule::in(['Pending', 'Paid', 'Down Payment'])],
             'amount' => ['nullable', 'numeric', 'min:0'],
         ], [
             'user_id.required' => 'Nama Marketing wajib dipilih.',
             'user_id.exists' => 'Marketing yang dipilih tidak valid.',
+            'car_type.required' => 'Tipe mobil yang dipesan wajib diisi.',
+            'rental_type.required' => 'Type sewa wajib dipilih.',
+            'booking_date.required' => 'Tanggal sewa wajib diisi.',
+            'return_date.required' => 'Tanggal balik wajib diisi.',
+            'return_date.after_or_equal' => 'Tanggal balik harus sama atau setelah tanggal sewa.',
+            'pickup_time.required' => 'Jam pengambilan wajib diisi.',
+            'return_time.required' => 'Jam pengembalian wajib diisi.',
+            'pickup_location.required' => 'Tempat pengambilan wajib diisi.',
+            'dropoff_location.required' => 'Tempat pengantaran / pengembalian wajib diisi.',
+            'payment_method.required' => 'Metode pembayaran wajib dipilih.',
         ]);
 
         if (empty($validated['customer_id']) && empty($validated['new_customer_name'])) {
             return back()->withErrors(['customer_id' => 'Pilih customer yang ada atau isi nama customer baru.']);
+        }
+
+        if (! empty($validated['new_customer_name'])) {
+            $this->validateNewCustomerDuplicates($request);
         }
 
         $userId = ($request->user()->isAdmin() && ! empty($validated['user_id']))
@@ -352,6 +461,8 @@ class BookingController extends Controller
         $checklistData['handover_location'] = $validated['handover_location'] ?? null;
         $checklistData['checkout_date'] = $validated['checkout_date'] ?? null;
         $checklistData['checkout_time'] = $validated['checkout_time'] ?? null;
+        $checklistData['latitude'] = $validated['latitude'] ?? null;
+        $checklistData['longitude'] = $validated['longitude'] ?? null;
 
         $booking->update([
             'delivery_checklist' => $checklistData,
@@ -418,6 +529,8 @@ class BookingController extends Controller
 
         $validated = $request->validate([
             'checklist' => ['required', 'array'],
+            'latitude' => ['nullable', 'string'],
+            'longitude' => ['nullable', 'string'],
             'notes' => ['nullable', 'string'],
             'km_out' => ['nullable', 'integer', 'min:0'],
             'fuel_out' => ['nullable', 'integer', 'min:0', 'max:100'],
@@ -465,10 +578,14 @@ class BookingController extends Controller
         $checklistData['handover_location'] = $validated['handover_location'] ?? null;
         $checklistData['checkout_date'] = $validated['checkout_date'] ?? null;
         $checklistData['checkout_time'] = $validated['checkout_time'] ?? null;
+        $checklistData['latitude'] = $validated['latitude'] ?? null;
+        $checklistData['longitude'] = $validated['longitude'] ?? null;
 
         $booking->update([
             'return_checklist' => $checklistData,
-            'return_notes' => $validated['notes'],
+            'return_latitude' => $validated['latitude'] ?? null,
+            'return_longitude' => $validated['longitude'] ?? null,
+            'return_notes' => $validated['notes'] ?? null,
             'status' => 'Returned',
         ]);
 
@@ -545,5 +662,35 @@ class BookingController extends Controller
         ]);
 
         return to_route('bookings.index');
+    }
+
+    /**
+     * Check duplicate fields for inline new customer creation and throw validation exception with marketing name.
+     */
+    private function validateNewCustomerDuplicates(Request $request): void
+    {
+        $errors = [];
+
+        $fields = [
+            'new_customer_name' => ['field' => 'name', 'label' => 'Nama customer'],
+            'new_customer_nik' => ['field' => 'nik', 'label' => 'NIK'],
+            'new_customer_phone' => ['field' => 'phone', 'label' => 'Nomor HP'],
+            'new_customer_email' => ['field' => 'email', 'label' => 'Email'],
+        ];
+
+        foreach ($fields as $inputKey => $config) {
+            $value = $request->input($inputKey);
+            if (! empty($value)) {
+                $existing = Customer::with('user')->where($config['field'], $value)->first();
+                if ($existing) {
+                    $marketingName = $existing->user?->name ?? 'Admin / System';
+                    $errors[$inputKey] = "{$config['label']} sudah terdaftar untuk customer lain dengan marketing {$marketingName}. Silakan hubungi admin atau marketing yang bersangkutan.";
+                }
+            }
+        }
+
+        if (! empty($errors)) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 }

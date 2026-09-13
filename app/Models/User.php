@@ -46,33 +46,63 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * @return array<string>
+     */
+    public function getNormalizedRoles(): array
+    {
+        $roles = $this->roles;
+        if (is_string($roles)) {
+            $decoded = json_decode($roles, true);
+            $roles = is_array($decoded) ? $decoded : [$roles];
+        }
+        if (! is_array($roles)) {
+            return [];
+        }
+
+        return array_map(fn ($r) => strtolower(trim((string) $r)), $roles);
+    }
+
     public function hasRole(string $role): bool
     {
-        return in_array('Super Admin', $this->roles ?? []) || in_array($role, $this->roles ?? []);
+        $roles = $this->getNormalizedRoles();
+        $target = strtolower(trim($role));
+
+        return in_array('super admin', $roles) || in_array('superadmin', $roles) || in_array($target, $roles);
     }
 
     public function isSuperAdmin(): bool
     {
-        return in_array('Super Admin', $this->roles ?? []);
+        $roles = $this->getNormalizedRoles();
+
+        return in_array('super admin', $roles) || in_array('superadmin', $roles);
     }
 
     public function isAdmin(): bool
     {
-        return $this->isSuperAdmin() || in_array('Admin', $this->roles ?? []);
+        $roles = $this->getNormalizedRoles();
+
+        return $this->isSuperAdmin() || in_array('admin', $roles);
     }
 
     public function isMarketing(): bool
     {
-        return $this->isSuperAdmin() || in_array('Marketing', $this->roles ?? []);
+        $roles = $this->getNormalizedRoles();
+
+        return $this->isSuperAdmin() || in_array('marketing', $roles);
     }
 
     public function isPeluncur(): bool
     {
-        return $this->isSuperAdmin() || in_array('Peluncur', $this->roles ?? []);
+        $roles = $this->getNormalizedRoles();
+
+        return $this->isSuperAdmin() || in_array('peluncur', $roles);
     }
 
     public function isPetugasCuci(): bool
     {
-        return $this->isSuperAdmin() || in_array('Petugas Cuci', $this->roles ?? []);
+        $roles = $this->getNormalizedRoles();
+
+        return $this->isSuperAdmin() || in_array('petugas cuci', $roles) || in_array('petugascuci', $roles);
     }
 }

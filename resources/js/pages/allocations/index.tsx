@@ -12,8 +12,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
-import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight, Download, RefreshCw } from 'lucide-react';
+import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight, Download, RefreshCw, FileSpreadsheet, Trash2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { index as allocationsIndex } from '@/routes/allocations';
+import { maskPhoneNumber } from '@/lib/utils';
 
 import Pagination, { PaginatedData } from '@/components/pagination';
 
@@ -87,12 +89,29 @@ export default function AllocationsIndex({
     const user = auth?.user as any;
     const roles: string[] = user?.roles || [];
     const hasRole = (role: string) => roles.includes(role) || roles.includes('Super Admin');
+    const isSuperAdmin = roles.includes('Super Admin');
+    const shouldMaskPhone = roles.includes('Admin') && !isSuperAdmin;
 
     const bookingList = useMemo(() => Array.isArray(bookings) ? bookings : (bookings?.data || []), [bookings]);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeFilter, setActiveFilter] = useState<'all' | 'unallocated' | 'allocated'>('all');
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [isAllocateOpen, setIsAllocateOpen] = useState(false);
+    const [deleteBooking, setDeleteBooking] = useState<Booking | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDeleteAllocation = () => {
+        if (!deleteBooking) return;
+        setIsDeleting(true);
+        router.delete(`/allocations/${deleteBooking.id}`, {
+            onSuccess: () => {
+                setDeleteBooking(null);
+            },
+            onFinish: () => {
+                setIsDeleting(false);
+            },
+        });
+    };
 
     // Auto-poll allocations data every 10 seconds in the background
     usePoll(10000, {
@@ -305,13 +324,25 @@ export default function AllocationsIndex({
             return { level: 'overdue', label: '⚠️ Lewat Batas Kembali' };
         }
 
-        if (diffHours <= 48) {
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+        const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+        // Hari Ini (H-0)
+        if (cleanDate === todayStr) {
             if (diffHours <= 12) {
                 return { level: 'due-soon', label: `⏳ Kembali dlm ${Math.max(1, Math.round(diffHours))} jam` };
             }
-            if (diffHours <= 24) {
-                return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
-            }
+            return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
+        }
+
+        // H-1 (Besok / mendekati kembali hanya pada H-1)
+        if (cleanDate === tomorrowStr || (diffHours > 0 && diffHours <= 24)) {
             return { level: 'due-soon', label: '⏳ Mendekati Tanggal Kembali' };
         }
 
@@ -427,16 +458,99 @@ export default function AllocationsIndex({
         });
     }, [bookingList, searchQuery, activeFilter, startDate, endDate, dateFilterField]);
 
-    const handleExportData = () => {
-        const params = new URLSearchParams();
-        if (searchQuery) params.append('search', searchQuery);
-        if (activeFilter !== 'all') params.append('status', activeFilter);
-        if (startDate) params.append('start_date', startDate);
-        if (endDate) params.append('end_date', endDate);
-        if (dateFilterField) params.append('date_field', dateFilterField);
+    const [isExporting, setIsExporting] = useState(false);
 
-        const url = `/allocations/export?${params.toString()}`;
-        window.location.href = url;
+    const handleExportData = async () => {
+        setIsExporting(true);
+        try {
+            const params = new URLSearchParams();
+            if (searchQuery) params.append('search', searchQuery);
+            if (activeFilter !== 'all') params.append('status', activeFilter);
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            if (dateFilterField) params.append('date_field', dateFilterField);
+            params.append('format', 'json');
+
+            let rawData: any[] = filteredBookings;
+            try {
+                const res = await fetch(`/allocations/export?${params.toString()}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (Array.isArray(json.data) && json.data.length > 0) {
+                        rawData = json.data;
+                    }
+                }
+            } catch (err) {
+                console.error('Fetch export data error:', err);
+            }
+
+            const exportRows = rawData.map((b: any, idx: number) => ({
+                'No': idx + 1,
+                'No. Booking': b.booking_number ?? '-',
+                'Nama Pelanggan': b.customer?.name ?? '-',
+                'No. HP Pelanggan': b.customer?.phone ? (shouldMaskPhone ? maskPhoneNumber(b.customer.phone) : b.customer.phone) : '-',
+                'NIK Pelanggan': b.customer?.nik ?? '-',
+                'Tipe Mobil Dipesan': b.car_type ?? '-',
+                'Tipe Sewa': b.rental_type ?? 'Lepas Kunci',
+                'Status Alokasi': b.car_id ? 'Sudah Dialokasi' : 'Belum Dialokasi',
+                'Armada Mobil Alokasi': b.car?.name ?? 'Belum Dialokasi',
+                'No. Polisi': b.car?.plate_number ?? '-',
+                'Tanggal Sewa (Mulai)': b.booking_date ?? '-',
+                'Jam Jemput': b.pickup_time ? b.pickup_time.substring(0, 5) : '-',
+                'Lokasi Jemput': b.pickup_location ?? '-',
+                'Tanggal Sewa (Selesai)': b.return_date ?? '-',
+                'Jam Selesai': b.return_time ? b.return_time.substring(0, 5) : '-',
+                'Lokasi Antar': b.dropoff_location ?? '-',
+                'Marketing / Dibuat Oleh': b.user?.name ?? 'Admin / System',
+                'Supir / Driver': b.driver?.name ?? (b.rental_type === 'With Driver' ? 'Belum Dialokasi' : '-'),
+                'Petugas Peluncur': b.peluncur?.name ?? 'Belum ada',
+                'Petugas Cuci': b.petugasCuci?.name ?? (b.petugas_cuci?.name ?? 'Belum ada'),
+                'Harga Sewa (Rp)': b.amount ? Number(b.amount) : 0,
+                'Status Pembayaran': b.payment_status ?? 'Pending',
+                'Metode Pembayaran': b.payment_method ?? 'Cash',
+                'Status Booking': b.status ?? 'Pending',
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportRows);
+            worksheet['!cols'] = [
+                { wch: 5 },  // No
+                { wch: 18 }, // No. Booking
+                { wch: 22 }, // Nama Pelanggan
+                { wch: 15 }, // No. HP
+                { wch: 18 }, // NIK
+                { wch: 20 }, // Tipe Mobil
+                { wch: 14 }, // Tipe Sewa
+                { wch: 16 }, // Status Alokasi
+                { wch: 22 }, // Armada Mobil
+                { wch: 14 }, // No. Polisi
+                { wch: 15 }, // Tgl Mulai
+                { wch: 12 }, // Jam Jemput
+                { wch: 20 }, // Lokasi Jemput
+                { wch: 15 }, // Tgl Selesai
+                { wch: 12 }, // Jam Selesai
+                { wch: 20 }, // Lokasi Antar
+                { wch: 20 }, // Marketing
+                { wch: 18 }, // Supir
+                { wch: 18 }, // Peluncur
+                { wch: 18 }, // Cuci
+                { wch: 16 }, // Harga
+                { wch: 16 }, // Status Bayar
+                { wch: 16 }, // Metode Bayar
+                { wch: 14 }, // Status Booking
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Alokasi Armada & Staf');
+            const today = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(workbook, `Data_Alokasi_Armada_Staf_${today}.xlsx`);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     return (
@@ -452,11 +566,16 @@ export default function AllocationsIndex({
                         <Button
                             variant="outline"
                             size="sm"
+                            disabled={isExporting}
                             className="flex items-center gap-2 h-9 text-xs font-semibold shadow-xs hover:bg-muted"
                             onClick={handleExportData}
                         >
-                            <Download className="h-4 w-4 text-primary" />
-                            Download Data (CSV / Excel)
+                            {isExporting ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                            ) : (
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                            )}
+                            Export Excel (.xlsx)
                         </Button>
                     </div>
                 </div>
@@ -738,30 +857,39 @@ export default function AllocationsIndex({
                                                     <span className="font-semibold text-foreground">Staf:</span> Supir: {b.driver?.name ?? '-'}, Peluncur: {b.peluncur?.name ?? '-'}, Cuci: {b.petugas_cuci?.name ?? '-'}
                                                 </div>
                                             </div>
-                                            {!b.car_id ? (
-                                                <div className="flex justify-end pt-2 border-t mt-1">
+                                            <div className="flex items-center justify-end gap-2 pt-2 border-t mt-1">
+                                                {!b.car_id ? (
                                                     <Button
                                                         size="sm"
                                                         onClick={() => handleStartAllocation(b)}
-                                                        className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold"
+                                                        className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold"
                                                     >
                                                         <Settings className="h-3.5 w-3.5" /> Alokasi Mobil & Staf
                                                     </Button>
-                                                </div>
-                                            ) : (
-                                                (hasRole('Admin') || hasRole('Super Admin')) && (
-                                                    <div className="flex justify-end pt-2 border-t mt-1">
+                                                ) : (
+                                                    (hasRole('Admin') || hasRole('Super Admin')) && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
                                                             onClick={() => openAllocateDialog(b)}
-                                                            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10"
+                                                            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold border-primary/40 text-primary hover:bg-primary/10"
                                                         >
                                                             <RefreshCw className="h-3.5 w-3.5" /> Tukar Unit Armada & Staf
                                                         </Button>
-                                                    </div>
-                                                )
-                                            )}
+                                                    )
+                                                )}
+                                                {isSuperAdmin && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        onClick={() => setDeleteBooking(b)}
+                                                        className="flex items-center justify-center gap-1 text-xs font-semibold h-8 px-2.5 shadow-xs shrink-0"
+                                                        title="Hapus Data Alokasi"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" /> Hapus
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })
@@ -858,27 +986,40 @@ export default function AllocationsIndex({
                                                     </td>
                                                     <td className="px-4 py-4 font-semibold text-xs">{formatCurrency(b.amount)}</td>
                                                     <td className="px-4 py-4 text-right">
-                                                        {!b.car_id ? (
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => handleStartAllocation(b)}
-                                                                className="font-semibold text-xs flex items-center gap-1.5 ml-auto"
-                                                            >
-                                                                <Settings className="h-3.5 w-3.5" /> Alokasi
-                                                            </Button>
-                                                        ) : (
-                                                            (hasRole('Admin') || hasRole('Super Admin')) && (
+                                                        <div className="flex items-center justify-end gap-1.5 ml-auto">
+                                                            {!b.car_id ? (
                                                                 <Button
                                                                     size="sm"
-                                                                    variant="outline"
-                                                                    onClick={() => openAllocateDialog(b)}
-                                                                    className="font-semibold text-xs flex items-center gap-1.5 ml-auto border-primary/40 text-primary hover:bg-primary/10"
-                                                                    title="Tukar unit armada mobil atau ubah penugasan staf"
+                                                                    onClick={() => handleStartAllocation(b)}
+                                                                    className="font-semibold text-xs flex items-center gap-1.5"
                                                                 >
-                                                                    <RefreshCw className="h-3.5 w-3.5" /> Tukar Unit
+                                                                    <Settings className="h-3.5 w-3.5" /> Alokasi
                                                                 </Button>
-                                                            )
-                                                        )}
+                                                            ) : (
+                                                                (hasRole('Admin') || hasRole('Super Admin')) && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        onClick={() => openAllocateDialog(b)}
+                                                                        className="font-semibold text-xs flex items-center gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
+                                                                        title="Tukar unit armada mobil atau ubah penugasan staf"
+                                                                    >
+                                                                        <RefreshCw className="h-3.5 w-3.5" /> Tukar Unit
+                                                                    </Button>
+                                                                )
+                                                            )}
+                                                            {isSuperAdmin && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => setDeleteBooking(b)}
+                                                                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 shrink-0"
+                                                                    title="Hapus Data Alokasi"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -1187,6 +1328,45 @@ export default function AllocationsIndex({
                                 </DialogFooter>
                             </form>
                         )}
+                    </DialogContent>
+                </Dialog>
+
+                {/* DELETE ALLOCATION CONFIRMATION DIALOG (Super Admin Only) */}
+                <Dialog open={deleteBooking !== null} onOpenChange={(open) => !open && setDeleteBooking(null)}>
+                    <DialogContent className="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-destructive">
+                                <AlertTriangle className="h-5 w-5" /> Hapus Data Alokasi
+                            </DialogTitle>
+                            <DialogDescription className="text-xs pt-1">
+                                Apakah Anda yakin ingin menghapus data alokasi / pesanan sewa untuk pelanggan <span className="font-semibold text-foreground">{deleteBooking?.customer?.name}</span> ({deleteBooking?.booking_number ?? '-'})? Tindakan ini tidak dapat dibatalkan.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-2 text-xs text-muted-foreground bg-muted/40 p-3 rounded-lg border space-y-1">
+                            <div><span className="font-semibold text-foreground">Tipe Mobil:</span> {deleteBooking?.car_type}</div>
+                            <div><span className="font-semibold text-foreground">Armada Saat Ini:</span> {deleteBooking?.car ? `${deleteBooking.car.name} (${deleteBooking.car.plate_number})` : <span className="italic text-muted-foreground">Belum Dialokasi</span>}</div>
+                            <div><span className="font-semibold text-foreground">Tanggal:</span> {deleteBooking?.booking_date} {deleteBooking?.return_date ? `s/d ${deleteBooking.return_date}` : ''}</div>
+                        </div>
+                        <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={isDeleting}
+                                onClick={() => setDeleteBooking(null)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                disabled={isDeleting}
+                                onClick={handleDeleteAllocation}
+                                className="flex items-center gap-1.5"
+                            >
+                                {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                                Ya, Hapus Data
+                            </Button>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
             </div>

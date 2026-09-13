@@ -57,7 +57,8 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
     const page = usePage();
     const user = page.props.auth?.user as any;
     const roles: string[] = user?.roles || [];
-    const canManageCars = roles.includes('Admin') || roles.includes('Super Admin');
+    const isSuperAdmin = roles.includes('Super Admin');
+    const canManageCars = roles.includes('Admin') || isSuperAdmin;
 
     const carList = Array.isArray(cars) ? cars : (cars?.data || []);
     const [searchQuery, setSearchQuery] = useState(search);
@@ -516,9 +517,19 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                     <Input id="owner_partner" value={data.owner_partner} onChange={e => setData('owner_partner', e.target.value)} placeholder="Nama mitra" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Status</Label>
-                                    <Select value={data.status} onValueChange={val => setData('status', val)}>
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <Label>
+                                        Status {editingCar && !isSuperAdmin && (
+                                            <span className="text-xs text-muted-foreground font-normal">(Hanya Super Admin)</span>
+                                        )}
+                                    </Label>
+                                    <Select
+                                        value={data.status}
+                                        onValueChange={val => setData('status', val)}
+                                        disabled={Boolean(editingCar && !isSuperAdmin)}
+                                    >
+                                        <SelectTrigger className={editingCar && !isSuperAdmin ? 'opacity-70 bg-muted cursor-not-allowed' : ''}>
+                                            <SelectValue />
+                                        </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="Ready">Ready</SelectItem>
                                             <SelectItem value="Not Ready">Not Ready</SelectItem>

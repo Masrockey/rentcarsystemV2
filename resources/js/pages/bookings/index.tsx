@@ -22,8 +22,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle, ClipboardCheck } from 'lucide-react';
+import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle, ClipboardCheck, FileSpreadsheet, Loader2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { index as bookingsIndex } from '@/routes/bookings';
+import { maskPhoneNumber } from '@/lib/utils';
 
 type Customer = {
     id: number;
@@ -143,7 +145,9 @@ export default function BookingsIndex({
     const { auth } = usePage().props;
     const user = auth?.user as any;
     const roles: string[] = user?.roles || [];
-    const hasRole = (r: string) => roles.includes(r) || roles.includes('Super Admin');
+    const isSuperAdmin = roles.includes('Super Admin');
+    const shouldMaskPhone = roles.includes('Admin') && !isSuperAdmin;
+    const hasRole = (r: string) => roles.includes(r) || isSuperAdmin;
 
     // Auto-poll bookings data every 10 seconds in the background
     usePoll(10000, {
@@ -163,11 +167,12 @@ export default function BookingsIndex({
     const [washConfirmId, setWashConfirmId] = useState<number | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
-    // Date & Status Filters
+    // Date, Status & Marketing Filters
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [dateFilterField, setDateFilterField] = useState<'booking_date' | 'return_date' | 'active_period'>('booking_date');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [marketingFilter, setMarketingFilter] = useState<string>('all');
 
     const formatLocalDate = (date: Date) => {
         const year = date.getFullYear();
@@ -241,6 +246,7 @@ export default function BookingsIndex({
         setEndDate('');
         setDateFilterField('booking_date');
         setStatusFilter('all');
+        setMarketingFilter('all');
         setSearchQuery('');
     };
 
@@ -267,6 +273,7 @@ export default function BookingsIndex({
                 const plateNumber = b.car?.plate_number?.toLowerCase() || '';
                 const pickLoc = b.pickup_location?.toLowerCase() || '';
                 const dropLoc = b.dropoff_location?.toLowerCase() || '';
+                const marketingName = b.user?.name?.toLowerCase() || '';
                 const matchesSearch =
                     customerName.includes(q) ||
                     bookingNumber.includes(q) ||
@@ -274,7 +281,8 @@ export default function BookingsIndex({
                     carName.includes(q) ||
                     plateNumber.includes(q) ||
                     pickLoc.includes(q) ||
-                    dropLoc.includes(q);
+                    dropLoc.includes(q) ||
+                    marketingName.includes(q);
                 if (!matchesSearch) return false;
             }
 
@@ -283,7 +291,14 @@ export default function BookingsIndex({
                 return false;
             }
 
-            // 3. Date Filter
+            // 3. Marketing Filter
+            if (marketingFilter !== 'all') {
+                if (String(b.user_id) !== String(marketingFilter)) {
+                    return false;
+                }
+            }
+
+            // 4. Date Filter
             const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
             const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
 
@@ -307,7 +322,7 @@ export default function BookingsIndex({
 
             return true;
         });
-    }, [bookings, searchQuery, startDate, endDate, dateFilterField, statusFilter]);
+    }, [bookings, searchQuery, startDate, endDate, dateFilterField, statusFilter, marketingFilter]);
 
     const availableCarTypeNames = useMemo(() => {
         if (carTypes && carTypes.length > 0) {
@@ -319,7 +334,7 @@ export default function BookingsIndex({
     const customerOptions = customers.map((c) => ({
         value: c.id.toString(),
         label: c.name,
-        sublabel: c.phone ? `HP: ${c.phone}` : undefined,
+        sublabel: c.phone ? (shouldMaskPhone ? `HP: ${maskPhoneNumber(c.phone)}` : `HP: ${c.phone}`) : undefined,
     }));
 
     const carTypeOptions = useMemo(() => {
@@ -534,14 +549,25 @@ export default function BookingsIndex({
             return { level: 'overdue', label: '⚠️ Lewat Batas Kembali' };
         }
 
-        // Mendekati tanggal/jam harus kembali (<= 48 jam / hari ini & besok)
-        if (diffHours <= 48) {
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+        const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+        // Hari Ini (H-0)
+        if (cleanDate === todayStr) {
             if (diffHours <= 12) {
                 return { level: 'due-soon', label: `⏳ Kembali dlm ${Math.max(1, Math.round(diffHours))} jam` };
             }
-            if (diffHours <= 24) {
-                return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
-            }
+            return { level: 'due-soon', label: '⏳ Harus Kembali Hari Ini' };
+        }
+
+        // H-1 (Besok / mendekati kembali hanya pada H-1)
+        if (cleanDate === tomorrowStr || (diffHours > 0 && diffHours <= 24)) {
             return { level: 'due-soon', label: '⏳ Mendekati Tanggal Kembali' };
         }
 
@@ -576,20 +602,138 @@ export default function BookingsIndex({
         return 'border bg-card text-card-foreground shadow-xs';
     };
 
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleExportData = async () => {
+        setIsExporting(true);
+        try {
+            const params = new URLSearchParams();
+            if (searchQuery) params.append('search', searchQuery);
+            if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
+            if (marketingFilter && marketingFilter !== 'all') params.append('marketing_id', marketingFilter);
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            if (dateFilterField) params.append('date_field', dateFilterField);
+            params.append('format', 'json');
+
+            let rawData: any[] = filteredBookings;
+            try {
+                const res = await fetch(`/bookings/export?${params.toString()}`, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (Array.isArray(json.data) && json.data.length > 0) {
+                        rawData = json.data;
+                    }
+                }
+            } catch (err) {
+                console.error('Fetch export bookings error:', err);
+            }
+
+            const exportRows = rawData.map((b: any, idx: number) => ({
+                'No': idx + 1,
+                'No. Booking': b.booking_number ?? '-',
+                'Nama Pelanggan': b.customer?.name ?? '-',
+                'No. HP Pelanggan': b.customer?.phone ? (shouldMaskPhone ? maskPhoneNumber(b.customer.phone) : b.customer.phone) : '-',
+                'NIK Pelanggan': b.customer?.nik ?? '-',
+                'Email Pelanggan': b.customer?.email ?? '-',
+                'Alamat Pelanggan': b.customer?.address ?? '-',
+                'Tipe Mobil Dipesan': b.car_type ?? '-',
+                'Tipe Sewa': b.rental_type ?? 'Lepas Kunci',
+                'Armada Mobil Alokasi': b.car?.name ?? 'Belum Dialokasi',
+                'No. Polisi': b.car?.plate_number ?? '-',
+                'Tanggal Sewa (Mulai)': b.booking_date ?? '-',
+                'Jam Jemput': b.pickup_time ? b.pickup_time.substring(0, 5) : '-',
+                'Lokasi Jemput': b.pickup_location ?? '-',
+                'Tanggal Sewa (Selesai)': b.return_date ?? '-',
+                'Jam Selesai': b.return_time ? b.return_time.substring(0, 5) : '-',
+                'Lokasi Antar': b.dropoff_location ?? '-',
+                'Marketing / Dibuat Oleh': b.user?.name ?? 'Admin / System',
+                'Supir / Driver': b.driver?.name ?? (b.rental_type === 'With Driver' ? 'Belum Dialokasi' : '-'),
+                'Petugas Peluncur': b.peluncur?.name ?? 'Belum ada',
+                'Petugas Cuci': b.petugasCuci?.name ?? (b.petugas_cuci?.name ?? 'Belum ada'),
+                'Total Tarif (Rp)': b.amount ? Number(b.amount) : 0,
+                'Status Pembayaran': b.payment_status ?? 'Pending',
+                'Metode Pembayaran': b.payment_method ?? 'Cash',
+                'Status Booking': b.status ?? 'Pending',
+                'Alasan Pembatalan': b.cancellation_reason ?? '-',
+                'Tanggal Dibuat': b.created_at ? new Date(b.created_at).toLocaleDateString('id-ID') : '-',
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportRows);
+            worksheet['!cols'] = [
+                { wch: 5 },  // No
+                { wch: 18 }, // No. Booking
+                { wch: 22 }, // Nama Pelanggan
+                { wch: 15 }, // No. HP
+                { wch: 18 }, // NIK
+                { wch: 22 }, // Email
+                { wch: 25 }, // Alamat
+                { wch: 20 }, // Tipe Mobil
+                { wch: 14 }, // Tipe Sewa
+                { wch: 22 }, // Armada Mobil
+                { wch: 14 }, // No. Polisi
+                { wch: 15 }, // Tgl Mulai
+                { wch: 12 }, // Jam Jemput
+                { wch: 20 }, // Lokasi Jemput
+                { wch: 15 }, // Tgl Selesai
+                { wch: 12 }, // Jam Selesai
+                { wch: 20 }, // Lokasi Antar
+                { wch: 20 }, // Marketing
+                { wch: 18 }, // Supir
+                { wch: 18 }, // Peluncur
+                { wch: 18 }, // Cuci
+                { wch: 16 }, // Total Tarif
+                { wch: 16 }, // Status Bayar
+                { wch: 16 }, // Metode Bayar
+                { wch: 14 }, // Status Booking
+                { wch: 25 }, // Alasan Batal
+                { wch: 16 }, // Tanggal Dibuat
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Booking');
+            const today = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(workbook, `Data_Booking_${today}.xlsx`);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     return (
         <>
             <Head title="Data Booking" />
             <div className="flex flex-1 flex-col gap-6 p-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="flex flex-col gap-1">
                         <h1 className="text-3xl font-bold tracking-tight">Data Booking Mobil</h1>
                         <p className="text-muted-foreground">Kelola pesanan sewa mobil, alokasi armada, dan penugasan staf.</p>
                     </div>
-                    {(hasRole('Marketing') || hasRole('Admin')) && (
-                        <Button onClick={openCreateDialog} className="flex items-center gap-1">
-                            <Plus className="h-4 w-4" /> Tambah Booking
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isExporting}
+                            className="flex items-center gap-2 h-9 text-xs font-semibold shadow-xs hover:bg-muted"
+                            onClick={handleExportData}
+                        >
+                            {isExporting ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+                            ) : (
+                                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                            )}
+                            Export Excel (.xlsx)
                         </Button>
-                    )}
+                        {(hasRole('Marketing') || hasRole('Admin')) && (
+                            <Button onClick={openCreateDialog} className="flex items-center gap-1 h-9">
+                                <Plus className="h-4 w-4" /> Tambah Booking
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 <Card>
@@ -612,8 +756,8 @@ export default function BookingsIndex({
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
                                     <Calendar className="h-4 w-4 text-primary" />
-                                    <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Filter Berdasarkan Tanggal</span>
-                                    {(startDate || endDate || statusFilter !== 'all') && (
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Filter Data Booking</span>
+                                    {(startDate || endDate || statusFilter !== 'all' || marketingFilter !== 'all') && (
                                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
                                             {filteredBookings.length} data ditemukan
                                         </Badge>
@@ -670,7 +814,7 @@ export default function BookingsIndex({
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-1">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
                                 <div className="space-y-1">
                                     <Label htmlFor="dateFilterField" className="text-[11px] text-muted-foreground font-medium">Tipe Tanggal</Label>
                                     <Select
@@ -712,26 +856,46 @@ export default function BookingsIndex({
 
                                 <div className="space-y-1">
                                     <Label htmlFor="filter_status" className="text-[11px] text-muted-foreground font-medium">Status Booking</Label>
+                                    <Select
+                                        value={statusFilter}
+                                        onValueChange={(val: any) => setStatusFilter(val)}
+                                    >
+                                        <SelectTrigger id="filter_status" className="h-8 text-xs bg-background">
+                                            <SelectValue placeholder="Semua Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Semua Status</SelectItem>
+                                            <SelectItem value="Pending">Pending</SelectItem>
+                                            <SelectItem value="Confirmed">Confirmed</SelectItem>
+                                            <SelectItem value="On Trip">On Trip</SelectItem>
+                                            <SelectItem value="Returned">Returned</SelectItem>
+                                            <SelectItem value="Completed">Completed</SelectItem>
+                                            <SelectItem value="Cancelled">Cancelled (Dibatalkan)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <Label htmlFor="filter_marketing" className="text-[11px] text-muted-foreground font-medium">Marketing</Label>
                                     <div className="flex items-center gap-1.5">
                                         <Select
-                                            value={statusFilter}
-                                            onValueChange={(val: any) => setStatusFilter(val)}
+                                            value={marketingFilter}
+                                            onValueChange={(val: any) => setMarketingFilter(val)}
                                         >
-                                            <SelectTrigger id="filter_status" className="h-8 text-xs bg-background">
-                                                <SelectValue placeholder="Semua Status" />
+                                            <SelectTrigger id="filter_marketing" className="h-8 text-xs bg-background">
+                                                <SelectValue placeholder="Semua Marketing" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">Semua Status</SelectItem>
-                                                <SelectItem value="Pending">Pending</SelectItem>
-                                                <SelectItem value="Confirmed">Confirmed</SelectItem>
-                                                <SelectItem value="On Trip">On Trip</SelectItem>
-                                                <SelectItem value="Returned">Returned</SelectItem>
-                                                <SelectItem value="Completed">Completed</SelectItem>
-                                                <SelectItem value="Cancelled">Cancelled (Dibatalkan)</SelectItem>
+                                                <SelectItem value="all">Semua Marketing</SelectItem>
+                                                {marketingUsers.map((m) => (
+                                                    <SelectItem key={m.id} value={m.id.toString()}>
+                                                        {m.name}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
 
-                                        {(startDate || endDate || statusFilter !== 'all' || searchQuery) && (
+                                        {(startDate || endDate || statusFilter !== 'all' || marketingFilter !== 'all' || searchQuery) && (
                                             <Button
                                                 type="button"
                                                 variant="ghost"
@@ -1135,7 +1299,9 @@ export default function BookingsIndex({
 
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <Label htmlFor="customer_id">{isNewCustomer ? 'Customer Baru' : 'Pilih Customer'}</Label>
+                                    <Label htmlFor="customer_id" className="text-xs font-semibold">
+                                        {isNewCustomer ? 'Customer Baru' : 'Pilih Customer'} <span className="text-red-500">*</span>
+                                    </Label>
                                     <button
                                         type="button"
                                         className="text-xs text-primary hover:underline font-medium focus:outline-none"
@@ -1184,7 +1350,7 @@ export default function BookingsIndex({
                                             </p>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                 <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_name" className="text-xs">Nama Lengkap *</Label>
+                                                    <Label htmlFor="new_customer_name" className="text-xs font-semibold">Nama Lengkap <span className="text-red-500">*</span></Label>
                                                     <Input
                                                         id="new_customer_name"
                                                         type="text"
@@ -1241,6 +1407,7 @@ export default function BookingsIndex({
                                                         value={createData.new_customer_emergency_contact}
                                                         onChange={(e) => setCreateData('new_customer_emergency_contact', e.target.value)}
                                                     />
+                                                    {errorsCreate.new_customer_emergency_contact && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_emergency_contact}</p>}
                                                 </div>
 
                                                 <div className="space-y-1 md:col-span-2">
@@ -1252,6 +1419,7 @@ export default function BookingsIndex({
                                                         value={createData.new_customer_address}
                                                         onChange={(e) => setCreateData('new_customer_address', e.target.value)}
                                                     />
+                                                    {errorsCreate.new_customer_address && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_address}</p>}
                                                 </div>
                                             </div>
                                         </div>
@@ -1271,6 +1439,7 @@ export default function BookingsIndex({
                                                         value={createData.new_customer_sim_number}
                                                         onChange={(e) => setCreateData('new_customer_sim_number', e.target.value)}
                                                     />
+                                                    {errorsCreate.new_customer_sim_number && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_sim_number}</p>}
                                                 </div>
 
                                                 <div className="space-y-1">
@@ -1281,6 +1450,7 @@ export default function BookingsIndex({
                                                         value={createData.new_customer_sim_expiry}
                                                         onChange={(e) => setCreateData('new_customer_sim_expiry', e.target.value)}
                                                     />
+                                                    {errorsCreate.new_customer_sim_expiry && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_sim_expiry}</p>}
                                                 </div>
                                             </div>
                                         </div>
@@ -1300,6 +1470,7 @@ export default function BookingsIndex({
                                                         className="text-xs h-9 cursor-pointer"
                                                         onChange={(e) => setCreateData('new_customer_ktp_photo', e.target.files ? e.target.files[0] : null)}
                                                     />
+                                                    {errorsCreate.new_customer_ktp_photo && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_ktp_photo}</p>}
                                                 </div>
 
                                                 <div className="space-y-1">
@@ -1311,6 +1482,7 @@ export default function BookingsIndex({
                                                         className="text-xs h-9 cursor-pointer"
                                                         onChange={(e) => setCreateData('new_customer_sim_photo', e.target.files ? e.target.files[0] : null)}
                                                     />
+                                                    {errorsCreate.new_customer_sim_photo && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_sim_photo}</p>}
                                                 </div>
 
                                                 <div className="space-y-1">
@@ -1322,6 +1494,7 @@ export default function BookingsIndex({
                                                         className="text-xs h-9 cursor-pointer"
                                                         onChange={(e) => setCreateData('new_customer_selfie_photo', e.target.files ? e.target.files[0] : null)}
                                                     />
+                                                    {errorsCreate.new_customer_selfie_photo && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_selfie_photo}</p>}
                                                 </div>
                                             </div>
                                         </div>
@@ -1332,7 +1505,9 @@ export default function BookingsIndex({
 
                             <div className="space-y-1">
                                 <div className="flex items-center justify-between">
-                                    <Label htmlFor="car_type">Tipe Mobil yang Dipesan</Label>
+                                    <Label htmlFor="car_type" className="text-xs font-semibold">
+                                        Tipe Mobil yang Dipesan <span className="text-red-500">*</span>
+                                    </Label>
                                     {hasRole('Admin') && (
                                         <button
                                             type="button"
@@ -1377,7 +1552,9 @@ export default function BookingsIndex({
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <Label htmlFor="booking_date" className="text-xs">Tanggal Sewa</Label>
+                                    <Label htmlFor="booking_date" className="text-xs font-semibold">
+                                        Tanggal Sewa <span className="text-red-500">*</span>
+                                    </Label>
                                     <Input
                                         id="booking_date"
                                         type="date"
@@ -1385,62 +1562,85 @@ export default function BookingsIndex({
                                         onChange={(e) => setCreateData('booking_date', e.target.value)}
                                         required
                                     />
+                                    {errorsCreate.booking_date && <p className="text-[11px] text-red-500">{errorsCreate.booking_date}</p>}
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="pickup_time" className="text-xs">Jam Pengambilan</Label>
+                                    <Label htmlFor="pickup_time" className="text-xs font-semibold">
+                                        Jam Pengambilan <span className="text-red-500">*</span>
+                                    </Label>
                                     <Input
                                         id="pickup_time"
                                         type="time"
                                         value={createData.pickup_time}
                                         onChange={(e) => setCreateData('pickup_time', e.target.value)}
+                                        required
                                     />
+                                    {errorsCreate.pickup_time && <p className="text-[11px] text-red-500">{errorsCreate.pickup_time}</p>}
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="return_date" className="text-xs">Tanggal Balik</Label>
+                                    <Label htmlFor="return_date" className="text-xs font-semibold">
+                                        Tanggal Balik <span className="text-red-500">*</span>
+                                    </Label>
                                     <Input
                                         id="return_date"
                                         type="date"
                                         value={createData.return_date}
                                         onChange={(e) => setCreateData('return_date', e.target.value)}
+                                        required
                                     />
+                                    {errorsCreate.return_date && <p className="text-[11px] text-red-500">{errorsCreate.return_date}</p>}
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="return_time" className="text-xs">Jam Pengembalian</Label>
+                                    <Label htmlFor="return_time" className="text-xs font-semibold">
+                                        Jam Pengembalian <span className="text-red-500">*</span>
+                                    </Label>
                                     <Input
                                         id="return_time"
                                         type="time"
                                         value={createData.return_time}
                                         onChange={(e) => setCreateData('return_time', e.target.value)}
+                                        required
                                     />
+                                    {errorsCreate.return_time && <p className="text-[11px] text-red-500">{errorsCreate.return_time}</p>}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label htmlFor="pickup_location" className="text-xs">Tempat Pengambilan</Label>
+                                    <Label htmlFor="pickup_location" className="text-xs font-semibold">
+                                        Tempat Pengambilan <span className="text-red-500">*</span>
+                                    </Label>
                                     <Input
                                         id="pickup_location"
                                         type="text"
                                         placeholder="Contoh: Bandara, Garasi, Alamat Customer..."
                                         value={createData.pickup_location}
                                         onChange={(e) => setCreateData('pickup_location', e.target.value)}
+                                        required
                                     />
+                                    {errorsCreate.pickup_location && <p className="text-[11px] text-red-500">{errorsCreate.pickup_location}</p>}
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="dropoff_location" className="text-xs">Tempat Pengantaran / Pengembalian</Label>
+                                    <Label htmlFor="dropoff_location" className="text-xs font-semibold">
+                                        Tempat Pengantaran / Pengembalian <span className="text-red-500">*</span>
+                                    </Label>
                                     <Input
                                         id="dropoff_location"
                                         type="text"
                                         placeholder="Contoh: Bandara, Garasi, Alamat Customer..."
                                         value={createData.dropoff_location}
                                         onChange={(e) => setCreateData('dropoff_location', e.target.value)}
+                                        required
                                     />
+                                    {errorsCreate.dropoff_location && <p className="text-[11px] text-red-500">{errorsCreate.dropoff_location}</p>}
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label htmlFor="payment_method">Metode Pembayaran</Label>
+                                    <Label htmlFor="payment_method" className="text-xs font-semibold">
+                                        Metode Pembayaran <span className="text-red-500">*</span>
+                                    </Label>
                                     <Select
                                         value={createData.payment_method}
                                         onValueChange={(val: any) => setCreateData('payment_method', val)}
@@ -1454,9 +1654,12 @@ export default function BookingsIndex({
                                             <SelectItem value="DP">DP (Down Payment)</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                    {errorsCreate.payment_method && <p className="text-[11px] text-red-500">{errorsCreate.payment_method}</p>}
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="rental_type">Type Sewa</Label>
+                                    <Label htmlFor="rental_type" className="text-xs font-semibold">
+                                        Type Sewa <span className="text-red-500">*</span>
+                                    </Label>
                                     <Select
                                         value={createData.rental_type}
                                         onValueChange={(val: any) => setCreateData('rental_type', val)}
@@ -1469,6 +1672,7 @@ export default function BookingsIndex({
                                             <SelectItem value="With Driver">With Driver</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                    {errorsCreate.rental_type && <p className="text-[11px] text-red-500">{errorsCreate.rental_type}</p>}
                                 </div>
                             </div>
                             <DialogFooter className="pt-4">

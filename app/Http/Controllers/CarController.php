@@ -118,8 +118,12 @@ class CarController extends Controller
             'monthly_price' => ['nullable', 'numeric', 'min:0'],
             'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'owner_partner' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'string', Rule::in(['Ready', 'Not Ready', 'Belum Dicuci', 'Service'])],
+            'status' => ['nullable', 'string', Rule::in(['Ready', 'Not Ready', 'Belum Dicuci', 'Service'])],
         ]);
+
+        if (! $request->user()->isSuperAdmin()) {
+            unset($validated['status']);
+        }
 
         if ($request->hasFile('photo')) {
             $validated['photo'] = $request->file('photo')->store('cars', 'public');
