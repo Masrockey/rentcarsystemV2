@@ -109,7 +109,7 @@ export default function ReturnsIndex({
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2.5">
-                            <RotateCcw className="h-7 w-7 text-emerald-600" /> Unit Kembali (Pengembalian)
+                            <RotateCcw className="h-7 w-7 text-amber-600" /> Unit Kembali (Pengembalian / Ambil Unit)
                         </h1>
                         <p className="text-muted-foreground text-sm">
                             Daftar kendaraan yang sudah diserahterimakan (Jalan) namun belum kembali dan perlu dikontrol checklist pengembaliannya.
@@ -137,7 +137,7 @@ export default function ReturnsIndex({
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{pendingChecklist} Unit</div>
-                            <p className="text-xs text-muted-foreground mt-1">Membutuhkan inspeksi fisik unit kembali</p>
+                            <p className="text-xs text-muted-foreground mt-1">Membutuhkan inspeksi fisik ambil unit</p>
                         </CardContent>
                     </Card>
 
@@ -158,7 +158,7 @@ export default function ReturnsIndex({
                     <CardHeader className="pb-3">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div>
-                                <CardTitle className="text-base font-bold">Daftar Mobil Belum Kembali</CardTitle>
+                                <CardTitle className="text-base font-bold">Daftar Mobil Belum Kembali (Ambil Unit)</CardTitle>
                                 <CardDescription>Klik tombol Checklist Kembali untuk melakukan inspeksi & pengembalian kendaraan.</CardDescription>
                             </div>
                             <div className="relative w-full md:w-72">
@@ -201,7 +201,7 @@ export default function ReturnsIndex({
                                                 booking?.return_checklist && Object.keys(booking.return_checklist).length > 0;
 
                                             return (
-                                                <tr key={rental.id} className="hover:bg-muted/30 transition-colors">
+                                                <tr key={rental.id} className="hover:bg-amber-50/40 dark:hover:bg-amber-950/25 border-l-4 border-l-amber-500 transition-colors">
                                                     <td className="px-4 py-3 font-mono font-medium">
                                                         <div className="font-bold text-foreground">{rental.contract_number}</div>
                                                         <div className="text-xs text-muted-foreground">{booking?.booking_number}</div>
@@ -237,7 +237,7 @@ export default function ReturnsIndex({
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        <Badge variant="outline" className="border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-950/30">
+                                                        <Badge variant="outline" className="border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/30">
                                                             {rental.status === 'Active' ? 'Sedang Jalan' : rental.status}
                                                         </Badge>
                                                     </td>
@@ -246,20 +246,22 @@ export default function ReturnsIndex({
                                                             <>
                                                                 <Link
                                                                     href={bookingChecklist({ booking: booking.id }).url + '?type=delivery'}
-                                                                    className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-md border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 transition-colors"
+                                                                    className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-md border border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 transition-colors"
+                                                                    title="Lihat / Isi Checklist Serah Terima"
                                                                 >
-                                                                    <Car className="h-3.5 w-3.5" /> Checklist Jalan
+                                                                    <Car className="h-3.5 w-3.5" /> Serah Terima
                                                                 </Link>
 
                                                                 <Link
                                                                     href={bookingChecklist({ booking: booking.id }).url + '?type=return'}
                                                                     className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-md border transition-colors ${
                                                                         hasReturnChecklist
-                                                                            ? 'border-emerald-500 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300'
-                                                                            : 'border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
+                                                                            ? 'border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-600'
+                                                                            : 'border-amber-500 bg-amber-500 text-white hover:bg-amber-600 shadow-xs'
                                                                     }`}
+                                                                    title="Lihat / Isi Checklist Ambil Unit"
                                                                 >
-                                                                    <ClipboardCheck className="h-3.5 w-3.5" /> Checklist Kembali
+                                                                    <ClipboardCheck className="h-3.5 w-3.5" /> Ambil Unit
                                                                 </Link>
                                                             </>
                                                         )}

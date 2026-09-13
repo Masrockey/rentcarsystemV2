@@ -581,11 +581,11 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                     </div>
                 </div>
 
-                {/* CONFIRMED BOOKINGS READY FOR HANDOVER */}
-                <Card className="border-blue-500/30 bg-blue-500/5">
+                {/* CONFIRMED BOOKINGS READY FOR HANDOVER (SERAH TERIMA) */}
+                <Card className="border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20">
                     <CardHeader>
-                        <CardTitle className="text-base font-semibold flex items-center gap-2">
-                            <Car className="h-5 w-5 text-blue-600" />
+                        <CardTitle className="text-base font-semibold flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+                            <Car className="h-5 w-5 text-emerald-600" />
                             Booking Siap Serah Terima (Pending Handover) ({filteredConfirmedBookings.length})
                         </CardTitle>
                     </CardHeader>
@@ -599,14 +599,14 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {filteredConfirmedBookings.map((b: any) => (
-                                    <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border bg-background shadow-xs">
+                                    <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-background shadow-xs border-l-4 border-l-emerald-500">
                                         <div className="space-y-1 text-xs">
                                             <div className="font-semibold text-sm text-foreground">{b.customer?.name}</div>
-                                            <div className="font-medium text-blue-600">{b.car ? `${b.car.name} (${b.car.plate_number})` : b.car_type}</div>
+                                            <div className="font-medium text-emerald-600 dark:text-emerald-400">{b.car ? `${b.car.name} (${b.car.plate_number})` : b.car_type}</div>
                                             <div className="text-muted-foreground">Tanggal: {b.booking_date} {b.return_date ? `s/d ${b.return_date}` : ''}</div>
                                         </div>
                                         <Link href={`/bookings/${b.id}/checklist`}>
-                                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5 text-xs font-semibold">
+                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs font-semibold shadow-xs">
                                                 <Send className="h-3.5 w-3.5" /> Serah Terima Mobil
                                             </Button>
                                         </Link>
@@ -632,7 +632,11 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                 </div>
                             ) : (
                                 filteredRentals.map((r) => (
-                                    <div key={r.id} className="flex flex-col gap-2 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
+                                    <div key={r.id} className={`flex flex-col gap-2 p-4 rounded-lg border shadow-xs ${
+                                        r.status === 'Active'
+                                            ? 'border-l-4 border-l-amber-500 border-amber-300/80 bg-amber-50/40 dark:bg-amber-950/20 dark:border-amber-800'
+                                            : 'bg-card text-card-foreground'
+                                    }`}>
                                         <div className="flex items-center justify-between">
                                             <span className="font-mono text-xs font-semibold">{r.contract_number}</span>
                                             <Badge variant="outline" className={statusColor(r.status)}>{r.status}</Badge>
@@ -660,18 +664,20 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                          <Button
                                                              size="sm"
                                                              variant="outline"
-                                                             className="border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                             className="border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                             title="Serah Terima Unit (Checklist Keluar)"
                                                          >
-                                                             <Car className="h-3.5 w-3.5" /> Checklist Jalan
+                                                             <Car className="h-3.5 w-3.5" /> Serah Terima
                                                          </Button>
                                                      </Link>
                                                      <Link href={`/bookings/${r.booking_id}/checklist?type=return`}>
                                                          <Button
                                                              size="sm"
                                                              variant="outline"
-                                                             className="border-emerald-500 text-emerald-600 hover:bg-emerald-500 hover:text-white h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                             className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-600 h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                             title="Ambil Unit (Checklist Kembali)"
                                                          >
-                                                             <CheckSquare className="h-3.5 w-3.5" /> Checklist Kembali
+                                                             <CheckSquare className="h-3.5 w-3.5" /> Ambil Unit
                                                          </Button>
                                                      </Link>
                                                  </>
@@ -680,10 +686,10 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                  <Button
                                                      size="sm"
                                                      variant="outline"
-                                                     className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
+                                                     className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white h-8 text-xs font-semibold px-2.5"
                                                      onClick={() => openReturn(r)}
                                                  >
-                                                     Unit Kembali
+                                                     Ambil Unit
                                                  </Button>
                                              )}
                                              {r.booking_id && r.status === 'Returned' && (
@@ -730,7 +736,14 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                             </td>
                                         </tr>
                                     ) : filteredRentals.map((r) => (
-                                        <tr key={r.id} className="hover:bg-muted/50">
+                                        <tr
+                                            key={r.id}
+                                            className={`transition-colors ${
+                                                r.status === 'Active'
+                                                    ? 'bg-amber-50/45 hover:bg-amber-100/60 dark:bg-amber-950/20 dark:hover:bg-amber-950/30 border-l-4 border-l-amber-500'
+                                                    : 'hover:bg-muted/50'
+                                            }`}
+                                        >
                                             <td className="px-6 py-4 font-mono text-xs font-semibold">{r.contract_number}</td>
                                             <td className="px-6 py-4 font-medium">{r.customer?.name}</td>
                                             <td className="px-6 py-4">
@@ -771,20 +784,20 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                              <Button
                                                                  size="sm"
                                                                  variant="outline"
-                                                                 className="border-blue-500 text-blue-600 hover:bg-blue-500 hover:text-white h-8 text-xs font-semibold px-2 flex items-center gap-1"
-                                                                 title="Lihat / Isi Checklist Unit Jalan"
+                                                                 className="border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                                 title="Serah Terima Unit (Checklist Keluar)"
                                                              >
-                                                                 <Car className="h-3.5 w-3.5" /> Checklist Jalan
+                                                                 <Car className="h-3.5 w-3.5" /> Serah Terima
                                                              </Button>
                                                          </Link>
                                                          <Link href={`/bookings/${r.booking_id}/checklist?type=return`}>
                                                              <Button
                                                                  size="sm"
                                                                  variant="outline"
-                                                                 className="border-emerald-500 text-emerald-600 hover:bg-emerald-500 hover:text-white h-8 text-xs font-semibold px-2 flex items-center gap-1"
-                                                                 title="Lihat / Isi Checklist Unit Kembali"
+                                                                 className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-600 h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                                 title="Ambil Unit (Checklist Kembali)"
                                                              >
-                                                                 <CheckSquare className="h-3.5 w-3.5" /> Checklist Kembali
+                                                                 <CheckSquare className="h-3.5 w-3.5" /> Ambil Unit
                                                              </Button>
                                                          </Link>
                                                      </>
@@ -793,10 +806,10 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                      <Button
                                                          size="sm"
                                                          variant="outline"
-                                                         className="border-green-500 text-green-600 hover:bg-green-500 hover:text-white h-8 text-xs font-semibold px-2.5"
+                                                         className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white h-8 text-xs font-semibold px-2.5"
                                                          onClick={() => openReturn(r)}
                                                      >
-                                                         Unit Kembali
+                                                         Ambil Unit
                                                      </Button>
                                                  )}
                                                  {r.booking_id && r.status === 'Returned' && (

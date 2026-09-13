@@ -101,10 +101,11 @@ export function AppSidebar() {
             adminItems.push({ title: 'Manajemen User', href: usersIndex(), icon: Users });
         }
         coreItems.push({ title: 'Laporan', href: reports(), icon: BarChart3 });
-    } else if (hasRole('Marketing')) {
-        operationalItems.push({ title: 'Data Booking', href: bookingsIndex(), icon: CalendarDays });
-        adminItems.push({ title: 'Data Pelanggan', href: customersIndex(), icon: UserSquare2 });
-    } else if (hasRole('Peluncur') || hasRole('Petugas Cuci')) {
+    } else if (hasRole('Peluncur')) {
+        operationalItems.push({ title: 'Daftar Tugas Saya', href: bookingsIndex(), icon: CalendarDays });
+        operationalItems.push({ title: 'Serah Terima', href: rentalsIndex(), icon: ClipboardList });
+        operationalItems.push({ title: 'Unit Kembali', href: returnsIndex(), icon: RotateCcw });
+    } else if (hasRole('Petugas Cuci')) {
         operationalItems.push({ title: 'Daftar Tugas Saya', href: bookingsIndex(), icon: CalendarDays });
     }
 

@@ -553,8 +553,11 @@ export default function BookingsIndex({
         if (level === 'overdue') {
             return 'bg-red-50/75 hover:bg-red-100/90 dark:bg-red-950/35 dark:hover:bg-red-950/50 border-l-4 border-l-red-500 transition-colors';
         }
-        if (level === 'due-soon') {
-            return 'bg-amber-50/75 hover:bg-amber-100/90 dark:bg-amber-950/35 dark:hover:bg-amber-950/50 border-l-4 border-l-amber-500 transition-colors';
+        if (level === 'due-soon' || booking.status === 'On Trip') {
+            return 'bg-amber-50/60 hover:bg-amber-100/80 dark:bg-amber-950/30 dark:hover:bg-amber-950/45 border-l-4 border-l-amber-500 transition-colors';
+        }
+        if (booking.status === 'Confirmed' || (booking.status === 'Pending' && booking.car_id)) {
+            return 'bg-emerald-50/50 hover:bg-emerald-100/70 dark:bg-emerald-950/25 dark:hover:bg-emerald-950/40 border-l-4 border-l-emerald-500 transition-colors';
         }
         return 'hover:bg-muted/50 transition-colors';
     };
@@ -564,8 +567,11 @@ export default function BookingsIndex({
         if (level === 'overdue') {
             return 'border-l-4 border-l-red-500 border-red-300 bg-red-50/35 dark:border-red-900/50 dark:bg-red-950/20';
         }
-        if (level === 'due-soon') {
+        if (level === 'due-soon' || booking.status === 'On Trip') {
             return 'border-l-4 border-l-amber-500 border-amber-300 bg-amber-50/35 dark:border-amber-900/50 dark:bg-amber-950/20';
+        }
+        if (booking.status === 'Confirmed' || (booking.status === 'Pending' && booking.car_id)) {
+            return 'border-l-4 border-l-emerald-500 border-emerald-300 bg-emerald-50/35 dark:border-emerald-900/50 dark:bg-emerald-950/20';
         }
         return 'border bg-card text-card-foreground shadow-xs';
     };
@@ -856,7 +862,7 @@ export default function BookingsIndex({
                                                     <Link href={`/bookings/${booking.id}/checklist?type=delivery`}>
                                                         <Button
                                                             size="sm"
-                                                            className="flex items-center gap-1.5 h-8 text-xs font-semibold px-2.5 bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                                                            className="flex items-center gap-1.5 h-8 text-xs font-semibold px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
                                                             title="Antar Unit & Checklist Serah Terima"
                                                         >
                                                             <Car className="h-3.5 w-3.5" /> Antar Unit
@@ -870,7 +876,7 @@ export default function BookingsIndex({
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            className="flex items-center gap-1.5 h-8 text-xs font-semibold px-2.5 border-purple-500 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-950/40 shadow-xs"
+                                                            className="flex items-center gap-1.5 h-8 text-xs font-semibold px-2.5 border-amber-500 text-amber-800 bg-amber-100 hover:bg-amber-500 hover:text-white dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-500 dark:hover:text-white shadow-xs"
                                                             title="Terima Unit & Checklist Pengembalian"
                                                         >
                                                             <ClipboardCheck className="h-3.5 w-3.5" /> Terima Unit
@@ -1048,7 +1054,7 @@ export default function BookingsIndex({
                                                                 <Link href={`/bookings/${booking.id}/checklist?type=delivery`}>
                                                                     <Button
                                                                         size="sm"
-                                                                        className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                                                                        className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
                                                                         title="Antar Unit & Checklist Serah Terima"
                                                                     >
                                                                         <Car className="h-3.5 w-3.5" /> Antar Unit
@@ -1062,7 +1068,7 @@ export default function BookingsIndex({
                                                                     <Button
                                                                         size="sm"
                                                                         variant="outline"
-                                                                        className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 border-purple-500 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-950/40 shadow-xs"
+                                                                        className="h-8 text-xs font-semibold flex items-center gap-1.5 px-3 border-amber-500 text-amber-800 bg-amber-100 hover:bg-amber-500 hover:text-white dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-500 dark:hover:text-white shadow-xs"
                                                                         title="Terima Unit & Checklist Pengembalian"
                                                                     >
                                                                         <ClipboardCheck className="h-3.5 w-3.5" /> Terima Unit

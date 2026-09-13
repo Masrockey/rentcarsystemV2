@@ -1207,11 +1207,11 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                     <div className="space-y-6">
                         <h2 className="text-xl font-semibold border-b pb-2 mt-6">Tugas Peluncur</h2>
                         <div className="grid gap-6 md:grid-cols-2">
-                            <Card>
+                            <Card className="border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/10">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <ClipboardCheck className="h-5 w-5 text-blue-500" />
-                                        Tugas Penyerahan Mobil (Checklist Pengeluaran)
+                                    <CardTitle className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+                                        <ClipboardCheck className="h-5 w-5 text-emerald-600" />
+                                        Tugas Penyerahan Mobil (Serah Terima)
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-4">
@@ -1221,7 +1221,7 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                         </div>
                                     ) : (
                                         stats.peluncur.assigned_deliveries.map((booking: any) => (
-                                            <div key={booking.id} className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-all">
+                                            <div key={booking.id} className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-background p-4 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-all border-l-4 border-l-emerald-500">
                                                 <div className="flex flex-col gap-1">
                                                     <span className="font-semibold">{booking.customer?.name}</span>
                                                     <span className="text-sm text-muted-foreground">
@@ -1230,8 +1230,8 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                                     <span className="text-xs text-muted-foreground">Tanggal: {booking.booking_date}</span>
                                                 </div>
                                                 <Link href={`/bookings/${booking.id}/checklist`}>
-                                                    <Button size="sm" className="flex items-center gap-1">
-                                                        <Play className="h-3.5 w-3.5 fill-current" /> Checklist Penyerahan
+                                                    <Button size="sm" className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold">
+                                                        <Play className="h-3.5 w-3.5 fill-current" /> Checklist Serah Terima
                                                     </Button>
                                                 </Link>
                                             </div>
@@ -1240,11 +1240,11 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                 </CardContent>
                             </Card>
 
-                            <Card>
+                            <Card className="border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/10">
                                 <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <CheckCircle2 className="h-5 w-5 text-purple-500" />
-                                        Tugas Pengembalian Mobil (Checklist Pengembalian)
+                                    <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                                        <RotateCcw className="h-5 w-5 text-amber-600" />
+                                        Tugas Pengembalian Mobil (Ambil Unit)
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-4">
@@ -1254,7 +1254,7 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                         </div>
                                     ) : (
                                         stats.peluncur.assigned_returns.map((booking: any) => (
-                                            <div key={booking.id} className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-all">
+                                            <div key={booking.id} className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-background p-4 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all border-l-4 border-l-amber-500">
                                                 <div className="flex flex-col gap-1">
                                                     <span className="font-semibold">{booking.customer?.name}</span>
                                                     <span className="text-sm text-muted-foreground">
@@ -1263,8 +1263,8 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                                     <span className="text-xs text-muted-foreground">Tanggal: {booking.booking_date}</span>
                                                 </div>
                                                 <Link href={`/bookings/${booking.id}/checklist`}>
-                                                    <Button size="sm" variant="secondary" className="flex items-center gap-1">
-                                                        <Play className="h-3.5 w-3.5 fill-current" /> Checklist Pengembalian
+                                                    <Button size="sm" className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs font-semibold">
+                                                        <Play className="h-3.5 w-3.5 fill-current" /> Checklist Ambil Unit
                                                     </Button>
                                                 </Link>
                                             </div>
