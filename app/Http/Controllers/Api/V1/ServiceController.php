@@ -56,11 +56,14 @@ class ServiceController extends BaseApiController
         $service = Service::create($validated);
 
         $car = Car::findOrFail($validated['car_id']);
-        if ($validated['km'] > $car->last_km) {
-            $car->update(['last_km' => $validated['km']]);
-        }
+        $newKm = max($car->last_km ?? 0, $validated['km']);
+        $car->update([
+            'initial_km' => $validated['km'],
+            'last_km' => $newKm,
+            'status' => 'Ready',
+        ]);
 
-        return $this->sendResponse(new ServiceResource($service->load('car')), 'Data servis berhasil ditambahkan.', 201);
+        return $this->sendResponse(new ServiceResource($service->load('car')), 'Data servis berhasil ditambahkan dan status mobil kembali Ready.', 201);
     }
 
     /**

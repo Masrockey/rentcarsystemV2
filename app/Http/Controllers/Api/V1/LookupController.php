@@ -45,6 +45,7 @@ class LookupController extends BaseApiController
 
         return $this->sendResponse([
             'ready_cars' => CarResource::collection($readyCars),
+            'service_cars' => CarResource::collection(Car::where('status', 'Service')->orderBy('name')->get()),
             'all_cars' => CarResource::collection($allCars),
             'car_types' => CarTypeResource::collection($carTypes),
             'ready_drivers' => DriverResource::collection($readyDrivers),

@@ -21,7 +21,8 @@ class ServiceController extends Controller
                 ->orderBy('service_date', 'desc')
                 ->paginate(10)
                 ->withQueryString(),
-            'cars' => Car::orderBy('name')->get(['id', 'name', 'plate_number']),
+            'cars' => Car::where('status', 'Service')->orderBy('name')->get(['id', 'name', 'plate_number', 'status', 'initial_km', 'last_km']),
+            'allCars' => Car::orderBy('name')->get(['id', 'name', 'plate_number', 'status', 'initial_km', 'last_km']),
         ]);
     }
 
@@ -43,13 +44,16 @@ class ServiceController extends Controller
 
         Service::create($validated);
 
-        // Update car's last_km if this service has higher km
+        // Update car's initial_km to service km, last_km, and reset status to Ready
         $car = Car::findOrFail($validated['car_id']);
-        if ($validated['km'] > $car->last_km) {
-            $car->update(['last_km' => $validated['km']]);
-        }
+        $newKm = max($car->last_km ?? 0, $validated['km']);
+        $car->update([
+            'initial_km' => $validated['km'],
+            'last_km' => $newKm,
+            'status' => 'Ready',
+        ]);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => 'Service record added successfully.']);
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Record service berhasil ditambahkan dan status mobil kembali Ready.']);
 
         return to_route('services.index');
     }

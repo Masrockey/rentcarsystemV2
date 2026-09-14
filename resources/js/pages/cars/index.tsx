@@ -28,6 +28,7 @@ type CarRecord = {
     passenger_capacity: number;
     chassis_number: string | null;
     engine_number: string | null;
+    initial_km: number;
     last_km: number;
     daily_price: string;
     weekly_price: string;
@@ -114,6 +115,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
         passenger_capacity: 4,
         chassis_number: '',
         engine_number: '',
+        initial_km: 0,
         last_km: 0,
         daily_price: 0,
         weekly_price: 0,
@@ -132,7 +134,9 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
             year: car.year, plate_number: car.plate_number, color: car.color ?? '',
             transmission: car.transmission, fuel_type: car.fuel_type,
             passenger_capacity: car.passenger_capacity, chassis_number: car.chassis_number ?? '',
-            engine_number: car.engine_number ?? '', last_km: car.last_km,
+            engine_number: car.engine_number ?? '',
+            initial_km: car.initial_km ?? car.last_km ?? 0,
+            last_km: car.last_km ?? 0,
             daily_price: parseFloat(car.daily_price), weekly_price: parseFloat(car.weekly_price),
             monthly_price: parseFloat(car.monthly_price), photo: null,
             owner_partner: car.owner_partner ?? '', status: car.status,
@@ -330,8 +334,16 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                                 <span className="font-semibold text-foreground">{formatCurrency(car.daily_price)}</span>
                                             </div>
                                             <div className="flex justify-between">
+                                                <span>KM Awal:</span>
+                                                <span className="text-foreground">{(car.initial_km ?? 0).toLocaleString('id-ID')} km</span>
+                                            </div>
+                                            <div className="flex justify-between">
                                                 <span>KM Terakhir:</span>
-                                                <span className="text-foreground">{car.last_km.toLocaleString('id-ID')} km</span>
+                                                <span className="text-foreground font-medium">{car.last_km.toLocaleString('id-ID')} km</span>
+                                            </div>
+                                            <div className="flex justify-between text-[11px] text-muted-foreground">
+                                                <span>Batas Service (+10k):</span>
+                                                <span className="font-mono text-blue-600 dark:text-blue-400 font-semibold">{((car.initial_km ?? 0) + 10000).toLocaleString('id-ID')} km</span>
                                             </div>
                                         </div>
 
@@ -351,22 +363,23 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-muted text-xs uppercase text-muted-foreground">
                                     <tr>
-                                        <th className="px-6 py-3">Kendaraan</th>
-                                        <th className="px-6 py-3">No. Polisi</th>
-                                        <th className="px-6 py-3">Mitra / Pemilik</th>
-                                        <th className="px-6 py-3">Spesifikasi</th>
-                                        <th className="px-6 py-3">Harga/Hari</th>
-                                        <th className="px-6 py-3">KM Terakhir</th>
-                                        <th className="px-6 py-3">Status</th>
-                                        {canManageCars && <th className="px-6 py-3 text-right">Aksi</th>}
+                                        <th className="px-5 py-3">Kendaraan</th>
+                                        <th className="px-4 py-3">No. Polisi</th>
+                                        <th className="px-4 py-3">Mitra / Pemilik</th>
+                                        <th className="px-4 py-3">Spesifikasi</th>
+                                        <th className="px-4 py-3">Harga/Hari</th>
+                                        <th className="px-4 py-3">KM Awal</th>
+                                        <th className="px-4 py-3">KM Terakhir</th>
+                                        <th className="px-4 py-3">Status</th>
+                                        {canManageCars && <th className="px-5 py-3 text-right">Aksi</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y">
                                     {carList.length === 0 ? (
-                                        <tr><td colSpan={canManageCars ? 8 : 7} className="px-6 py-8 text-center text-muted-foreground">Tidak ada kendaraan dengan status ini.</td></tr>
+                                        <tr><td colSpan={canManageCars ? 9 : 8} className="px-6 py-8 text-center text-muted-foreground">Tidak ada kendaraan dengan status ini.</td></tr>
                                     ) : carList.map((car) => (
                                         <tr key={car.id} className="hover:bg-muted/50">
-                                            <td className="px-6 py-4">
+                                            <td className="px-5 py-4">
                                                 <div className="flex items-center gap-3">
                                                     {car.photo ? (
                                                         <img src={`/storage/${car.photo}`} alt={car.name} className="h-10 w-14 rounded object-cover" />
@@ -381,25 +394,33 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 font-mono font-semibold">{car.plate_number}</td>
-                                            <td className="px-6 py-4 text-xs font-medium">
+                                            <td className="px-4 py-4 font-mono font-semibold">{car.plate_number}</td>
+                                            <td className="px-4 py-4 text-xs font-medium">
                                                 {car.owner_partner ? (
                                                     <span className="font-semibold text-foreground">{car.owner_partner}</span>
                                                 ) : (
                                                     <span className="text-muted-foreground italic">Milik Sendiri</span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-xs">
+                                            <td className="px-4 py-4 text-xs">
                                                 <div>{car.transmission} · {car.fuel_type}</div>
                                                 <div>{car.passenger_capacity} penumpang · {car.type}</div>
                                             </td>
-                                            <td className="px-6 py-4 font-semibold">{formatCurrency(car.daily_price)}</td>
-                                            <td className="px-6 py-4">{car.last_km.toLocaleString('id-ID')} km</td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-4 py-4 font-semibold">{formatCurrency(car.daily_price)}</td>
+                                            <td className="px-4 py-4">
+                                                <span className="font-medium">{(car.initial_km ?? 0).toLocaleString('id-ID')} km</span>
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <div className="font-medium">{car.last_km.toLocaleString('id-ID')} km</div>
+                                                <div className="text-[11px] text-muted-foreground">
+                                                    Batas: {((car.initial_km ?? 0) + 10000).toLocaleString('id-ID')} km
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4">
                                                 <Badge variant="outline" className={getStatusColor(car.status)}>{car.status}</Badge>
                                             </td>
                                             {canManageCars && (
-                                                <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                                                <td className="px-5 py-4 text-right flex items-center justify-end gap-2">
                                                     <Button variant="ghost" size="icon" onClick={() => openEdit(car)}><Edit className="h-4 w-4" /></Button>
                                                     <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)}><Trash2 className="h-4 w-4" /></Button>
                                                 </td>
@@ -494,7 +515,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                 </div>
                             </div>
 
-                            <p className="text-xs font-semibold uppercase text-muted-foreground pt-2">Harga & Kondisi</p>
+                            <p className="text-xs font-semibold uppercase text-muted-foreground pt-2">Harga & Kilometer</p>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="daily_price">Harga Harian (Rp)</Label>
@@ -509,14 +530,20 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                     <Input id="monthly_price" type="number" min={0} value={data.monthly_price} onChange={e => setData('monthly_price', parseFloat(e.target.value))} />
                                 </div>
                                 <div className="space-y-2">
+                                    <Label htmlFor="initial_km">KM Awal (Basis Service)</Label>
+                                    <Input id="initial_km" type="number" min={0} value={data.initial_km} onChange={e => setData('initial_km', parseInt(e.target.value) || 0)} />
+                                    {errors.initial_km && <p className="text-xs text-red-500">{errors.initial_km}</p>}
+                                </div>
+                                <div className="space-y-2">
                                     <Label htmlFor="last_km">KM Terakhir</Label>
-                                    <Input id="last_km" type="number" min={0} value={data.last_km} onChange={e => setData('last_km', parseInt(e.target.value))} />
+                                    <Input id="last_km" type="number" min={0} value={data.last_km} onChange={e => setData('last_km', parseInt(e.target.value) || 0)} />
+                                    {errors.last_km && <p className="text-xs text-red-500">{errors.last_km}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="owner_partner">Mitra Pemilik</Label>
                                     <Input id="owner_partner" value={data.owner_partner} onChange={e => setData('owner_partner', e.target.value)} placeholder="Nama mitra" />
                                 </div>
-                                <div className="space-y-2">
+                                <div className="space-y-2 col-span-3 sm:col-span-1">
                                     <Label>
                                         Status {editingCar && !isSuperAdmin && (
                                             <span className="text-xs text-muted-foreground font-normal">(Hanya Super Admin)</span>

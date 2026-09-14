@@ -366,7 +366,30 @@ GET https://rent.cdk-project.web.id/api/v1/bookings?page=2&per_page=20
 | `DELETE` | `/cars/{id}` | Hapus mobil |
 
 **Field Utama Armada Mobil**:
-`name`, `brand`, `model`, `type`, `year`, `plate_number`, `color`, `transmission` (`Manual`/`Automatic`), `fuel_type` (`Bensin`/`Diesel`/`Hybrid`/`Listrik`), `passenger_capacity`, `daily_price`, `weekly_price`, `monthly_price`, `last_km`, `status` (`Ready`, `Not Ready`, `Belum Dicuci`, `Service`), `photo` (file gambar).
+- `name` (string, wajib): Nama / tipe lengkap mobil.
+- `brand` (string): Merk kendaraan (Toyota, Daihatsu, dll).
+- `model` (string): Model kendaraan (Avanza, Xenia, dll).
+- `type` (string): Jenis kendaraan (MPV, SUV, Sedan, dll).
+- `year` (integer, wajib): Tahun pembuatan.
+- `plate_number` (string, wajib, unique): Nomor polisi kendaraan.
+- `color` (string): Warna mobil.
+- `transmission` (string): `Manual` | `Automatic`.
+- `fuel_type` (string): `Bensin` | `Diesel` | `Hybrid` | `Listrik`.
+- `passenger_capacity` (integer): Kapasitas penumpang.
+- `chassis_number` (string): Nomor rangka kendaraan.
+- `engine_number` (string): Nomor mesin kendaraan.
+- `initial_km` (integer): **KM Awal (Basis Servis)**. Titik acuan kilometer servis berkala.
+- `last_km` (integer): **KM Terakhir (Odometer Aktual)**.
+- `daily_price`, `weekly_price`, `monthly_price` (numeric): Tarif rental.
+- `status` (string): `Ready` | `Not Ready` | `Belum Dicuci` | `Service`.
+- `photo` (file gambar): Foto kendaraan.
+
+> **💡 Otomatisasi Status Servis (+10.000 KM)**:
+> Sistem secara otomatis memantau selisih kilometer. Ketika `last_km >= initial_km + 10.000 KM`, status kendaraan otomatis berubah menjadi **`Service`**.
+> Field terhitung tambahan pada response API:
+> - `next_service_km`: KM batas wajib servis (`initial_km + 10.000`).
+> - `km_until_service`: Sisa KM sebelum jatuh tempo servis.
+> - `is_service_due`: `true` jika mobil sudah menyentuh/melewati batas servis.
 
 ---
 
@@ -597,6 +620,13 @@ Mengambil data checklist keberangkatan & kepulangan unit.
   "notes": "Semua kampas rem dan filter udara diganti baru."
 }
 ```
+
+> **⚡ Siklus Servis Selesai**:
+> Ketika record servis berhasil dibuat melalui `POST /services`:
+> 1. Field `initial_km` mobil otomatis diperbarui menjadi `km` servis tersebut (contoh: 40.200 KM).
+> 2. Field `last_km` diperbarui jika `km` servis lebih tinggi dari odometer sebelumnya.
+> 3. Status mobil otomatis dikembalikan menjadi **`Ready`** dan siap disewakan kembali. Target servis berikutnya otomatis menjadi `40.200 + 10.000 = 50.200 KM`.
+
 
 ---
 

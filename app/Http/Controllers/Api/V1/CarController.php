@@ -97,6 +97,7 @@ class CarController extends BaseApiController
             'passenger_capacity' => ['nullable', 'integer', 'min:1', 'max:50'],
             'chassis_number' => ['nullable', 'string', 'max:100'],
             'engine_number' => ['nullable', 'string', 'max:100'],
+            'initial_km' => ['nullable', 'integer', 'min:0'],
             'last_km' => ['nullable', 'integer', 'min:0'],
             'daily_price' => ['nullable', 'numeric', 'min:0'],
             'weekly_price' => ['nullable', 'numeric', 'min:0'],
@@ -105,6 +106,12 @@ class CarController extends BaseApiController
             'owner_partner' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'string', Rule::in(['Ready', 'Not Ready', 'Belum Dicuci', 'Service'])],
         ]);
+
+        if (isset($validated['initial_km']) && ! isset($validated['last_km'])) {
+            $validated['last_km'] = $validated['initial_km'];
+        } elseif (isset($validated['last_km']) && ! isset($validated['initial_km'])) {
+            $validated['initial_km'] = $validated['last_km'];
+        }
 
         if ($request->hasFile('photo')) {
             $validated['photo'] = $request->file('photo')->store('cars', 'public');
@@ -145,6 +152,7 @@ class CarController extends BaseApiController
             'passenger_capacity' => ['nullable', 'integer', 'min:1', 'max:50'],
             'chassis_number' => ['nullable', 'string', 'max:100'],
             'engine_number' => ['nullable', 'string', 'max:100'],
+            'initial_km' => ['nullable', 'integer', 'min:0'],
             'last_km' => ['nullable', 'integer', 'min:0'],
             'daily_price' => ['nullable', 'numeric', 'min:0'],
             'weekly_price' => ['nullable', 'numeric', 'min:0'],

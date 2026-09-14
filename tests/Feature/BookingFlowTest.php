@@ -33,8 +33,8 @@ test('full rent car booking workflow', function () {
         'amount' => 1500000,
     ];
 
-    $response = $this->post(route('bookings.store'), $bookingData);
-    $response->assertRedirect(route('bookings.index'));
+    $response = $this->post('/bookings', $bookingData);
+    $response->assertRedirect('/bookings');
 
     $booking = Booking::first();
     expect($booking->status)->toBe('Pending');
@@ -49,6 +49,8 @@ test('full rent car booking workflow', function () {
         'name' => 'Toyota Avanza',
         'year' => 2022,
         'plate_number' => 'B 9999 ZZZ',
+        'initial_km' => 10000,
+        'last_km' => 10000,
         'status' => 'Ready',
     ]);
 
@@ -60,8 +62,8 @@ test('full rent car booking workflow', function () {
         'petugas_cuci_id' => $cuci->id,
     ];
 
-    $response = $this->put(route('bookings.update', $booking), $assignData);
-    $response->assertRedirect(route('bookings.index'));
+    $response = $this->put("/bookings/{$booking->id}", $assignData);
+    $response->assertRedirect('/bookings');
 
     $booking->refresh();
     expect($booking->status)->toBe('Confirmed'); // Auto-confirmed because car and peluncur are allocated
@@ -87,8 +89,8 @@ test('full rent car booking workflow', function () {
         'notes' => 'Car handed over in perfect condition.',
     ];
 
-    $response = $this->post(route('bookings.delivery', $booking), $deliveryData);
-    $response->assertRedirect(route('rentals.index'));
+    $response = $this->post("/bookings/{$booking->id}/delivery", $deliveryData);
+    $response->assertRedirect('/rentals');
 
     $booking->refresh();
     $car->refresh();
@@ -108,8 +110,8 @@ test('full rent car booking workflow', function () {
         'notes' => 'Returned but muddy.',
     ];
 
-    $response = $this->post(route('bookings.return', $booking), $returnData);
-    $response->assertRedirect(route('rentals.index'));
+    $response = $this->post("/bookings/{$booking->id}/return", $returnData);
+    $response->assertRedirect('/rentals');
 
     $booking->refresh();
     $car->refresh();
@@ -120,8 +122,8 @@ test('full rent car booking workflow', function () {
     // 6. Log in as Petugas Cuci to complete washing
     $this->actingAs($cuci);
 
-    $response = $this->from(route('rentals.index'))->post(route('bookings.wash', $booking));
-    $response->assertRedirect(route('rentals.index'));
+    $response = $this->from('/rentals')->post("/bookings/{$booking->id}/wash");
+    $response->assertRedirect('/rentals');
 
     $booking->refresh();
     $car->refresh();
@@ -150,8 +152,8 @@ test('marketing can create booking with new customer on the fly', function () {
         'amount' => 2000000,
     ];
 
-    $response = $this->post(route('bookings.store'), $bookingData);
-    $response->assertRedirect(route('bookings.index'));
+    $response = $this->post('/bookings', $bookingData);
+    $response->assertRedirect('/bookings');
 
     $newCustomer = Customer::where('name', 'Alice New Client')->first();
     expect($newCustomer)->not->toBeNull();
@@ -174,7 +176,7 @@ test('super admin has full access to all roles and permissions', function () {
     expect($superAdmin->hasRole('AnyCustomRole'))->toBeTrue();
 
     $this->actingAs($superAdmin);
-    $response = $this->get(route('users.index'));
+    $response = $this->get('/users');
     $response->assertOk();
 });
 
@@ -182,7 +184,7 @@ test('admin role cannot access user management', function () {
     $admin = User::factory()->create(['roles' => ['Admin']]);
 
     $this->actingAs($admin);
-    $response = $this->get(route('users.index'));
+    $response = $this->get('/users');
     $response->assertStatus(403);
 });
 
@@ -206,12 +208,12 @@ test('super admin can edit and delete booking', function () {
     $this->actingAs($superAdmin);
 
     // Edit booking
-    $updateResponse = $this->put(route('bookings.update', $booking->id), [
+    $updateResponse = $this->put("/bookings/{$booking->id}", [
         'car_type' => 'Fortuner VIP',
         'amount' => 1500000,
         'payment_status' => 'Paid',
     ]);
-    $updateResponse->assertRedirect(route('bookings.index'));
+    $updateResponse->assertRedirect('/bookings');
 
     $booking->refresh();
     expect($booking->car_type)->toBe('Fortuner VIP');
@@ -219,8 +221,8 @@ test('super admin can edit and delete booking', function () {
     expect($booking->payment_status)->toBe('Paid');
 
     // Delete booking
-    $deleteResponse = $this->delete(route('bookings.destroy', $booking->id));
-    $deleteResponse->assertRedirect(route('bookings.index'));
+    $deleteResponse = $this->delete("/bookings/{$booking->id}");
+    $deleteResponse->assertRedirect('/bookings');
 
     expect(Booking::find($booking->id))->toBeNull();
 });
@@ -241,7 +243,7 @@ test('creating or updating payment automatically syncs booking payment status', 
     $this->actingAs($admin);
 
     // Create payment with status Lunas
-    $response = $this->post(route('payments.store'), [
+    $response = $this->post('/payments', [
         'booking_id' => $booking->id,
         'payment_method' => 'Transfer',
         'dp_amount' => 0,
@@ -249,7 +251,7 @@ test('creating or updating payment automatically syncs booking payment status', 
         'total_amount' => 500000,
         'status' => 'Lunas',
     ]);
-    $response->assertRedirect(route('payments.index'));
+    $response->assertRedirect('/payments');
 
     $booking->refresh();
     expect($booking->payment_status)->toBe('Paid');
@@ -260,7 +262,7 @@ test('admin can access allocations page and view data with blacklists', function
     $admin = User::factory()->create(['roles' => ['Admin']]);
     $this->actingAs($admin);
 
-    $response = $this->get(route('allocations.index'));
+    $response = $this->get('/allocations');
     $response->assertOk();
     $response->assertInertia(fn ($page) => $page->has('blacklists'));
 });
@@ -269,7 +271,7 @@ test('admin and peluncur can access rentals page and view data', function () {
     $peluncur = User::factory()->create(['roles' => ['Peluncur']]);
     $this->actingAs($peluncur);
 
-    $response = $this->get(route('rentals.index'));
+    $response = $this->get('/rentals');
     $response->assertOk();
 });
 
@@ -294,7 +296,7 @@ test('user can cancel booking with optional cancellation reason', function () {
 
     $this->actingAs($marketing);
 
-    $response = $this->post(route('bookings.cancel', $booking), [
+    $response = $this->post("/bookings/{$booking->id}/cancel", [
         'cancellation_reason' => 'Konsumen berubah rencana liburan',
     ]);
 
@@ -317,7 +319,7 @@ test('admin sees bookings created by marketing', function () {
     ]);
 
     $this->actingAs($marketing);
-    $response = $this->post(route('bookings.store'), [
+    $response = $this->post('/bookings', [
         'customer_id' => $customer->id,
         'car_type' => 'Innova Reborn',
         'rental_type' => 'Lepas Kunci',
@@ -330,7 +332,7 @@ test('admin sees bookings created by marketing', function () {
         'payment_method' => 'Cash',
         'amount' => 1200000,
     ]);
-    $response->assertRedirect(route('bookings.index'));
+    $response->assertRedirect('/bookings');
 
     $booking = Booking::where('car_type', 'Innova Reborn')->first();
     expect($booking)->not->toBeNull();
@@ -338,7 +340,7 @@ test('admin sees bookings created by marketing', function () {
 
     // Marketing sees the booking
     $this->actingAs($marketing);
-    $marketingView = $this->get(route('bookings.index'));
+    $marketingView = $this->get('/bookings');
     $marketingView->assertOk();
     $marketingView->assertInertia(fn ($page) => $page
         ->component('bookings/index')
@@ -347,7 +349,7 @@ test('admin sees bookings created by marketing', function () {
 
     // Admin also sees the booking created by Marketing
     $this->actingAs($admin);
-    $adminView = $this->get(route('bookings.index'));
+    $adminView = $this->get('/bookings');
     $adminView->assertOk();
     $adminView->assertInertia(fn ($page) => $page
         ->component('bookings/index')
@@ -355,7 +357,7 @@ test('admin sees bookings created by marketing', function () {
     );
 
     // Admin also sees in allocations index
-    $allocationView = $this->get(route('allocations.index'));
+    $allocationView = $this->get('/allocations');
     $allocationView->assertOk();
     $allocationView->assertInertia(fn ($page) => $page
         ->component('allocations/index')

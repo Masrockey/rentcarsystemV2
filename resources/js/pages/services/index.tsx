@@ -14,7 +14,15 @@ import { Plus, Edit, Trash2, Wrench } from 'lucide-react';
 import { index as servicesIndex } from '@/routes/services';
 import Pagination, { PaginatedData } from '@/components/pagination';
 
-type CarOption = { id: number; name: string; plate_number: string };
+type CarOption = {
+    id: number;
+    name: string;
+    plate_number: string;
+    status?: string;
+    initial_km?: number;
+    last_km?: number;
+};
+
 type ServiceRecord = {
     id: number;
     car_id: number;
@@ -28,13 +36,19 @@ type ServiceRecord = {
     car?: CarOption;
 };
 
-type Props = { services: PaginatedData<ServiceRecord> | ServiceRecord[]; cars: CarOption[] };
+type Props = {
+    services: PaginatedData<ServiceRecord> | ServiceRecord[];
+    cars: CarOption[];
+    allCars?: CarOption[];
+};
 
-export default function ServicesIndex({ services, cars }: Props) {
+export default function ServicesIndex({ services, cars, allCars }: Props) {
     const serviceList = Array.isArray(services) ? services : (services?.data || []);
     const [isOpen, setIsOpen] = useState(false);
     const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
+
+    const availableCars = editingService ? (allCars && allCars.length > 0 ? allCars : cars) : cars;
 
     const { data, setData, post, put, reset, processing, errors, clearErrors } = useForm({
         car_id: '' as number | string,
@@ -47,13 +61,53 @@ export default function ServicesIndex({ services, cars }: Props) {
         notes: '',
     });
 
-    const openCreate = () => { setEditingService(null); reset(); clearErrors(); setIsOpen(true); };
+    const openCreate = () => {
+        setEditingService(null);
+        reset();
+        clearErrors();
+        if (cars.length > 0) {
+            const firstCar = cars[0];
+            setData({
+                car_id: firstCar.id,
+                service_date: new Date().toISOString().split('T')[0],
+                workshop: '',
+                service_type: 'Servis Berkala (10.000 KM)',
+                km: firstCar.last_km ?? 0,
+                cost: 0,
+                next_service_date: '',
+                notes: '',
+            });
+        }
+        setIsOpen(true);
+    };
+
     const openEdit = (s: ServiceRecord) => {
         setEditingService(s);
         clearErrors();
-        setData({ car_id: s.car_id, service_date: s.service_date, workshop: s.workshop ?? '', service_type: s.service_type, km: s.km, cost: parseFloat(s.cost), next_service_date: s.next_service_date ?? '', notes: s.notes ?? '' });
+        setData({
+            car_id: s.car_id,
+            service_date: s.service_date,
+            workshop: s.workshop ?? '',
+            service_type: s.service_type,
+            km: s.km,
+            cost: parseFloat(s.cost),
+            next_service_date: s.next_service_date ?? '',
+            notes: s.notes ?? '',
+        });
         setIsOpen(true);
     };
+
+    const handleCarSelect = (carIdStr: string) => {
+        const carId = Number(carIdStr);
+        const selectedCar = availableCars.find(c => c.id === carId);
+        setData(prev => ({
+            ...prev,
+            car_id: carId,
+            km: selectedCar?.last_km ?? prev.km,
+        }));
+    };
+
+    const selectedCarInfo = availableCars.find(c => c.id === Number(data.car_id));
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -74,7 +128,7 @@ export default function ServicesIndex({ services, cars }: Props) {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">Riwayat Service</h1>
-                        <p className="text-muted-foreground">Kelola riwayat perawatan dan servis kendaraan.</p>
+                        <p className="text-muted-foreground">Kelola riwayat perawatan dan servis berkala kendaraan rental.</p>
                     </div>
                     <Button onClick={openCreate} className="flex items-center gap-1">
                         <Plus className="h-4 w-4" /> Tambah Record Service
@@ -129,18 +183,44 @@ export default function ServicesIndex({ services, cars }: Props) {
 
                 <Dialog open={isOpen} onOpenChange={setIsOpen}>
                     <DialogContent className="max-w-lg">
-                        <DialogHeader><DialogTitle>{editingService ? 'Edit Service' : 'Tambah Service'}</DialogTitle></DialogHeader>
+                        <DialogHeader>
+                            <DialogTitle>{editingService ? 'Edit Service' : 'Tambah Service Kendaraan'}</DialogTitle>
+                        </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                            {!editingService && availableCars.length === 0 ? (
+                                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm text-blue-700 dark:text-blue-300">
+                                    <div className="font-semibold flex items-center gap-1.5 mb-1">
+                                        <Wrench className="h-4 w-4" />
+                                        Tidak Ada Mobil Yang Perlu Service
+                                    </div>
+                                    Saat ini semua kendaraan berada di status Ready / Not Ready / Belum Dicuci. Mobil otomatis beralih ke status <strong>Service</strong> ketika KM Terakhir mencapai KM Awal + 10.000 KM.
+                                </div>
+                            ) : null}
+
                             <div className="space-y-2">
-                                <Label>Mobil</Label>
-                                <Select value={String(data.car_id)} onValueChange={val => setData('car_id', Number(val))}>
-                                    <SelectTrigger><SelectValue placeholder="Pilih mobil..." /></SelectTrigger>
+                                <Label>Pilih Mobil (Hanya Mobil Berstatus Service)</Label>
+                                <Select value={data.car_id ? String(data.car_id) : ''} onValueChange={handleCarSelect}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Pilih mobil berstatus Service..." />
+                                    </SelectTrigger>
                                     <SelectContent>
-                                        {cars.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name} — {c.plate_number}</SelectItem>)}
+                                        {availableCars.map(c => (
+                                            <SelectItem key={c.id} value={String(c.id)}>
+                                                {c.name} — {c.plate_number} (KM: {(c.last_km ?? 0).toLocaleString('id-ID')})
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
+                                {selectedCarInfo && (
+                                    <div className="text-xs text-muted-foreground bg-muted/60 p-2.5 rounded-md flex justify-between">
+                                        <span>KM Awal: <strong>{(selectedCarInfo.initial_km ?? 0).toLocaleString('id-ID')} km</strong></span>
+                                        <span>KM Terakhir: <strong>{(selectedCarInfo.last_km ?? 0).toLocaleString('id-ID')} km</strong></span>
+                                        <span>Batas (+10k): <strong>{((selectedCarInfo.initial_km ?? 0) + 10000).toLocaleString('id-ID')} km</strong></span>
+                                    </div>
+                                )}
                                 {errors.car_id && <p className="text-xs text-red-500">{errors.car_id}</p>}
                             </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Tanggal Service</Label>
@@ -148,7 +228,7 @@ export default function ServicesIndex({ services, cars }: Props) {
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Jenis Service</Label>
-                                    <Input value={data.service_type} onChange={e => setData('service_type', e.target.value)} placeholder="e.g. Ganti Oli" required />
+                                    <Input value={data.service_type} onChange={e => setData('service_type', e.target.value)} placeholder="e.g. Ganti Oli, Tune Up" required />
                                     {errors.service_type && <p className="text-xs text-red-500">{errors.service_type}</p>}
                                 </div>
                                 <div className="space-y-2">
@@ -157,25 +237,34 @@ export default function ServicesIndex({ services, cars }: Props) {
                                 </div>
                                 <div className="space-y-2">
                                     <Label>KM Saat Service</Label>
-                                    <Input type="number" min={0} value={data.km} onChange={e => setData('km', parseInt(e.target.value))} />
+                                    <Input type="number" min={0} value={data.km} onChange={e => setData('km', parseInt(e.target.value) || 0)} required />
                                     {errors.km && <p className="text-xs text-red-500">{errors.km}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Biaya (Rp)</Label>
-                                    <Input type="number" min={0} value={data.cost} onChange={e => setData('cost', parseFloat(e.target.value))} />
+                                    <Input type="number" min={0} value={data.cost} onChange={e => setData('cost', parseFloat(e.target.value) || 0)} required />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Service Berikutnya</Label>
+                                    <Label>Estimasi Service Berikutnya</Label>
                                     <Input type="date" value={data.next_service_date} onChange={e => setData('next_service_date', e.target.value)} />
                                 </div>
                                 <div className="col-span-2 space-y-2">
                                     <Label>Catatan</Label>
-                                    <Input value={data.notes} onChange={e => setData('notes', e.target.value)} placeholder="Catatan tambahan..." />
+                                    <Input value={data.notes} onChange={e => setData('notes', e.target.value)} placeholder="Catatan tambahan sparepart dsb..." />
                                 </div>
                             </div>
+
+                            {!editingService && (
+                                <p className="text-[11px] text-muted-foreground bg-green-500/10 text-green-700 dark:text-green-300 p-2.5 rounded-md border border-green-500/20">
+                                    ✓ Setelah record servis disimpan, KM Awal mobil akan diperbarui ke KM Servis ini dan status mobil otomatis kembali <strong>Ready</strong>.
+                                </p>
+                            )}
+
                             <DialogFooter className="pt-4">
                                 <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Batal</Button>
-                                <Button type="submit" disabled={processing}>{editingService ? 'Simpan' : 'Tambah'}</Button>
+                                <Button type="submit" disabled={processing || (!editingService && availableCars.length === 0)}>
+                                    {editingService ? 'Simpan Perubahan' : 'Simpan & Aktifkan Mobil (Ready)'}
+                                </Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
