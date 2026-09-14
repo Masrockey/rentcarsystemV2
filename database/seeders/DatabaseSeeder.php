@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
         // Seed users with roles
         User::factory()->create([
             'name' => 'Super Administrator',
+            'username' => 'superadmin',
             'email' => 'superadmin@rentcars.com',
             'password' => Hash::make('password'),
             'roles' => ['Super Admin'],
@@ -29,6 +30,7 @@ class DatabaseSeeder extends Seeder
 
         User::factory()->create([
             'name' => 'Admin Unit',
+            'username' => 'admin',
             'email' => 'admin@rentcars.com',
             'password' => Hash::make('password'),
             'roles' => ['Admin'],
@@ -36,6 +38,7 @@ class DatabaseSeeder extends Seeder
 
         User::factory()->create([
             'name' => 'Marketing Officer',
+            'username' => 'marketing',
             'email' => 'marketing@rentcars.com',
             'password' => Hash::make('password'),
             'roles' => ['Marketing'],
@@ -43,6 +46,7 @@ class DatabaseSeeder extends Seeder
 
         User::factory()->create([
             'name' => 'Peluncur Field',
+            'username' => 'peluncur',
             'email' => 'peluncur@rentcars.com',
             'password' => Hash::make('password'),
             'roles' => ['Peluncur'],
@@ -50,6 +54,7 @@ class DatabaseSeeder extends Seeder
 
         User::factory()->create([
             'name' => 'Petugas Cuci Cleaner',
+            'username' => 'cuci',
             'email' => 'cuci@rentcars.com',
             'password' => Hash::make('password'),
             'roles' => ['Petugas Cuci'],
