@@ -139,4 +139,3 @@ class RentalController extends BaseApiController
         return $this->sendResponse(null, 'Kontrak sewa berhasil dihapus.');
     }
 }
-

@@ -10,7 +10,6 @@ class BaseApiController extends Controller
     /**
      * Return a standardized successful JSON response.
      *
-     * @param  mixed  $data
      * @param  array<string, mixed>|null  $meta
      */
     protected function sendResponse(mixed $data = null, string $message = 'Success', int $status = 200, ?array $meta = null): JsonResponse
@@ -47,4 +46,3 @@ class BaseApiController extends Controller
         return response()->json($response, $status);
     }
 }
-

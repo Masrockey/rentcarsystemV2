@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Resources\Api\V1\PaymentResource;
-use App\Models\Booking;
 use App\Models\Payment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -148,4 +147,3 @@ class PaymentController extends BaseApiController
         ]);
     }
 }
-

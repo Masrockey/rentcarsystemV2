@@ -182,4 +182,3 @@ class AllocationController extends BaseApiController
         return $this->sendResponse(null, 'Data alokasi / booking berhasil dihapus.');
     }
 }
-

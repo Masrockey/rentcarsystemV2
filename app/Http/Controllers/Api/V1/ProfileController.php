@@ -49,4 +49,3 @@ class ProfileController extends BaseApiController
         return $this->sendResponse(null, 'Kata sandi berhasil diperbarui.');
     }
 }
-

@@ -102,4 +102,3 @@ class ServiceController extends BaseApiController
         return $this->sendResponse(null, 'Data servis berhasil dihapus.');
     }
 }
-

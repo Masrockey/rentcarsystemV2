@@ -635,4 +635,3 @@ class BookingController extends BaseApiController
         }
     }
 }
-

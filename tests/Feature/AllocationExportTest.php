@@ -42,7 +42,7 @@ test('authenticated admin can export allocations to csv', function () {
         'status' => 'Confirmed',
     ]);
 
-    $response = $this->actingAs($admin)->get(route('allocations.export'));
+    $response = $this->actingAs($admin)->get('/allocations/export');
 
     $response->assertOk();
     $response->assertHeader('content-type', 'text/csv; charset=UTF-8');
@@ -88,7 +88,7 @@ test('authenticated admin can fetch allocations export json data', function () {
         'status' => 'Confirmed',
     ]);
 
-    $response = $this->actingAs($admin)->getJson(route('allocations.export', ['format' => 'json']));
+    $response = $this->actingAs($admin)->getJson('/allocations/export?format=json');
 
     $response->assertOk();
     $response->assertJsonStructure(['data']);

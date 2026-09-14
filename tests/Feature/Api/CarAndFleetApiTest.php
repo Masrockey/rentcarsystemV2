@@ -121,4 +121,3 @@ test('drivers CRUD works via API', function () {
 
     expect(Driver::find($id))->toBeNull();
 });
-

@@ -29,4 +29,3 @@ class CarTypeResource extends JsonResource
         ];
     }
 }
-

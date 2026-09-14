@@ -97,4 +97,3 @@ class CarTypeController extends BaseApiController
         return $this->sendResponse(null, 'Tipe mobil berhasil dihapus.');
     }
 }
-

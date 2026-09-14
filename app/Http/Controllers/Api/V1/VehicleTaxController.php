@@ -99,4 +99,3 @@ class VehicleTaxController extends BaseApiController
         return $this->sendResponse(null, 'Data pajak STNK berhasil dihapus.');
     }
 }
-

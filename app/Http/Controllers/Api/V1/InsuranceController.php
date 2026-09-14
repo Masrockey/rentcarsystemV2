@@ -95,4 +95,3 @@ class InsuranceController extends BaseApiController
         return $this->sendResponse(null, 'Data asuransi berhasil dihapus.');
     }
 }
-

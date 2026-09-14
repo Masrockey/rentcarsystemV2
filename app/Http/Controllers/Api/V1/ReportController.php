@@ -30,4 +30,3 @@ class ReportController extends BaseApiController
         return $this->sendResponse($monthlyReport, 'Laporan bulanan berhasil diambil.');
     }
 }
-

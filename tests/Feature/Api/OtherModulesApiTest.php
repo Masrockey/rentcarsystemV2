@@ -4,9 +4,6 @@ use App\Models\Blacklist;
 use App\Models\Booking;
 use App\Models\Car;
 use App\Models\Customer;
-use App\Models\Insurance;
-use App\Models\Payment;
-use App\Models\Service;
 use App\Models\User;
 use App\Models\VehicleTax;
 use Laravel\Sanctum\Sanctum;
@@ -193,4 +190,3 @@ test('lookups API returns form reference options', function () {
             ],
         ]);
 });
-

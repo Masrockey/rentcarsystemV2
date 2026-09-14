@@ -31,4 +31,3 @@ class DriverResource extends JsonResource
         ];
     }
 }
-

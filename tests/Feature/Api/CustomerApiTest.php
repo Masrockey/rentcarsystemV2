@@ -99,4 +99,3 @@ test('duplicate customer check triggers validation error via API', function () {
     $response->assertStatus(422)
         ->assertJsonValidationErrors(['phone']);
 });
-

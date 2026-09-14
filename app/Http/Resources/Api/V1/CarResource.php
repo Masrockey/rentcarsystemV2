@@ -46,4 +46,3 @@ class CarResource extends JsonResource
         ];
     }
 }
-

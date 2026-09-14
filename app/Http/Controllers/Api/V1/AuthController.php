@@ -70,4 +70,3 @@ class AuthController extends BaseApiController
         return $this->sendResponse(new UserResource($request->user()), 'Data user berhasil diambil.');
     }
 }
-

@@ -217,4 +217,3 @@ class CustomerController extends BaseApiController
         }
     }
 }
-

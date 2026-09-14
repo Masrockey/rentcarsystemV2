@@ -47,4 +47,3 @@ class RentalResource extends JsonResource
         ];
     }
 }
-

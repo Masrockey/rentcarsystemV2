@@ -63,4 +63,3 @@ class BookingResource extends JsonResource
         ];
     }
 }
-

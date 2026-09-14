@@ -118,4 +118,3 @@ class ReturnController extends BaseApiController
         );
     }
 }
-

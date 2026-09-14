@@ -245,4 +245,3 @@ class BlacklistController extends BaseApiController
         }
     }
 }
-

@@ -126,4 +126,3 @@ test('user can logout and revoke token', function () {
 
     expect($user->tokens()->count())->toBe(0);
 });
-

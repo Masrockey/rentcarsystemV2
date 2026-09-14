@@ -234,4 +234,3 @@ class DashboardController extends BaseApiController
         return round(($rentedCars / $totalCars) * 100, 1);
     }
 }
-

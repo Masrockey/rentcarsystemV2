@@ -56,4 +56,3 @@ class LookupController extends BaseApiController
         ], 'Data referensi berhasil diambil.');
     }
 }
-

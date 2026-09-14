@@ -3,7 +3,6 @@
 use App\Models\Booking;
 use App\Models\Car;
 use App\Models\Customer;
-use App\Models\Driver;
 use App\Models\Rental;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
@@ -210,4 +209,3 @@ test('completing wash updates Booking to Completed and Car to Ready', function (
     expect($booking->fresh()->status)->toBe('Completed');
     expect($car->fresh()->status)->toBe('Ready');
 });
-

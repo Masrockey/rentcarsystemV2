@@ -42,4 +42,3 @@ class CustomerResource extends JsonResource
         ];
     }
 }
-

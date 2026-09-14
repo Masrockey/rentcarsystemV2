@@ -57,4 +57,3 @@ test('super admin can view, create, update, and delete users via API', function 
 
     expect(User::find($userId))->toBeNull();
 });
-

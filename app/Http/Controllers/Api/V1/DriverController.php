@@ -103,4 +103,3 @@ class DriverController extends BaseApiController
         return $this->sendResponse(null, 'Data supir berhasil dihapus.');
     }
 }
-
