@@ -23,7 +23,8 @@ import {
     Filter,
     RotateCcw,
     Search,
-    Sparkles
+    Sparkles,
+    MapPin,
 } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { index as carsIndex } from '@/routes/cars';
@@ -1223,29 +1224,65 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
                                         <ClipboardCheck className="h-5 w-5 text-emerald-600" />
-                                        Tugas Penyerahan Mobil (Serah Terima)
+                                        Tugas Penyerahan Mobil (Serah Terima) ({stats.peluncur.assigned_deliveries.length})
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="flex flex-col gap-4">
+                                <CardContent className="flex flex-col gap-3">
                                     {stats.peluncur.assigned_deliveries.length === 0 ? (
                                         <div className="text-center py-8 text-muted-foreground text-sm">
                                             Tidak ada penyerahan mobil yang ditugaskan.
                                         </div>
                                     ) : (
                                         stats.peluncur.assigned_deliveries.map((booking: any) => (
-                                            <div key={booking.id} className="flex items-center justify-between rounded-lg border border-emerald-500/20 bg-background p-4 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-all border-l-4 border-l-emerald-500">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="font-semibold">{booking.customer?.name}</span>
-                                                    <span className="text-sm text-muted-foreground">
-                                                        Mobil: {booking.car?.name} ({booking.car?.plate_number})
-                                                    </span>
-                                                    <span className="text-xs text-muted-foreground">Tanggal: {booking.booking_date}</span>
+                                            <div
+                                                key={booking.id}
+                                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-emerald-500/20 bg-background p-3.5 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-all border-l-4 border-l-emerald-500 shadow-xs"
+                                            >
+                                                <div className="space-y-1 text-xs flex-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="font-semibold text-sm text-foreground">{booking.customer?.name}</span>
+                                                        {booking.booking_number && (
+                                                            <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                                                {booking.booking_number}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                                                        Mobil: {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : (booking.car_type || '-')}
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground pt-0.5">
+                                                        <span className="flex items-center gap-1">
+                                                            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                            <span>Tanggal: {booking.booking_date} {booking.return_date ? `s/d ${booking.return_date}` : ''}</span>
+                                                        </span>
+                                                        <span className="flex items-center gap-1 font-medium text-foreground">
+                                                            <Clock className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                            <span>
+                                                                Jam: {booking.pickup_time ? booking.pickup_time.substring(0, 5) : '-'}
+                                                                {booking.return_time ? ` s/d ${booking.return_time.substring(0, 5)}` : ''}
+                                                            </span>
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-start gap-1 text-muted-foreground pt-0.5">
+                                                        <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                                                        <div className="leading-tight">
+                                                            <span className="font-medium text-foreground">Lokasi:</span>{' '}
+                                                            <span className="text-foreground">{booking.pickup_location || <span className="italic text-muted-foreground">Pool / Belum ditentukan</span>}</span>
+                                                            {booking.dropoff_location && booking.dropoff_location !== booking.pickup_location && (
+                                                                <span className="text-[11px] text-muted-foreground block mt-0.5">
+                                                                    Kembali: {booking.dropoff_location}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <Link href={`/bookings/${booking.id}/checklist`}>
-                                                    <Button size="sm" className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold">
-                                                        <Play className="h-3.5 w-3.5 fill-current" /> Checklist Serah Terima
-                                                    </Button>
-                                                </Link>
+                                                <div className="shrink-0 self-end sm:self-center pt-1 sm:pt-0">
+                                                    <Link href={`/bookings/${booking.id}/checklist`}>
+                                                        <Button size="sm" className="w-full sm:w-auto flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold text-xs">
+                                                            <Play className="h-3.5 w-3.5 fill-current" /> Checklist Serah Terima
+                                                        </Button>
+                                                    </Link>
+                                                </div>
                                             </div>
                                         ))
                                     )}
@@ -1256,29 +1293,59 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
                                         <RotateCcw className="h-5 w-5 text-amber-600" />
-                                        Tugas Pengembalian Mobil (Ambil Unit)
+                                        Tugas Pengembalian Mobil (Ambil Unit) ({stats.peluncur.assigned_returns.length})
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="flex flex-col gap-4">
+                                <CardContent className="flex flex-col gap-3">
                                     {stats.peluncur.assigned_returns.length === 0 ? (
                                         <div className="text-center py-8 text-muted-foreground text-sm">
                                             Tidak ada pengembalian mobil yang aktif.
                                         </div>
                                     ) : (
                                         stats.peluncur.assigned_returns.map((booking: any) => (
-                                            <div key={booking.id} className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-background p-4 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all border-l-4 border-l-amber-500">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="font-semibold">{booking.customer?.name}</span>
-                                                    <span className="text-sm text-muted-foreground">
-                                                        Mobil: {booking.car?.name} ({booking.car?.plate_number})
-                                                    </span>
-                                                    <span className="text-xs text-muted-foreground">Tanggal: {booking.booking_date}</span>
+                                            <div
+                                                key={booking.id}
+                                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-background p-3.5 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-all border-l-4 border-l-amber-500 shadow-xs"
+                                            >
+                                                <div className="space-y-1 text-xs flex-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="font-semibold text-sm text-foreground">{booking.customer?.name}</span>
+                                                        {booking.booking_number && (
+                                                            <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                                                {booking.booking_number}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="font-medium text-amber-600 dark:text-amber-400">
+                                                        Mobil: {booking.car ? `${booking.car.name} (${booking.car.plate_number})` : (booking.car_type || '-')}
+                                                    </div>
+                                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground pt-0.5">
+                                                        <span className="flex items-center gap-1">
+                                                            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                            <span>Tgl Kembali: {booking.return_date || booking.booking_date}</span>
+                                                        </span>
+                                                        <span className="flex items-center gap-1 font-medium text-foreground">
+                                                            <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                                            <span>
+                                                                Jam Kembali: {booking.return_time ? booking.return_time.substring(0, 5) : (booking.pickup_time ? booking.pickup_time.substring(0, 5) : '-')}
+                                                            </span>
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-start gap-1 text-muted-foreground pt-0.5">
+                                                        <MapPin className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                                        <div className="leading-tight">
+                                                            <span className="font-medium text-foreground">Lokasi Ambil:</span>{' '}
+                                                            <span className="text-foreground">{booking.dropoff_location || booking.pickup_location || <span className="italic text-muted-foreground">Pool / Belum ditentukan</span>}</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <Link href={`/bookings/${booking.id}/checklist`}>
-                                                    <Button size="sm" className="flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs font-semibold">
-                                                        <Play className="h-3.5 w-3.5 fill-current" /> Checklist Ambil Unit
-                                                    </Button>
-                                                </Link>
+                                                <div className="shrink-0 self-end sm:self-center pt-1 sm:pt-0">
+                                                    <Link href={`/bookings/${booking.id}/checklist?type=return`}>
+                                                        <Button size="sm" className="w-full sm:w-auto flex items-center justify-center gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs font-semibold text-xs">
+                                                            <Play className="h-3.5 w-3.5 fill-current" /> Checklist Ambil Unit
+                                                        </Button>
+                                                    </Link>
+                                                </div>
                                             </div>
                                         ))
                                     )}
