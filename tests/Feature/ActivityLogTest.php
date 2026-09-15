@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\ActivityLog;
-use App\Models\Car;
 use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Auth\Events\Login;

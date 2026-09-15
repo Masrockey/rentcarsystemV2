@@ -214,6 +214,26 @@ class DashboardController extends Controller
             ];
         }
 
+        if ($user->isDriver()) {
+            $driverId = $user->driver?->id ?? Driver::where('user_id', $user->id)->value('id') ?? ($user->phone ? Driver::where('phone', $user->phone)->value('id') : null);
+            $driverTripQuery = Booking::with(['customer', 'car', 'peluncur'])
+                ->where('driver_id', $driverId);
+
+            if ($startDate) {
+                $driverTripQuery->whereDate('booking_date', '>=', $startDate);
+            }
+            if ($endDate) {
+                $driverTripQuery->whereDate('booking_date', '<=', $endDate);
+            }
+
+            $stats['driver'] = [
+                'assigned_trips' => (clone $driverTripQuery)->latest()->get(),
+                'active_trips' => Booking::where('driver_id', $driverId)->whereIn('status', ['Confirmed', 'On Trip'])->count(),
+                'today_trips' => Booking::where('driver_id', $driverId)->whereDate('booking_date', $today)->count(),
+                'completed_trips' => Booking::where('driver_id', $driverId)->where('status', 'Completed')->count(),
+            ];
+        }
+
         return Inertia::render('dashboard', [
             'stats' => $stats,
             'roles' => $roles,

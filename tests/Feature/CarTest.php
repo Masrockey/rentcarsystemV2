@@ -136,3 +136,13 @@ test('regular admin cannot change car status on edit', function () {
     expect($car->status)->toBe('Ready'); // Status remains unchanged
     expect($car->name)->toBe('Innova Test Updated'); // Other details updated
 });
+
+test('driver role cannot access cars page', function () {
+    $driverUser = User::factory()->create([
+        'roles' => ['Driver'],
+    ]);
+
+    $this->actingAs($driverUser)
+        ->get(route('cars.index'))
+        ->assertForbidden();
+});

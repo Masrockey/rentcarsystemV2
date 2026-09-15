@@ -4,8 +4,11 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Resources\Api\V1\DriverResource;
 use App\Models\Driver;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class DriverController extends BaseApiController
@@ -15,7 +18,7 @@ class DriverController extends BaseApiController
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Driver::orderBy('name');
+        $query = Driver::with('user')->orderBy('name');
 
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
@@ -27,7 +30,11 @@ class DriverController extends BaseApiController
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
                     ->orWhere('sim', 'like', "%{$search}%")
-                    ->orWhere('address', 'like', "%{$search}%");
+                    ->orWhere('address', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($uq) use ($search) {
+                        $uq->where('username', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -59,11 +66,58 @@ class DriverController extends BaseApiController
             'address' => ['nullable', 'string'],
             'status' => ['required', 'string', Rule::in(['Active', 'Inactive'])],
             'daily_rate' => ['required', 'numeric', 'min:0'],
+            'username' => ['nullable', 'string', 'max:255', 'unique:users,username'],
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['nullable', 'string', 'min:6'],
         ]);
 
-        $driver = Driver::create($validated);
+        $username = $validated['username'] ?? null;
+        if (empty($username)) {
+            $baseUsername = Str::slug($validated['name'], '_');
+            if (empty($baseUsername)) {
+                $baseUsername = 'driver_'.time();
+            }
+            $username = $baseUsername;
+            $counter = 1;
+            while (User::where('username', $username)->exists()) {
+                $username = $baseUsername.'_'.$counter;
+                $counter++;
+            }
+        }
 
-        return $this->sendResponse(new DriverResource($driver), 'Data supir berhasil ditambahkan.', 201);
+        $email = $validated['email'] ?? null;
+        if (empty($email)) {
+            $baseEmail = $username.'@driver.rentcars.com';
+            $email = $baseEmail;
+            $counter = 1;
+            while (User::where('email', $email)->exists()) {
+                $email = $username.'_'.$counter.'@driver.rentcars.com';
+                $counter++;
+            }
+        }
+
+        $password = ! empty($validated['password']) ? $validated['password'] : 'password';
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'username' => $username,
+            'email' => $email,
+            'phone' => $validated['phone'] ?? null,
+            'password' => Hash::make($password),
+            'roles' => ['Driver'],
+        ]);
+
+        $driver = Driver::create([
+            'user_id' => $user->id,
+            'name' => $validated['name'],
+            'phone' => $validated['phone'] ?? null,
+            'sim' => $validated['sim'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'status' => $validated['status'],
+            'daily_rate' => $validated['daily_rate'],
+        ]);
+
+        return $this->sendResponse(new DriverResource($driver->load('user')), 'Data supir berhasil ditambahkan.', 201);
     }
 
     /**
@@ -71,7 +125,7 @@ class DriverController extends BaseApiController
      */
     public function show(Driver $driver): JsonResponse
     {
-        return $this->sendResponse(new DriverResource($driver), 'Detail supir berhasil diambil.');
+        return $this->sendResponse(new DriverResource($driver->load('user')), 'Detail supir berhasil diambil.');
     }
 
     /**
@@ -79,6 +133,8 @@ class DriverController extends BaseApiController
      */
     public function update(Request $request, Driver $driver): JsonResponse
     {
+        $userId = $driver->user_id;
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:20'],
@@ -86,11 +142,53 @@ class DriverController extends BaseApiController
             'address' => ['nullable', 'string'],
             'status' => ['required', 'string', Rule::in(['Active', 'Inactive'])],
             'daily_rate' => ['required', 'numeric', 'min:0'],
+            'username' => ['nullable', 'string', 'max:255', Rule::unique('users', 'username')->ignore($userId)],
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($userId)],
+            'password' => ['nullable', 'string', 'min:6'],
         ]);
 
-        $driver->update($validated);
+        if ($driver->user) {
+            $userUpdates = [
+                'name' => $validated['name'],
+                'phone' => $validated['phone'] ?? null,
+            ];
+            if (! empty($validated['username'])) {
+                $userUpdates['username'] = $validated['username'];
+            }
+            if (! empty($validated['email'])) {
+                $userUpdates['email'] = $validated['email'];
+            }
+            if (! empty($validated['password'])) {
+                $userUpdates['password'] = Hash::make($validated['password']);
+            }
+            $driver->user->update($userUpdates);
+        } elseif (! empty($validated['username']) || ! empty($validated['email']) || ! empty($validated['password'])) {
+            $username = $validated['username'] ?? Str::slug($validated['name'], '_');
+            $email = $validated['email'] ?? $username.'@driver.rentcars.com';
+            $password = ! empty($validated['password']) ? $validated['password'] : 'password';
 
-        return $this->sendResponse(new DriverResource($driver->fresh()), 'Data supir berhasil diperbarui.');
+            $user = User::create([
+                'name' => $validated['name'],
+                'username' => $username,
+                'email' => $email,
+                'phone' => $validated['phone'] ?? null,
+                'password' => Hash::make($password),
+                'roles' => ['Driver'],
+            ]);
+            $driver->user_id = $user->id;
+        }
+
+        $driver->update([
+            'user_id' => $driver->user_id,
+            'name' => $validated['name'],
+            'phone' => $validated['phone'] ?? null,
+            'sim' => $validated['sim'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'status' => $validated['status'],
+            'daily_rate' => $validated['daily_rate'],
+        ]);
+
+        return $this->sendResponse(new DriverResource($driver->fresh(['user'])), 'Data supir berhasil diperbarui.');
     }
 
     /**
@@ -98,7 +196,12 @@ class DriverController extends BaseApiController
      */
     public function destroy(Driver $driver): JsonResponse
     {
+        $user = $driver->user;
         $driver->delete();
+
+        if ($user) {
+            $user->delete();
+        }
 
         return $this->sendResponse(null, 'Data supir berhasil dihapus.');
     }

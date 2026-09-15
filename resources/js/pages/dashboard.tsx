@@ -25,7 +25,10 @@ import {
     Search,
     Sparkles,
     MapPin,
+    Truck,
+    Navigation,
 } from 'lucide-react';
+import DriverTripLogDialog from '@/components/driver-trip-log-dialog';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { index as carsIndex } from '@/routes/cars';
 import { index as customersIndex } from '@/routes/customers';
@@ -47,6 +50,8 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
     const [endDate, setEndDate] = useState(filters?.end_date || '');
     const [carSearch, setCarSearch] = useState('');
     const [carStatusFilter, setCarStatusFilter] = useState<'all' | 'rented' | 'confirmed' | 'pending'>('all');
+    const [selectedTripBooking, setSelectedTripBooking] = useState<any>(null);
+    const [isTripLogOpen, setIsTripLogOpen] = useState(false);
 
     useEffect(() => {
         setStartDate(filters?.start_date || '');
@@ -1395,7 +1400,152 @@ export default function Dashboard({ roles = [], stats, filters }: DashboardProps
                         </Card>
                     </div>
                 )}
+
+                {/* --- DRIVER / SUPIR PANEL --- */}
+                {hasRole('Driver') && stats.driver && (
+                    <div className="space-y-6">
+                        <div className="flex items-center justify-between border-b pb-2 mt-6">
+                            <div>
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <Truck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    Jadwal & Tugas Supir
+                                </h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">Daftar penugasan perjalanan rental mobil Anda.</p>
+                            </div>
+                            <Link href={bookingsIndex().url}>
+                                <Button size="sm" variant="outline" className="text-xs">
+                                    Lihat Semua Penugasan
+                                </Button>
+                            </Link>
+                        </div>
+
+                        {/* Driver Quick Stats */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <Card className="bg-card">
+                                <CardContent className="pt-6">
+                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Perjalanan Aktif</div>
+                                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">{stats.driver.active_trips}</div>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-card">
+                                <CardContent className="pt-6">
+                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Jadwal Hari Ini</div>
+                                    <div className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{stats.driver.today_trips}</div>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-card">
+                                <CardContent className="pt-6">
+                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Selesai</div>
+                                    <div className="text-2xl font-bold text-foreground mt-1">{stats.driver.completed_trips}</div>
+                                </CardContent>
+                            </Card>
+                            <Card className="bg-card">
+                                <CardContent className="pt-6">
+                                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Penugasan</div>
+                                    <div className="text-2xl font-bold text-foreground mt-1">{stats.driver.assigned_trips.length}</div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Driver Assigned Trips */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                                    <CalendarDays className="h-4 w-4 text-blue-600" />
+                                    Daftar Penugasan Perjalanan
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex flex-col gap-3">
+                                {stats.driver.assigned_trips.length === 0 ? (
+                                    <div className="text-center py-10 text-muted-foreground text-sm">
+                                        Belum ada jadwal penugasan perjalanan untuk Anda saat ini.
+                                    </div>
+                                ) : (
+                                    stats.driver.assigned_trips.map((booking: any) => (
+                                        <div
+                                            key={booking.id}
+                                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-4 hover:bg-muted/40 transition-all shadow-2xs"
+                                        >
+                                            <div className="space-y-1.5 text-xs flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-sm text-foreground">{booking.customer?.name}</span>
+                                                    {booking.booking_number && (
+                                                        <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                                                            {booking.booking_number}
+                                                        </span>
+                                                    )}
+                                                    <Badge variant="outline" className={
+                                                        booking.status === 'On Trip'
+                                                            ? 'bg-purple-500/15 text-purple-600 border-purple-500/25'
+                                                            : booking.status === 'Confirmed'
+                                                            ? 'bg-blue-500/15 text-blue-600 border-blue-500/25'
+                                                            : 'bg-green-500/15 text-green-600 border-green-500/25'
+                                                    }>
+                                                        {booking.status}
+                                                    </Badge>
+                                                </div>
+                                                <div className="font-semibold text-blue-600 dark:text-blue-400">
+                                                    Mobil: {booking.car ? `${booking.car.brand || ''} ${booking.car.model || booking.car.name} (${booking.car.plate_number})` : (booking.car_type || '-')}
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground pt-1">
+                                                    <span className="flex items-center gap-1">
+                                                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <span>{booking.booking_date} s/d {booking.return_date || booking.booking_date}</span>
+                                                    </span>
+                                                    <span className="flex items-center gap-1 font-medium text-foreground">
+                                                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        <span>Jam: {booking.pickup_time ? booking.pickup_time.substring(0, 5) : '-'}</span>
+                                                    </span>
+                                                    {booking.customer?.phone && (
+                                                        <span className="text-muted-foreground">
+                                                            Telp: <strong>{booking.customer.phone}</strong>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-start gap-1 text-muted-foreground pt-0.5">
+                                                    <MapPin className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <span>Jemput: <strong>{booking.pickup_location || 'Pool'}</strong></span>
+                                                        {booking.dropoff_location && (
+                                                            <span className="ml-2">→ Antar: <strong>{booking.dropoff_location}</strong></span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex sm:flex-col items-center justify-end gap-2 shrink-0">
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setSelectedTripBooking(booking);
+                                                        setIsTripLogOpen(true);
+                                                    }}
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs gap-1.5 w-full sm:w-auto"
+                                                >
+                                                    <Navigation className="h-3.5 w-3.5" />
+                                                    Log Perjalanan & Check-in
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+                )}
             </div>
+
+            {/* Modal Dialog Driver Trip Log */}
+            {selectedTripBooking && (
+                <DriverTripLogDialog
+                    isOpen={isTripLogOpen}
+                    onClose={() => {
+                        setIsTripLogOpen(false);
+                        setSelectedTripBooking(null);
+                    }}
+                    booking={selectedTripBooking}
+                />
+            )}
         </>
     );
 }

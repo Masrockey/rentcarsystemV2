@@ -20,25 +20,27 @@ class AuthController extends BaseApiController
             'login' => ['nullable', 'string'],
             'email' => ['nullable', 'string'],
             'username' => ['nullable', 'string'],
+            'phone' => ['nullable', 'string'],
             'password' => ['required', 'string'],
             'device_name' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $loginIdentifier = $validated['login'] ?? $validated['email'] ?? $validated['username'] ?? null;
+        $loginIdentifier = trim((string) ($validated['login'] ?? $validated['email'] ?? $validated['username'] ?? $validated['phone'] ?? ''));
 
         if (empty($loginIdentifier)) {
             throw ValidationException::withMessages([
-                'login' => ['Email atau username wajib diisi.'],
+                'login' => ['Email, username, atau no. HP wajib diisi.'],
             ]);
         }
 
         $user = User::where('email', $loginIdentifier)
             ->orWhere('username', $loginIdentifier)
+            ->orWhere('phone', $loginIdentifier)
             ->first();
 
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
             return $this->sendError('Kredensial yang diberikan tidak cocok dengan data kami.', [
-                'login' => ['Kombinasi email/username dan kata sandi salah.'],
+                'login' => ['Kombinasi email/username/no. HP dan kata sandi salah.'],
             ], 422);
         }
 

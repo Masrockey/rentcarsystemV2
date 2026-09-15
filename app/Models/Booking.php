@@ -155,4 +155,14 @@ class Booking extends Model
     {
         return $this->hasMany(Rental::class);
     }
+
+    /**
+     * Get the driver trip logs (check-in / check-out history) for this booking.
+     *
+     * @return HasMany<DriverTripLog, $this>
+     */
+    public function tripLogs(): HasMany
+    {
+        return $this->hasMany(DriverTripLog::class)->orderBy('stop_order');
+    }
 }

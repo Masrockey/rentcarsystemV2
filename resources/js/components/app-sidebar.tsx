@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     LayoutGrid, CalendarDays, Car, Users, UserSquare2, BarChart3,
     Truck, CreditCard, Wrench, Shield, FileText, ClipboardList,
-    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw, ShieldAlert, Layers, History,
+    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw, ShieldAlert, Layers, History, Route,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -66,8 +66,8 @@ export function AppSidebar() {
     const fleetItems: NavItem[] = [];
     const adminItems: NavItem[] = [];
 
-    // Data Mobil & status checking is hidden for Marketing role
-    if (!roles.includes('Marketing') || hasRole('Admin')) {
+    // Data Mobil & status checking is hidden for Marketing and Driver roles
+    if ((!roles.includes('Marketing') && !roles.includes('Driver')) || hasRole('Admin')) {
         fleetItems.push({
             title: 'Data Mobil',
             href: carsIndex(),
@@ -90,7 +90,15 @@ export function AppSidebar() {
         operationalItems.push({ title: 'Pembayaran', href: paymentsIndex(), icon: CreditCard });
 
         fleetItems.push({ title: 'Tipe & Jenis Mobil', href: carTypesIndex(), icon: Layers });
-        fleetItems.push({ title: 'Data Supir', href: driversIndex(), icon: Truck });
+        fleetItems.push({
+            title: 'Data Supir',
+            href: driversIndex(),
+            icon: Truck,
+            items: [
+                { title: 'Daftar Supir', href: '/drivers', icon: Truck },
+                { title: 'Log Perjalanan Driver', href: '/driver-trip-logs', icon: Route },
+            ],
+        });
         fleetItems.push({ title: 'Servis Mobil', href: servicesIndex(), icon: Wrench });
         fleetItems.push({ title: 'Asuransi', href: insurancesIndex(), icon: Shield });
         fleetItems.push({ title: 'Pajak & STNK', href: vehicleTaxesIndex(), icon: FileText });
@@ -108,6 +116,8 @@ export function AppSidebar() {
         operationalItems.push({ title: 'Unit Kembali', href: returnsIndex(), icon: RotateCcw });
     } else if (hasRole('Petugas Cuci')) {
         operationalItems.push({ title: 'Daftar Tugas Saya', href: bookingsIndex(), icon: CalendarDays });
+    } else if (hasRole('Driver')) {
+        operationalItems.push({ title: 'Jadwal & Tugas Supir', href: bookingsIndex(), icon: Truck });
     }
 
     const getKey = (item: NavItem) => {

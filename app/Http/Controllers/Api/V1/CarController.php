@@ -12,8 +12,8 @@ class CarController extends BaseApiController
 {
     private function checkAccess(Request $request): void
     {
-        if ($request->user()->hasRole('Marketing') && ! $request->user()->isAdmin()) {
-            abort(403, 'Akses ditolak. Role Marketing tidak memiliki akses ke Data Armada.');
+        if (($request->user()->hasRole('Marketing') || $request->user()->hasRole('Driver')) && ! $request->user()->isAdmin()) {
+            abort(403, 'Akses ditolak. Role tidak memiliki akses ke Data Armada.');
         }
     }
 

@@ -98,7 +98,7 @@ class ActivityLogger
             'CarType' => $model->name ?? "#{$model->getKey()}",
             'Customer' => $model->name ?? "#{$model->getKey()}",
             'Driver' => $model->name ?? "#{$model->getKey()}",
-            'Payment' => "Pembayaran #{$model->getKey()}" . ($model->payment_method ? " ({$model->payment_method})" : ''),
+            'Payment' => "Pembayaran #{$model->getKey()}".($model->payment_method ? " ({$model->payment_method})" : ''),
             'Rental' => $model->contract_number ?? "Kontrak #{$model->getKey()}",
             'Service' => "Servis {$model->car?->name} (#{$model->getKey()})",
             'Insurance' => "Asuransi {$model->car?->name} (#{$model->getKey()})",
@@ -125,4 +125,3 @@ class ActivityLogger
         return $data;
     }
 }
-

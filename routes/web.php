@@ -9,6 +9,7 @@ use App\Http\Controllers\CarTypeController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DriverController;
+use App\Http\Controllers\DriverTripLogController;
 use App\Http\Controllers\InsuranceController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\RentalController;
@@ -48,6 +49,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('bookings/{booking}/delivery', [BookingController::class, 'submitDelivery'])->name('bookings.delivery');
     Route::post('bookings/{booking}/return', [BookingController::class, 'submitReturn'])->name('bookings.return');
     Route::post('bookings/{booking}/wash', [BookingController::class, 'completeWash'])->name('bookings.wash');
+
+    // Driver Trip Logs (Check-in & Check-out)
+    Route::get('driver-trip-logs', [DriverTripLogController::class, 'overview'])->name('driver-trip-logs.index');
+    Route::get('bookings/{booking}/trip-logs', [DriverTripLogController::class, 'index'])->name('bookings.trip-logs.index');
+    Route::post('bookings/{booking}/trip-logs/checkin', [DriverTripLogController::class, 'checkin'])->name('bookings.trip-logs.checkin');
+    Route::post('bookings/{booking}/trip-logs/{tripLog}/checkout', [DriverTripLogController::class, 'checkout'])->name('bookings.trip-logs.checkout');
 
     // Dedicated Car & Staff Allocations
     Route::get('allocations/export', [AllocationController::class, 'export'])->name('allocations.export');

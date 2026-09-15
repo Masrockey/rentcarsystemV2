@@ -8,6 +8,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -107,5 +108,22 @@ class User extends Authenticatable
         $roles = $this->getNormalizedRoles();
 
         return $this->isSuperAdmin() || in_array('petugas cuci', $roles) || in_array('petugascuci', $roles);
+    }
+
+    public function isDriver(): bool
+    {
+        $roles = $this->getNormalizedRoles();
+
+        return in_array('driver', $roles) || in_array('supir', $roles);
+    }
+
+    /**
+     * Get the driver profile associated with the user.
+     *
+     * @return HasOne<Driver, $this>
+     */
+    public function driver(): HasOne
+    {
+        return $this->hasOne(Driver::class, 'user_id');
     }
 }

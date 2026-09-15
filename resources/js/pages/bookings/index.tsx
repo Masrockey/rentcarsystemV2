@@ -22,8 +22,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle, ClipboardCheck, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle, ClipboardCheck, FileSpreadsheet, Loader2, Navigation } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import DriverTripLogDialog from '@/components/driver-trip-log-dialog';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { maskPhoneNumber } from '@/lib/utils';
 
@@ -166,6 +167,8 @@ export default function BookingsIndex({
     const [searchQuery, setSearchQuery] = useState('');
     const [washConfirmId, setWashConfirmId] = useState<number | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+    const [tripLogBooking, setTripLogBooking] = useState<Booking | null>(null);
+    const [isTripLogOpen, setIsTripLogOpen] = useState(false);
 
     // Date, Status & Marketing Filters
     const [startDate, setStartDate] = useState('');
@@ -921,7 +924,7 @@ export default function BookingsIndex({
                                         : 'Belum ada data booking.'}
                                 </div>
                             ) : (
-                                filteredBookings.map((booking) => {
+                                filteredBookings.map((booking: Booking) => {
                                     const urgency = getReturnUrgency(booking);
                                     return (
                                         <div key={booking.id} className={`flex flex-col gap-2 p-4 rounded-lg shadow-xs ${getCardHighlightClass(booking)}`}>
@@ -1093,7 +1096,7 @@ export default function BookingsIndex({
                                             </td>
                                         </tr>
                                     ) : (
-                                        filteredBookings.map((booking) => {
+                                        filteredBookings.map((booking: Booking) => {
                                             const urgency = getReturnUrgency(booking);
                                             return (
                                                 <tr key={booking.id} className={getRowHighlightClass(booking)}>
@@ -1248,6 +1251,21 @@ export default function BookingsIndex({
                                                                     onClick={() => handleCompleteWash(booking.id)}
                                                                 >
                                                                     Wash Complete
+                                                                </Button>
+                                                            )}
+
+                                                            {(booking.rental_type === 'With Driver' || Boolean(booking.driver_id) || roles.includes('Driver')) && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-8 text-xs font-semibold flex items-center gap-1.5 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 shadow-2xs"
+                                                                    title="Log Perjalanan & Check-in Supir"
+                                                                    onClick={() => {
+                                                                        setTripLogBooking(booking);
+                                                                        setIsTripLogOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Navigation className="h-3.5 w-3.5" /> Log Trip
                                                                 </Button>
                                                             )}
                                                         </div>
@@ -2140,6 +2158,18 @@ export default function BookingsIndex({
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+
+                {/* DRIVER TRIP LOG DIALOG */}
+                {tripLogBooking && (
+                    <DriverTripLogDialog
+                        isOpen={isTripLogOpen}
+                        onClose={() => {
+                            setIsTripLogOpen(false);
+                            setTripLogBooking(null);
+                        }}
+                        booking={tripLogBooking}
+                    />
+                )}
             </div>
         </>
     );

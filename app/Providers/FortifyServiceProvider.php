@@ -69,7 +69,8 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
 
         Fortify::authenticateUsing(function (Request $request) {
-            $loginInput = $request->input('email') ?? $request->input('username') ?? $request->input('phone');
+            $rawInput = $request->input('email') ?? $request->input('username') ?? $request->input('phone') ?? $request->input('login');
+            $loginInput = $rawInput ? trim((string) $rawInput) : null;
 
             if (! $loginInput) {
                 return null;

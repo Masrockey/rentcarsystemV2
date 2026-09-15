@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\CarTypeController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DriverController;
+use App\Http\Controllers\Api\V1\DriverTripLogController;
 use App\Http\Controllers\Api\V1\InsuranceController;
 use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\PaymentController;
@@ -69,6 +70,11 @@ Route::prefix('v1')->group(function () {
         Route::post('bookings/{booking}/delivery', [BookingController::class, 'submitDelivery'])->name('api.v1.bookings.delivery');
         Route::post('bookings/{booking}/return', [BookingController::class, 'submitReturn'])->name('api.v1.bookings.return');
         Route::post('bookings/{booking}/wash', [BookingController::class, 'completeWash'])->name('api.v1.bookings.wash');
+
+        // Driver Trip Logs (Check-in & Check-out)
+        Route::get('bookings/{booking}/trip-logs', [DriverTripLogController::class, 'index'])->name('api.v1.bookings.trip-logs.index');
+        Route::post('bookings/{booking}/trip-logs/checkin', [DriverTripLogController::class, 'checkin'])->name('api.v1.bookings.trip-logs.checkin');
+        Route::post('bookings/{booking}/trip-logs/{tripLog}/checkout', [DriverTripLogController::class, 'checkout'])->name('api.v1.bookings.trip-logs.checkout');
 
         // Allocations Management
         Route::get('allocations/export', [AllocationController::class, 'export'])->name('api.v1.allocations.export');

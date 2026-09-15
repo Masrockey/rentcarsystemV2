@@ -18,7 +18,12 @@ class DriverFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'name' => fake()->name(),
+            'phone' => fake()->phoneNumber(),
+            'sim' => fake()->numerify('SIM-########'),
+            'address' => fake()->address(),
+            'status' => 'Aktif',
+            'daily_rate' => 150000,
         ];
     }
 }

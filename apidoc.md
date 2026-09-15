@@ -67,6 +67,7 @@ API diamankan menggunakan **Laravel Sanctum (Bearer Token)**.
 | **Marketing** | Menginput booking, mengelola data pelanggan yang dibuatnya sendiri, monitoring booking pribadi di dashboard. |
 | **Peluncur** | Mengakses daftar alokasi, mengisi checklist serah terima (*Delivery*) & pengambilan unit (*Return*). |
 | **Petugas Cuci** | Mengakses daftar antrean pencucian unit dan konfirmasi penyelesaian pencucian armada. |
+| **Driver / Supir** | Mengakses jadwal tugas perjalanan dan pesanan sewa mobil yang ditugaskan kepadanya. |
 
 ---
 
@@ -120,27 +121,18 @@ GET https://rent.cdk-project.web.id/api/v1/bookings?page=2&per_page=20
 ### 3.3 Respons Error Validasi (`422 Unprocessable Content`)
 ```json
 {
-  "success": false,
-  "message": "Kredensial yang diberikan tidak cocok dengan data kami.",
+  "message": "The given data was invalid.",
   "errors": {
-    "login": [
-      "Kombinasi email/username dan kata sandi salah."
-    ]
+    "email": ["Format email tidak valid."],
+    "plate_number": ["Nomor plat mobil sudah digunakan."]
   }
 }
 ```
 
-### 3.4 Respons Belum Terautentikasi (`401 Unauthorized`)
+### 3.4 Respons Autentikasi / Otorisasi (`401 Unauthorized` / `403 Forbidden`)
 ```json
 {
   "message": "Unauthenticated."
-}
-```
-
-### 3.5 Respons Akses Ditolak (`403 Forbidden`)
-```json
-{
-  "message": "Akses ditolak. Anda tidak memiliki hak akses ke data ini."
 }
 ```
 
@@ -177,12 +169,20 @@ GET https://rent.cdk-project.web.id/api/v1/bookings?page=2&per_page=20
 - **Method**: `POST`
 - **Endpoint**: `/auth/login`
 - **Autentikasi**: Tidak (Publik)
+- **Kredensial Fleksibel**: Dapat menggunakan salah satu dari **Email**, **Username**, atau **Nomor Handphone (No HP)**.
 - **Body Request (JSON)**:
   ```json
   {
-    "login": "superadmin@rentcars.com", // bisa berupa email atau username
+    "login": "081234567890", // bisa berupa email, username, atau no HP
     "password": "password",
     "device_name": "mobile-app" // opsional
+  }
+  ```
+  *Atau mengirim kunci spesifik:*
+  ```json
+  {
+    "username": "driver_anto", // atau "phone": "081234567890" atau "email": "anto@example.com"
+    "password": "password"
   }
   ```
 - **Response (200 OK)**:
@@ -204,7 +204,8 @@ GET https://rent.cdk-project.web.id/api/v1/bookings?page=2&per_page=20
         "is_admin": true,
         "is_marketing": false,
         "is_peluncur": false,
-        "is_petugas_cuci": false
+        "is_petugas_cuci": false,
+        "is_driver": false
       }
     }
   }
@@ -409,11 +410,43 @@ GET https://rent.cdk-project.web.id/api/v1/bookings?page=2&per_page=20
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
-| `GET` | `/drivers` | Daftar supir (`?status=Active\|Inactive`, `?search=...`) |
-| `POST` | `/drivers` | Tambah data supir |
-| `GET` | `/drivers/{id}` | Detail supir |
-| `PUT` | `/drivers/{id}` | Update supir |
-| `DELETE` | `/drivers/{id}` | Hapus supir |
+| `GET` | `/drivers` | Daftar supir (`?status=Active\|Inactive`, `?search=...`, `?page=1&per_page=10`) |
+| `POST` | `/drivers` | Tambah data supir & otomatis membuat akun login user supir |
+| `GET` | `/drivers/{id}` | Detail supir & informasi akun login terkait |
+| `PUT` | `/drivers/{id}` | Update data supir & kredensial login |
+| `DELETE` | `/drivers/{id}` | Hapus supir & akun login terkait |
+
+#### Parameter Input Supir (`POST` / `PUT /drivers`):
+- `name` (string, wajib): Nama lengkap supir.
+- `phone` (string, opsional): Nomor HP / WhatsApp supir (bisa dipakai login).
+- `sim` (string, opsional): Nomor Surat Izin Mengemudi (SIM).
+- `address` (string, opsional): Alamat supir.
+- `status` (string, wajib): `Active` | `Inactive`.
+- `daily_rate` (numeric, wajib): Tarif premi supir per hari.
+- `username` (string, opsional): Username untuk login driver (jika kosong, di-*generate* otomatis).
+- `email` (email, opsional): Email login driver (jika kosong, di-*generate* otomatis).
+- `password` (string, opsional): Password login driver (default: `password`).
+
+#### Contoh Response Detail Supir (`GET /drivers/{id}`):
+```json
+{
+  "success": true,
+  "message": "Detail supir berhasil diambil.",
+  "data": {
+    "id": 1,
+    "user_id": 12,
+    "username": "driver_anto",
+    "email": "anto@driver.rentcars.com",
+    "name": "Anto Supir",
+    "phone": "081234567890",
+    "sim": "SIM-987654321",
+    "address": "Jl. Raya Mataram No. 10",
+    "status": "Active",
+    "daily_rate": "150000.00",
+    "created_at": "2026-09-15T15:00:00.000000Z"
+  }
+}
+```
 
 ---
 
@@ -518,6 +551,68 @@ Mengambil data checklist keberangkatan & kepulangan unit.
 - **Dampak Sistem**:
   - Status Booking berubah ke `Completed`.
   - Status Mobil berubah kembali ke `Ready`.
+
+#### 5. Log Perjalanan & Check-in / Check-out Multi-Stop Driver
+
+Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop destination*) secara bertahap selama melayani sewa mobil (Tempat 1, Tempat 2, Tempat 3, dst.).
+
+##### A. Ambil Riwayat Log Perjalanan (`GET /bookings/{id}/trip-logs`)
+- **Autentikasi**: Ya (Bearer Token)
+- **Response (200 OK)**:
+  ```json
+  {
+    "success": true,
+    "message": "Daftar log perjalanan berhasil diambil.",
+    "data": [
+      {
+        "id": 1,
+        "booking_id": 13,
+        "driver_id": 3,
+        "driver_name": "Agus Prasetyo",
+        "location_name": "Penjemputan Bandara Lombok",
+        "stop_order": 1,
+        "status": "Checked Out",
+        "checkin_at": "2026-09-15T09:00:00.000000Z",
+        "checkin_at_formatted": "15/09/2026 09:00",
+        "checkin_latitude": -8.7582,
+        "checkin_longitude": 116.2764,
+        "checkin_notes": "Tiba di lobi kedatangan",
+        "checkin_photo_url": "https://domain.com/storage/driver_logs/xxx.jpg",
+        "checkin_map_url": "https://www.openstreetmap.org/?mlat=-8.7582&mlon=116.2764#map=16/-8.7582/116.2764",
+        "checkout_at": "2026-09-15T10:15:00.000000Z",
+        "checkout_at_formatted": "15/09/2026 10:15",
+        "checkout_latitude": -8.7585,
+        "checkout_longitude": 116.2769,
+        "checkout_notes": "Tamu sudah naik mobil, menuju Hotel Senggigi",
+        "checkout_photo_url": "https://domain.com/storage/driver_logs/yyy.jpg",
+        "checkout_map_url": "https://www.openstreetmap.org/?mlat=-8.7585&mlon=116.2769#map=16/-8.7585/116.2769"
+      }
+    ]
+  }
+  ```
+
+##### B. Driver Check-in Tiba di Lokasi Baru (`POST /bookings/{id}/trip-logs/checkin`)
+- **Autentikasi**: Ya (Driver bersangkutan / Admin)
+- **Content-Type**: `multipart/form-data` (jika upload foto) atau `application/json`
+- **Body Request**:
+  - `location_name` (string, wajib): Nama tempat/tujuan (misal: "Hotel Senggigi").
+  - `checkin_notes` (string, opsional): Catatan keterangan saat tiba.
+  - `checkin_latitude` (numeric, opsional): Latitude GPS.
+  - `checkin_longitude` (numeric, opsional): Longitude GPS.
+  - `checkin_photo` (file gambar, opsional): Foto bukti tiba di lokasi.
+- **Dampak Sistem**:
+  - Status Booking otomatis berubah ke `On Trip` jika sebelumnya masih `Confirmed`.
+  - Dibuatkan record stop baru dengan urutan `stop_order` berikutnya berstatus `Checked In`.
+
+##### C. Driver Check-out Meninggalkan Lokasi (`POST /bookings/{id}/trip-logs/{logId}/checkout`)
+- **Autentikasi**: Ya (Driver bersangkutan / Admin)
+- **Body Request**:
+  - `checkout_notes` (string, opsional): Catatan keterangan keberangkatan.
+  - `checkout_latitude` (numeric, opsional): Latitude GPS saat meninggalkan tempat.
+  - `checkout_longitude` (numeric, opsional): Longitude GPS saat meninggalkan tempat.
+  - `checkout_photo` (file gambar, opsional): Foto bukti saat checkout.
+- **Dampak Sistem**:
+  - Status stop log berubah menjadi `Checked Out` dan mencatat `checkout_at = now()`. Supir siap melakukan check-in di destinasi berikutnya.
 
 ---
 

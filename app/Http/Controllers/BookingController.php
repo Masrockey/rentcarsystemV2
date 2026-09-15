@@ -30,10 +30,19 @@ class BookingController extends Controller
         $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
 
         if (! ($user->isAdmin() || $user->isPeluncur())) {
-            $query->where(function ($q) use ($user) {
-                $q->where('user_id', $user->id)
-                    ->orWhere('peluncur_id', $user->id)
-                    ->orWhere('petugas_cuci_id', $user->id);
+            $driverId = $user->driver?->id ?? Driver::where('user_id', $user->id)->value('id') ?? ($user->phone ? Driver::where('phone', $user->phone)->value('id') : null);
+            $query->where(function ($q) use ($user, $driverId) {
+                if ($user->isDriver() && $driverId) {
+                    $q->where('driver_id', $driverId);
+                } else {
+                    $q->where('user_id', $user->id)
+                        ->orWhere('peluncur_id', $user->id)
+                        ->orWhere('petugas_cuci_id', $user->id);
+
+                    if ($driverId) {
+                        $q->orWhere('driver_id', $driverId);
+                    }
+                }
             });
         }
 
