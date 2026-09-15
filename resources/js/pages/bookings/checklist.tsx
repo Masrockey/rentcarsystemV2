@@ -15,6 +15,12 @@ type Booking = {
     id: number;
     car_type: string;
     booking_date: string;
+    start_date?: string;
+    return_date?: string;
+    pickup_time?: string | null;
+    return_time?: string | null;
+    pickup_location?: string | null;
+    dropoff_location?: string | null;
     rental_type?: string;
     fuel_range_km?: number | null;
     status: 'Pending' | 'Confirmed' | 'On Trip' | 'Returned' | 'Completed';
@@ -173,11 +179,11 @@ export default function BookingChecklist({ booking }: Props) {
         km_out: initialKm,
         fuel_out: initialFuel,
         fuel_range_km: initialChecklist.fuel_range_km ?? (booking.fuel_range_km ?? 0),
-        handover_location: initialChecklist.handover_location || '',
+        handover_location: initialChecklist.handover_location || (isDelivery ? (booking.pickup_location || '') : (booking.dropoff_location || booking.pickup_location || '')),
         latitude: String(initialLat || ''),
         longitude: String(initialLng || ''),
         checkout_date: (isDelivery ? booking.delivery_checklist?.checkout_date : booking.return_checklist?.checkout_date) || getCurrentDate(),
-        checkout_time: (isDelivery ? booking.delivery_checklist?.checkout_time : booking.return_checklist?.checkout_time) || getCurrentTime(),
+        checkout_time: (isDelivery ? booking.delivery_checklist?.checkout_time : booking.return_checklist?.checkout_time) || (isDelivery && booking.pickup_time ? booking.pickup_time.substring(0, 5) : getCurrentTime()),
         checkout_datetime: '',
         notes: isDelivery ? (booking.delivery_notes || '') : (booking.return_notes || booking.delivery_notes || ''),
         photos: (Array.isArray(initialChecklist.photos) ? initialChecklist.photos : []) as (File | string)[],
@@ -239,11 +245,11 @@ export default function BookingChecklist({ booking }: Props) {
             km_out: targetKm,
             fuel_out: targetFuel,
             fuel_range_km: saved?.fuel_range_km ?? (booking.fuel_range_km ?? 0),
-            handover_location: (isDel ? booking.delivery_checklist?.handover_location : (booking.return_checklist?.handover_location || booking.delivery_checklist?.handover_location)) || '',
+            handover_location: (isDel ? booking.delivery_checklist?.handover_location : (booking.return_checklist?.handover_location || booking.delivery_checklist?.handover_location)) || (isDel ? (booking.pickup_location || '') : (booking.dropoff_location || booking.pickup_location || '')),
             latitude: String(targetLat || ''),
             longitude: String(targetLng || ''),
             checkout_date: (isDel ? booking.delivery_checklist?.checkout_date : booking.return_checklist?.checkout_date) || getCurrentDate(),
-            checkout_time: (isDel ? booking.delivery_checklist?.checkout_time : booking.return_checklist?.checkout_time) || getCurrentTime(),
+            checkout_time: (isDel ? booking.delivery_checklist?.checkout_time : booking.return_checklist?.checkout_time) || (isDel && booking.pickup_time ? booking.pickup_time.substring(0, 5) : getCurrentTime()),
             checkout_datetime: '',
             notes: isDel ? (booking.delivery_notes || '') : (booking.return_notes || booking.delivery_notes || ''),
             photos: photos,
@@ -551,6 +557,14 @@ export default function BookingChecklist({ booking }: Props) {
                                     <span className="col-span-5 text-muted-foreground font-medium">Tipe Layanan</span>
                                     <span className="col-span-7 font-semibold text-foreground text-right">{booking.rental_type || 'Lepas Kunci'}</span>
                                 </div>
+                                {(booking.pickup_location || booking.pickup_time) && (
+                                    <div className="grid grid-cols-12 items-baseline py-1 border-b border-dashed border-muted">
+                                        <span className="col-span-5 text-muted-foreground font-medium">Jadwal & Lokasi Antar</span>
+                                        <span className="col-span-7 font-semibold text-foreground text-right">
+                                            {booking.pickup_location || 'Pool'} {booking.pickup_time ? `(${booking.pickup_time.substring(0, 5)})` : ''}
+                                        </span>
+                                    </div>
+                                )}
                                 <div className="grid grid-cols-12 items-baseline py-1">
                                     <span className="col-span-5 text-muted-foreground font-medium">{isDelivery ? 'KM Keluar (Awal)' : 'KM Masuk (Kembali)'}</span>
                                     <span className="col-span-7 font-mono font-semibold text-foreground text-right">{data.km_out ? `${data.km_out.toLocaleString()} KM` : '0 KM'}</span>

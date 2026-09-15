@@ -32,7 +32,7 @@ class RentalController extends Controller
                 ->get(),
             'bookings' => Booking::with('customer')
                 ->whereIn('status', ['Pending', 'Confirmed', 'On Trip', 'Returned'])
-                ->get(['id', 'booking_number', 'customer_id', 'car_id', 'car_type', 'booking_date', 'return_date']),
+                ->get(['id', 'booking_number', 'customer_id', 'car_id', 'car_type', 'booking_date', 'return_date', 'pickup_location', 'dropoff_location', 'pickup_time', 'return_time']),
             'cars' => Car::orderBy('name')->get(['id', 'name', 'plate_number']),
             'customers' => Customer::orderBy('name')->get(['id', 'name']),
             'officers' => User::orderBy('name')->get(['id', 'name']),

@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
-import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User, Calendar, Search, X, Filter } from 'lucide-react';
+import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User, Calendar, Search, X, Filter, Clock, MapPin } from 'lucide-react';
 import { index as rentalsIndex } from '@/routes/rentals';
 import Pagination, { PaginatedData } from '@/components/pagination';
 
@@ -27,6 +27,10 @@ type BookingOption = {
     car_type: string | null;
     booking_date: string | null;
     return_date: string | null;
+    pickup_time?: string | null;
+    return_time?: string | null;
+    pickup_location?: string | null;
+    dropoff_location?: string | null;
     customer?: CustomerOption;
     peluncur?: OfficerOption;
 };
@@ -187,7 +191,8 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                 const carName = r.car?.name?.toLowerCase() || '';
                 const plate = r.car?.plate_number?.toLowerCase() || '';
                 const officer = (r.officer?.name || r.booking?.peluncur?.name || '').toLowerCase();
-                const matches = contract.includes(q) || customer.includes(q) || carName.includes(q) || plate.includes(q) || officer.includes(q);
+                const handoverLoc = (r.handover_location || r.booking?.pickup_location || '').toLowerCase();
+                const matches = contract.includes(q) || customer.includes(q) || carName.includes(q) || plate.includes(q) || officer.includes(q) || handoverLoc.includes(q);
                 if (!matches) return false;
             }
 
@@ -230,7 +235,9 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                 const carName = b.car?.name?.toLowerCase() || '';
                 const plate = b.car?.plate_number?.toLowerCase() || '';
                 const bookingNum = b.booking_number?.toLowerCase() || '';
-                const matches = customer.includes(q) || carType.includes(q) || carName.includes(q) || plate.includes(q) || bookingNum.includes(q);
+                const pickupLoc = b.pickup_location?.toLowerCase() || '';
+                const dropoffLoc = b.dropoff_location?.toLowerCase() || '';
+                const matches = customer.includes(q) || carType.includes(q) || carName.includes(q) || plate.includes(q) || bookingNum.includes(q) || pickupLoc.includes(q) || dropoffLoc.includes(q);
                 if (!matches) return false;
             }
 
@@ -606,17 +613,63 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {filteredConfirmedBookings.map((b: any) => (
-                                    <div key={b.id} className="flex items-center justify-between p-3 rounded-lg border border-emerald-500/30 bg-background shadow-xs border-l-4 border-l-emerald-500">
-                                        <div className="space-y-1 text-xs">
-                                            <div className="font-semibold text-sm text-foreground">{b.customer?.name}</div>
-                                            <div className="font-medium text-emerald-600 dark:text-emerald-400">{b.car ? `${b.car.name} (${b.car.plate_number})` : b.car_type}</div>
-                                            <div className="text-muted-foreground">Tanggal: {b.booking_date} {b.return_date ? `s/d ${b.return_date}` : ''}</div>
+                                    <div
+                                        key={b.id}
+                                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg border border-emerald-500/30 bg-background shadow-xs border-l-4 border-l-emerald-500"
+                                    >
+                                        <div className="space-y-1.5 text-xs flex-1">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="font-semibold text-sm text-foreground">{b.customer?.name}</div>
+                                                {b.booking_number && (
+                                                    <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                                                        {b.booking_number}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                                                {b.car ? `${b.car.name} (${b.car.plate_number})` : b.car_type}
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground pt-0.5">
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                    <span>Tanggal: {b.booking_date} {b.return_date ? `s/d ${b.return_date}` : ''}</span>
+                                                </span>
+                                                <span className="flex items-center gap-1 font-medium text-foreground">
+                                                    <Clock className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                                    <span>
+                                                        Jam Antar: {b.pickup_time ? b.pickup_time.substring(0, 5) : '-'}
+                                                        {b.return_time ? ` (Kembali: ${b.return_time.substring(0, 5)})` : ''}
+                                                    </span>
+                                                </span>
+                                            </div>
+                                            <div className="flex items-start gap-1 text-muted-foreground pt-0.5">
+                                                <MapPin className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                                                <div className="leading-tight">
+                                                    <span className="font-medium text-foreground">Lokasi Pengantaran:</span>{' '}
+                                                    <span className="text-foreground font-medium">
+                                                        {b.pickup_location || <span className="text-muted-foreground font-normal italic">Pool / Belum ditentukan</span>}
+                                                    </span>
+                                                    {b.dropoff_location && b.dropoff_location !== b.pickup_location && (
+                                                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                                                            Lokasi Kembali: {b.dropoff_location}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {b.peluncur?.name && (
+                                                <div className="flex items-center gap-1 text-muted-foreground pt-0.5">
+                                                    <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                                    <span>Petugas Peluncur: <span className="text-foreground font-medium">{b.peluncur.name}</span></span>
+                                                </div>
+                                            )}
                                         </div>
-                                        <Link href={`/bookings/${b.id}/checklist`}>
-                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 text-xs font-semibold shadow-xs">
-                                                <Send className="h-3.5 w-3.5" /> Serah Terima Mobil
-                                            </Button>
-                                        </Link>
+                                        <div className="shrink-0 pt-1 sm:pt-0">
+                                            <Link href={`/bookings/${b.id}/checklist`}>
+                                                <Button size="sm" className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-1.5 text-xs font-semibold shadow-xs">
+                                                    <Send className="h-3.5 w-3.5" /> Serah Terima Mobil
+                                                </Button>
+                                            </Link>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -656,6 +709,12 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                 <span className="text-foreground">{r.officer?.name || r.booking?.peluncur?.name || <span className="italic text-muted-foreground">Belum ada</span>}</span>
                                             </div>
                                             <div><span className="font-semibold text-foreground">Checkout:</span> {formatCompactDateTime(r.checkout_datetime)}</div>
+                                            {(r.handover_location || r.booking?.pickup_location) && (
+                                                <div>
+                                                    <span className="font-semibold text-foreground">Lokasi:</span>{' '}
+                                                    <span className="text-foreground">{r.handover_location || r.booking?.pickup_location}</span>
+                                                </div>
+                                            )}
                                             <div>
                                                 <span className="font-semibold text-foreground">KM / BBM Keluar:</span> {r.km_out.toLocaleString('id-ID')} km | {r.fuel_out}%
                                             </div>
@@ -767,7 +826,15 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                      </span>
                                                  </div>
                                              </td>
-                                            <td className="px-6 py-4 text-xs font-mono">{formatCompactDateTime(r.checkout_datetime)}</td>
+                                            <td className="px-6 py-4 text-xs font-mono">
+                                                <div>{formatCompactDateTime(r.checkout_datetime)}</div>
+                                                {(r.handover_location || r.booking?.pickup_location) && (
+                                                    <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5 font-sans">
+                                                        <MapPin className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                                        <span className="truncate max-w-[160px]">{r.handover_location || r.booking?.pickup_location}</span>
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-xs">
                                                 <div className="flex items-center gap-1"><Gauge className="h-3 w-3" /> {r.km_out.toLocaleString('id-ID')} km</div>
                                                 <div className="flex items-center gap-1"><Fuel className="h-3 w-3" /> {r.fuel_out}%</div>
@@ -871,6 +938,8 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                     booking_id: bookingId,
                                                     customer_id: selected.customer_id,
                                                     car_id: matchedCarId ? matchedCarId : '',
+                                                    handover_location: selected.pickup_location || data.handover_location,
+                                                    checkout_time: selected.pickup_time ? selected.pickup_time.substring(0, 5) : data.checkout_time,
                                                 });
                                             } else {
                                                 setData('booking_id', bookingId);
