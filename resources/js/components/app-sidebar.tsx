@@ -2,7 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     LayoutGrid, CalendarDays, Car, Users, UserSquare2, BarChart3,
     Truck, CreditCard, Wrench, Shield, FileText, ClipboardList,
-    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw, ShieldAlert, Layers,
+    CheckCircle2, Play, Sparkles, ChevronRight, KeyRound, RotateCcw, ShieldAlert, Layers, History,
 } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavFooter } from '@/components/nav-footer';
@@ -99,6 +99,7 @@ export function AppSidebar() {
         adminItems.push({ title: 'Blacklist Konsumen', href: blacklistsIndex(), icon: ShieldAlert });
         if (roles.includes('Super Admin')) {
             adminItems.push({ title: 'Manajemen User', href: usersIndex(), icon: Users });
+            adminItems.push({ title: 'Log Aktivitas', href: '/activity-logs', icon: History });
         }
         coreItems.push({ title: 'Laporan', href: reports(), icon: BarChart3 });
     } else if (hasRole('Peluncur')) {

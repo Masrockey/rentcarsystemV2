@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AllocationController;
 use App\Http\Controllers\BlacklistController;
 use App\Http\Controllers\BookingController;
@@ -79,6 +80,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Monthly Report
     Route::get('reports', ReportController::class)->name('reports');
+
+    // Super Admin Activity Logs
+    Route::get('activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
 });
 
 require __DIR__.'/settings.php';

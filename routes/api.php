@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\ActivityLogController;
 use App\Http\Controllers\Api\V1\AllocationController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BlacklistController;
@@ -100,5 +101,8 @@ Route::prefix('v1')->group(function () {
 
         // Monthly Financial & Transaction Report
         Route::get('reports', [ReportController::class, 'index'])->name('api.v1.reports');
+
+        // Activity Logs (Super Admin only)
+        Route::get('activity-logs', [ActivityLogController::class, 'index'])->name('api.v1.activity-logs.index');
     });
 });
