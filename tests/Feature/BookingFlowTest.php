@@ -364,3 +364,90 @@ test('admin sees bookings created by marketing', function () {
         ->where('bookings.data.0.id', $booking->id)
     );
 });
+
+test('server-side booking search finds data across pages and passes filters prop', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $marketing = User::factory()->create(['name' => 'Marketing Satu', 'roles' => ['Marketing']]);
+
+    $customerA = Customer::create(['name' => 'Customer A', 'phone' => '081111111']);
+    $targetCustomer = Customer::create(['name' => 'Target VIP Customer', 'phone' => '089999999']);
+
+    // Create 12 regular bookings (so pagination has 2 pages, 10 per page)
+    for ($i = 1; $i <= 12; $i++) {
+        Booking::create([
+            'booking_number' => "BK-REGULAR-{$i}",
+            'customer_id' => $customerA->id,
+            'car_type' => 'Avanza',
+            'booking_date' => '2026-08-01',
+            'return_date' => '2026-08-03',
+            'pickup_location' => 'Pool',
+            'dropoff_location' => 'Pool',
+            'rental_type' => 'Lepas Kunci',
+            'payment_method' => 'Cash',
+            'status' => 'Pending',
+            'user_id' => $marketing->id,
+            'amount' => 500000,
+        ]);
+    }
+
+    // Create the target booking with a unique booking number
+    $targetBooking = Booking::create([
+        'booking_number' => 'BK-20260913-WYBQR6',
+        'customer_id' => $targetCustomer->id,
+        'car_type' => 'Alphard',
+        'booking_date' => '2026-09-13',
+        'return_date' => '2026-09-15',
+        'pickup_location' => 'Bandara',
+        'dropoff_location' => 'Hotel',
+        'rental_type' => 'With Driver',
+        'payment_method' => 'Cash',
+        'status' => 'Confirmed',
+        'user_id' => $marketing->id,
+        'amount' => 3500000,
+    ]);
+
+    $this->actingAs($admin);
+
+    // 1. Unfiltered page 1 should have 10 items and total 13
+    $response = $this->get('/bookings');
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('bookings/index')
+        ->has('bookings.data', 10)
+        ->where('bookings.total', 13)
+        ->where('filters.search', '')
+    );
+
+    // 2. Searching by booking number should find the target booking directly with total = 1
+    $searchResponse = $this->get('/bookings?search=BK-20260913-WYBQR6');
+    $searchResponse->assertOk();
+    $searchResponse->assertInertia(fn ($page) => $page
+        ->component('bookings/index')
+        ->has('bookings.data', 1)
+        ->where('bookings.total', 1)
+        ->where('bookings.data.0.booking_number', 'BK-20260913-WYBQR6')
+        ->where('bookings.data.0.customer.name', 'Target VIP Customer')
+        ->where('filters.search', 'BK-20260913-WYBQR6')
+    );
+
+    // 3. Searching by customer name
+    $nameSearchResponse = $this->get('/bookings?search=Target+VIP');
+    $nameSearchResponse->assertOk();
+    $nameSearchResponse->assertInertia(fn ($page) => $page
+        ->component('bookings/index')
+        ->has('bookings.data', 1)
+        ->where('bookings.total', 1)
+        ->where('bookings.data.0.booking_number', 'BK-20260913-WYBQR6')
+    );
+
+    // 4. Filtering by status = Confirmed
+    $statusResponse = $this->get('/bookings?status=Confirmed');
+    $statusResponse->assertOk();
+    $statusResponse->assertInertia(fn ($page) => $page
+        ->component('bookings/index')
+        ->has('bookings.data', 1)
+        ->where('bookings.total', 1)
+        ->where('bookings.data.0.id', $targetBooking->id)
+        ->where('filters.status', 'Confirmed')
+    );
+});

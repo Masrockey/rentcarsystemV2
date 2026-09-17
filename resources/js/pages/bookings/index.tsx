@@ -103,6 +103,16 @@ type Booking = {
 
 import Pagination, { PaginatedData } from '@/components/pagination';
 
+type FilterState = {
+    search?: string;
+    status?: string;
+    marketing_id?: string;
+    start_date?: string;
+    end_date?: string;
+    date_field?: 'booking_date' | 'return_date' | 'active_period';
+    preset?: string;
+};
+
 type Props = {
     bookings: PaginatedData<Booking> | Booking[];
     customers: Customer[];
@@ -113,6 +123,7 @@ type Props = {
     peluncurOfficers: UserType[];
     washOfficers: UserType[];
     marketingUsers?: UserType[];
+    filters?: FilterState;
 };
 
 const DEFAULT_CAR_TYPES = [
@@ -142,6 +153,7 @@ export default function BookingsIndex({
     peluncurOfficers,
     washOfficers,
     marketingUsers = [],
+    filters,
 }: Props) {
     const { auth } = usePage().props;
     const user = auth?.user as any;
@@ -164,18 +176,21 @@ export default function BookingsIndex({
     const [isCancelling, setIsCancelling] = useState(false);
     const [isNewCustomer, setIsNewCustomer] = useState(false);
     const [isCustomCarType, setIsCustomCarType] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
     const [washConfirmId, setWashConfirmId] = useState<number | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [tripLogBooking, setTripLogBooking] = useState<Booking | null>(null);
     const [isTripLogOpen, setIsTripLogOpen] = useState(false);
 
-    // Date, Status & Marketing Filters
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [dateFilterField, setDateFilterField] = useState<'booking_date' | 'return_date' | 'active_period'>('booking_date');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [marketingFilter, setMarketingFilter] = useState<string>('all');
+    // Date, Status & Marketing Filters (initialized from server props)
+    const [searchQuery, setSearchQuery] = useState(filters?.search || '');
+    const [startDate, setStartDate] = useState(filters?.start_date || '');
+    const [endDate, setEndDate] = useState(filters?.end_date || '');
+    const [dateFilterField, setDateFilterField] = useState<'booking_date' | 'return_date' | 'active_period'>(
+        filters?.date_field || 'booking_date'
+    );
+    const [statusFilter, setStatusFilter] = useState<string>(filters?.status || 'all');
+    const [marketingFilter, setMarketingFilter] = useState<string>(filters?.marketing_id || 'all');
+    const [activePreset, setActivePreset] = useState<string>(filters?.preset || 'all');
 
     const formatLocalDate = (date: Date) => {
         const year = date.getFullYear();
@@ -215,33 +230,83 @@ export default function BookingsIndex({
         };
     };
 
+    const applyFilters = (overrides: Partial<FilterState> = {}) => {
+        const nextFilters: FilterState = {
+            search: searchQuery,
+            status: statusFilter,
+            marketing_id: marketingFilter,
+            start_date: startDate,
+            end_date: endDate,
+            date_field: dateFilterField,
+            preset: activePreset,
+            ...overrides,
+        };
+
+        const params: Record<string, string> = {};
+        if (nextFilters.search && nextFilters.search.trim()) params.search = nextFilters.search.trim();
+        if (nextFilters.status && nextFilters.status !== 'all') params.status = nextFilters.status;
+        if (nextFilters.marketing_id && nextFilters.marketing_id !== 'all') params.marketing_id = nextFilters.marketing_id;
+        if (nextFilters.start_date) params.start_date = nextFilters.start_date;
+        if (nextFilters.end_date) params.end_date = nextFilters.end_date;
+        if (nextFilters.date_field && nextFilters.date_field !== 'booking_date') params.date_field = nextFilters.date_field;
+        if (nextFilters.preset && nextFilters.preset !== 'all') params.preset = nextFilters.preset;
+
+        router.get(bookingsIndex(), params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    // Debounce search query to server
+    useEffect(() => {
+        const currentServerSearch = filters?.search || '';
+        if (searchQuery === currentServerSearch) return;
+
+        const timer = setTimeout(() => {
+            applyFilters({ search: searchQuery });
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
     const handleFilterAll = () => {
         setStartDate('');
         setEndDate('');
+        setActivePreset('all');
+        applyFilters({ start_date: '', end_date: '', preset: 'all' });
     };
 
     const handleFilterToday = () => {
         const today = getTodayStr();
         setStartDate(today);
         setEndDate(today);
+        setActivePreset('today');
+        applyFilters({ start_date: today, end_date: today, preset: 'today' });
     };
 
     const handleFilterTomorrow = () => {
         const tomorrow = getTomorrowStr();
         setStartDate(tomorrow);
         setEndDate(tomorrow);
+        setActivePreset('tomorrow');
+        applyFilters({ start_date: tomorrow, end_date: tomorrow, preset: 'tomorrow' });
     };
 
     const handleFilterThisWeek = () => {
         const range = getThisWeekRange();
         setStartDate(range.start);
         setEndDate(range.end);
+        setActivePreset('this_week');
+        applyFilters({ start_date: range.start, end_date: range.end, preset: 'this_week' });
     };
 
     const handleFilterThisMonth = () => {
         const range = getThisMonthRange();
         setStartDate(range.start);
         setEndDate(range.end);
+        setActivePreset('this_month');
+        applyFilters({ start_date: range.start, end_date: range.end, preset: 'this_month' });
     };
 
     const handleResetAllFilters = () => {
@@ -251,6 +316,12 @@ export default function BookingsIndex({
         setStatusFilter('all');
         setMarketingFilter('all');
         setSearchQuery('');
+        setActivePreset('all');
+        router.get(
+            bookingsIndex(),
+            {},
+            { preserveState: true, preserveScroll: true, replace: true }
+        );
     };
 
     const todayStr = getTodayStr();
@@ -258,74 +329,14 @@ export default function BookingsIndex({
     const thisWeek = getThisWeekRange();
     const thisMonth = getThisMonthRange();
 
-    const isTodayActive = startDate === todayStr && endDate === todayStr;
-    const isTomorrowActive = startDate === tomorrowStr && endDate === tomorrowStr;
-    const isThisWeekActive = startDate === thisWeek.start && endDate === thisWeek.end;
-    const isThisMonthActive = startDate === thisMonth.start && endDate === thisMonth.end;
+    const isTodayActive = activePreset === 'today' || (startDate === todayStr && endDate === todayStr);
+    const isTomorrowActive = activePreset === 'tomorrow' || (startDate === tomorrowStr && endDate === tomorrowStr);
+    const isThisWeekActive = activePreset === 'this_week' || (startDate === thisWeek.start && endDate === thisWeek.end);
+    const isThisMonthActive = activePreset === 'this_month' || (startDate === thisMonth.start && endDate === thisMonth.end);
 
-    const filteredBookings = useMemo(() => {
-        const bookingList = Array.isArray(bookings) ? bookings : (bookings?.data || []);
-        return bookingList.filter((b) => {
-            // 1. Search Query Filter
-            if (searchQuery.trim()) {
-                const q = searchQuery.toLowerCase();
-                const customerName = b.customer?.name?.toLowerCase() || '';
-                const bookingNumber = (b as any).booking_number?.toLowerCase() || '';
-                const carType = b.car_type?.toLowerCase() || '';
-                const carName = b.car?.name?.toLowerCase() || '';
-                const plateNumber = b.car?.plate_number?.toLowerCase() || '';
-                const pickLoc = b.pickup_location?.toLowerCase() || '';
-                const dropLoc = b.dropoff_location?.toLowerCase() || '';
-                const marketingName = b.user?.name?.toLowerCase() || '';
-                const matchesSearch =
-                    customerName.includes(q) ||
-                    bookingNumber.includes(q) ||
-                    carType.includes(q) ||
-                    carName.includes(q) ||
-                    plateNumber.includes(q) ||
-                    pickLoc.includes(q) ||
-                    dropLoc.includes(q) ||
-                    marketingName.includes(q);
-                if (!matchesSearch) return false;
-            }
-
-            // 2. Status Filter
-            if (statusFilter !== 'all' && b.status !== statusFilter) {
-                return false;
-            }
-
-            // 3. Marketing Filter
-            if (marketingFilter !== 'all') {
-                if (String(b.user_id) !== String(marketingFilter)) {
-                    return false;
-                }
-            }
-
-            // 4. Date Filter
-            const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
-            const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
-
-            if (startDate || endDate) {
-                if (dateFilterField === 'booking_date') {
-                    if (startDate && (!bStartDate || bStartDate < startDate)) return false;
-                    if (endDate && (!bStartDate || bStartDate > endDate)) return false;
-                } else if (dateFilterField === 'return_date') {
-                    if (!bReturnDate) return false;
-                    if (startDate && bReturnDate < startDate) return false;
-                    if (endDate && bReturnDate > endDate) return false;
-                } else if (dateFilterField === 'active_period') {
-                    const rangeStart = startDate || endDate;
-                    const rangeEnd = endDate || startDate;
-                    const bookingEnd = bReturnDate || bStartDate;
-                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        });
-    }, [bookings, searchQuery, startDate, endDate, dateFilterField, statusFilter, marketingFilter]);
+    // Bookings are filtered & paginated across the database by server query
+    const filteredBookings = Array.isArray(bookings) ? bookings : (bookings?.data || []);
+    const totalBookingsCount = Array.isArray(bookings) ? bookings.length : (bookings?.total ?? filteredBookings.length);
 
     const availableCarTypeNames = useMemo(() => {
         if (carTypes && carTypes.length > 0) {
@@ -747,10 +758,29 @@ export default function BookingsIndex({
                             <Input
                                 type="search"
                                 placeholder="Cari customer / no. booking..."
-                                className="pl-9 h-9 text-xs"
+                                className="pl-9 pr-8 h-9 text-xs"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        applyFilters({ search: searchQuery });
+                                    }
+                                }}
                             />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchQuery('');
+                                        applyFilters({ search: '' });
+                                    }}
+                                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                                    title="Hapus pencarian"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            )}
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -760,9 +790,9 @@ export default function BookingsIndex({
                                 <div className="flex items-center gap-2">
                                     <Calendar className="h-4 w-4 text-primary" />
                                     <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Filter Data Booking</span>
-                                    {(startDate || endDate || statusFilter !== 'all' || marketingFilter !== 'all') && (
+                                    {(startDate || endDate || statusFilter !== 'all' || marketingFilter !== 'all' || searchQuery) && (
                                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
-                                            {filteredBookings.length} data ditemukan
+                                            {totalBookingsCount} data ditemukan
                                         </Badge>
                                     )}
                                 </div>
@@ -822,7 +852,10 @@ export default function BookingsIndex({
                                     <Label htmlFor="dateFilterField" className="text-[11px] text-muted-foreground font-medium">Tipe Tanggal</Label>
                                     <Select
                                         value={dateFilterField}
-                                        onValueChange={(val: any) => setDateFilterField(val)}
+                                        onValueChange={(val: any) => {
+                                            setDateFilterField(val);
+                                            applyFilters({ date_field: val });
+                                        }}
                                     >
                                         <SelectTrigger id="dateFilterField" className="h-8 text-xs bg-background">
                                             <SelectValue />
@@ -842,7 +875,12 @@ export default function BookingsIndex({
                                         type="date"
                                         className="h-8 text-xs bg-background"
                                         value={startDate}
-                                        onChange={(e) => setStartDate(e.target.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setStartDate(val);
+                                            setActivePreset('all');
+                                            applyFilters({ start_date: val, preset: 'all' });
+                                        }}
                                     />
                                 </div>
 
@@ -853,7 +891,12 @@ export default function BookingsIndex({
                                         type="date"
                                         className="h-8 text-xs bg-background"
                                         value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setEndDate(val);
+                                            setActivePreset('all');
+                                            applyFilters({ end_date: val, preset: 'all' });
+                                        }}
                                     />
                                 </div>
 
@@ -861,7 +904,10 @@ export default function BookingsIndex({
                                     <Label htmlFor="filter_status" className="text-[11px] text-muted-foreground font-medium">Status Booking</Label>
                                     <Select
                                         value={statusFilter}
-                                        onValueChange={(val: any) => setStatusFilter(val)}
+                                        onValueChange={(val: any) => {
+                                            setStatusFilter(val);
+                                            applyFilters({ status: val });
+                                        }}
                                     >
                                         <SelectTrigger id="filter_status" className="h-8 text-xs bg-background">
                                             <SelectValue placeholder="Semua Status" />
@@ -883,7 +929,10 @@ export default function BookingsIndex({
                                     <div className="flex items-center gap-1.5">
                                         <Select
                                             value={marketingFilter}
-                                            onValueChange={(val: any) => setMarketingFilter(val)}
+                                            onValueChange={(val: any) => {
+                                                setMarketingFilter(val);
+                                                applyFilters({ marketing_id: val });
+                                            }}
                                         >
                                             <SelectTrigger id="filter_marketing" className="h-8 text-xs bg-background">
                                                 <SelectValue placeholder="Semua Marketing" />
@@ -919,7 +968,7 @@ export default function BookingsIndex({
                         <div className="space-y-3 md:hidden">
                             {filteredBookings.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground text-sm">
-                                    {searchQuery || startDate || endDate || statusFilter !== 'all'
+                                    {searchQuery || startDate || endDate || statusFilter !== 'all' || marketingFilter !== 'all'
                                         ? 'Tidak ada booking yang cocok dengan filter atau pencarian.'
                                         : 'Belum ada data booking.'}
                                 </div>
@@ -1090,7 +1139,7 @@ export default function BookingsIndex({
                                     {filteredBookings.length === 0 ? (
                                         <tr>
                                             <td colSpan={(hasRole('Admin') || hasRole('Super Admin')) ? 9 : 8} className="px-4 py-8 text-center text-muted-foreground">
-                                                {searchQuery || startDate || endDate || statusFilter !== 'all'
+                                                {searchQuery || startDate || endDate || statusFilter !== 'all' || marketingFilter !== 'all'
                                                     ? 'Tidak ada booking yang cocok dengan filter atau pencarian.'
                                                     : 'Belum ada data booking.'}
                                             </td>

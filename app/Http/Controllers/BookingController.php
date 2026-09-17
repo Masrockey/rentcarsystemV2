@@ -56,10 +56,25 @@ class BookingController extends Controller
             $query->where('user_id', $request->query('marketing_id'));
         }
 
-        // Apply Date Filters
+        // Apply Date Filters & Preset
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
         $dateField = $request->query('date_field', 'booking_date');
+        $preset = $request->query('preset');
+
+        if ($preset === 'today') {
+            $startDate = now()->format('Y-m-d');
+            $endDate = now()->format('Y-m-d');
+        } elseif ($preset === 'tomorrow') {
+            $startDate = now()->addDay()->format('Y-m-d');
+            $endDate = now()->addDay()->format('Y-m-d');
+        } elseif ($preset === 'this_week') {
+            $startDate = now()->startOfWeek()->format('Y-m-d');
+            $endDate = now()->endOfWeek()->format('Y-m-d');
+        } elseif ($preset === 'this_month') {
+            $startDate = now()->startOfMonth()->format('Y-m-d');
+            $endDate = now()->endOfMonth()->format('Y-m-d');
+        }
 
         if ($startDate || $endDate) {
             if ($dateField === 'booking_date') {
@@ -91,7 +106,7 @@ class BookingController extends Controller
 
         // Apply Search Filter
         if ($request->filled('search')) {
-            $search = $request->query('search');
+            $search = trim((string) $request->query('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('booking_number', 'like', "%{$search}%")
                     ->orWhere('car_type', 'like', "%{$search}%")
@@ -103,6 +118,9 @@ class BookingController extends Controller
                     ->orWhereHas('car', function ($c) use ($search) {
                         $c->where('name', 'like', "%{$search}%")
                             ->orWhere('plate_number', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('rental', function ($r) use ($search) {
+                        $r->where('contract_number', 'like', "%{$search}%");
                     })
                     ->orWhereHas('user', function ($u) use ($search) {
                         $u->where('name', 'like', "%{$search}%");
@@ -147,8 +165,19 @@ class BookingController extends Controller
             $customerQuery->where('user_id', $user->id);
         }
 
+        $filters = [
+            'search' => $request->query('search', ''),
+            'status' => $request->query('status', 'all'),
+            'marketing_id' => $request->query('marketing_id', 'all'),
+            'start_date' => $request->query('start_date', ''),
+            'end_date' => $request->query('end_date', ''),
+            'date_field' => $request->query('date_field', 'booking_date'),
+            'preset' => $request->query('preset', 'all'),
+        ];
+
         return Inertia::render('bookings/index', [
             'bookings' => $query->paginate(10)->withQueryString(),
+            'filters' => $filters,
             'customers' => $customerQuery->get(),
             'cars' => Car::orderBy('name')->get(),
             'readyCars' => Car::where('status', 'Ready')->orderBy('name')->get(),
