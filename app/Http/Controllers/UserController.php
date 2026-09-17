@@ -45,7 +45,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'password' => ['required', 'string', 'min:8'],
             'roles' => ['required', 'array'],
-            'roles.*' => ['string', Rule::in(['Super Admin', 'Admin', 'Marketing', 'Peluncur', 'Petugas Cuci'])],
+            'roles.*' => ['string', Rule::in(['Super Admin', 'Admin', 'Marketing', 'Peluncur', 'Petugas Cuci', 'Driver'])],
         ]);
 
         if (empty($validated['username'])) {
@@ -78,7 +78,7 @@ class UserController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'password' => ['nullable', 'string', 'min:8'],
             'roles' => ['required', 'array'],
-            'roles.*' => ['string', Rule::in(['Super Admin', 'Admin', 'Marketing', 'Peluncur', 'Petugas Cuci'])],
+            'roles.*' => ['string', Rule::in(['Super Admin', 'Admin', 'Marketing', 'Peluncur', 'Petugas Cuci', 'Driver'])],
         ]);
 
         if (empty($validated['username'])) {

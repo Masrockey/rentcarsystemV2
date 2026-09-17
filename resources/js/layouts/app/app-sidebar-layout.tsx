@@ -76,6 +76,9 @@ export default function AppSidebarLayout({
         allItems.push({ title: 'Serah Terima', href: rentalsIndex(), icon: ClipboardList });
         allItems.push({ title: 'Unit Kembali', href: returnsIndex(), icon: RotateCcw });
         allItems.push({ title: 'Armada', href: carsIndex(), icon: Car });
+    } else if (hasRole('Driver')) {
+        allItems.push({ title: 'Home', href: dashboard(), icon: LayoutGrid });
+        allItems.push({ title: 'Tugas Supir', href: bookingsIndex(), icon: Truck });
     }
 
     const getKey = (item: any) => {

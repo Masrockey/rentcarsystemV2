@@ -57,3 +57,24 @@ test('super admin can view, create, update, and delete users via API', function 
 
     expect(User::find($userId))->toBeNull();
 });
+
+test('super admin can assign Driver role to a user via API', function () {
+    $superAdmin = User::factory()->create(['roles' => ['Super Admin']]);
+    Sanctum::actingAs($superAdmin);
+
+    $createRes = $this->postJson('/api/v1/users', [
+        'name' => 'Fajar Supir',
+        'username' => 'fajar_driver',
+        'email' => 'fajar@driver.rentcars.com',
+        'phone' => '081949275321',
+        'password' => 'password123',
+        'roles' => ['Driver'],
+    ]);
+
+    $createRes->assertStatus(201)
+        ->assertJsonPath('data.roles.0', 'Driver');
+
+    $user = User::where('username', 'fajar_driver')->first();
+    expect($user)->not->toBeNull();
+    expect($user->isDriver())->toBeTrue();
+});

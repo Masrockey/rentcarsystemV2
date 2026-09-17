@@ -326,7 +326,7 @@ GET https://rent.cdk-project.web.id/api/v1/bookings?page=2&per_page=20
   "roles": ["Marketing"]
 }
 ```
-*Role yang valid: `Super Admin`, `Admin`, `Marketing`, `Peluncur`, `Petugas Cuci`.*
+*Role yang valid: `Super Admin`, `Admin`, `Marketing`, `Peluncur`, `Petugas Cuci`, `Driver`.*
 
 ---
 

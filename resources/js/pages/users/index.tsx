@@ -23,7 +23,7 @@ type User = {
     username?: string;
     email: string;
     phone?: string | null;
-    roles: ('Super Admin' | 'Admin' | 'Marketing' | 'Peluncur' | 'Petugas Cuci')[];
+    roles: ('Super Admin' | 'Admin' | 'Marketing' | 'Peluncur' | 'Petugas Cuci' | 'Driver')[];
 };
 
 type Props = {
@@ -101,6 +101,8 @@ export default function UsersIndex({ users }: Props) {
                 return 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25';
             case 'Petugas Cuci':
                 return 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25';
+            case 'Driver':
+                return 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25';
             default:
                 return 'bg-neutral-500/15 text-neutral-600 dark:text-neutral-400 border-neutral-500/25';
         }
@@ -260,7 +262,7 @@ export default function UsersIndex({ users }: Props) {
                             <div className="space-y-3">
                                 <Label>User Roles (Select all that apply)</Label>
                                 <div className="grid grid-cols-2 gap-3 pt-1">
-                                    {['Super Admin', 'Admin', 'Marketing', 'Peluncur', 'Petugas Cuci'].map((role) => {
+                                    {['Super Admin', 'Admin', 'Marketing', 'Peluncur', 'Petugas Cuci', 'Driver'].map((role) => {
                                         const isChecked = data.roles.includes(role);
                                         return (
                                             <div key={role} className="flex items-center space-x-2 border rounded-md p-2 hover:bg-muted/50 transition-colors">
