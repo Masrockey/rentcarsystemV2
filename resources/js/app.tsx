@@ -39,6 +39,20 @@ createInertiaApp({
 // This will set light / dark mode on load...
 initializeTheme();
 
+// Prevent mouse wheel from accidentally changing number input values across the whole app
+if (typeof window !== 'undefined') {
+    document.addEventListener(
+        'wheel',
+        (e) => {
+            const activeElement = document.activeElement as HTMLInputElement | null;
+            if (activeElement && activeElement.tagName === 'INPUT' && activeElement.type === 'number') {
+                activeElement.blur();
+            }
+        },
+        { passive: true }
+    );
+}
+
 // Register the PWA worker only for production builds.
 if (
     import.meta.env.PROD &&
@@ -49,3 +63,4 @@ if (
         navigator.serviceWorker.register('/sw.js');
     });
 }
+
