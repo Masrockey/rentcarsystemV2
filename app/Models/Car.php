@@ -21,6 +21,17 @@ class Car extends Model
     public const SERVICE_INTERVAL_KM = 10000;
 
     /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array<int, string>
+     */
+    protected $appends = [
+        'is_service_due',
+        'next_service_km',
+        'km_until_service',
+    ];
+
+    /**
      * The "booted" method of the model.
      */
     protected static function booted(): void
@@ -28,14 +39,6 @@ class Car extends Model
         static::creating(function (Car $car) {
             if (! isset($car->attributes['initial_km']) || $car->initial_km === null) {
                 $car->initial_km = $car->last_km ?? 0;
-            }
-        });
-
-        static::saving(function (Car $car) {
-            if ($car->initial_km !== null && $car->last_km !== null) {
-                if ($car->last_km >= ($car->initial_km + self::SERVICE_INTERVAL_KM) && $car->status !== 'Service') {
-                    $car->status = 'Service';
-                }
             }
         });
     }
@@ -46,6 +49,14 @@ class Car extends Model
     public function isServiceDue(): bool
     {
         return $this->last_km >= (($this->initial_km ?? 0) + self::SERVICE_INTERVAL_KM);
+    }
+
+    /**
+     * Accessor for is_service_due.
+     */
+    public function getIsServiceDueAttribute(): bool
+    {
+        return $this->isServiceDue();
     }
 
     /**

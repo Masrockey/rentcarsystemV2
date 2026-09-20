@@ -48,7 +48,7 @@ export default function ServicesIndex({ services, cars, allCars }: Props) {
     const [editingService, setEditingService] = useState<ServiceRecord | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
-    const availableCars = editingService ? (allCars && allCars.length > 0 ? allCars : cars) : cars;
+    const availableCars = (allCars && allCars.length > 0) ? allCars : cars;
 
     const { data, setData, post, put, reset, processing, errors, clearErrors } = useForm({
         car_id: '' as number | string,
@@ -65,8 +65,8 @@ export default function ServicesIndex({ services, cars, allCars }: Props) {
         setEditingService(null);
         reset();
         clearErrors();
-        if (cars.length > 0) {
-            const firstCar = cars[0];
+        if (availableCars.length > 0) {
+            const firstCar = availableCars.find(c => c.status === 'Service') || availableCars[0];
             setData({
                 car_id: firstCar.id,
                 service_date: new Date().toISOString().split('T')[0],
@@ -187,26 +187,16 @@ export default function ServicesIndex({ services, cars, allCars }: Props) {
                             <DialogTitle>{editingService ? 'Edit Service' : 'Tambah Service Kendaraan'}</DialogTitle>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                            {!editingService && availableCars.length === 0 ? (
-                                <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm text-blue-700 dark:text-blue-300">
-                                    <div className="font-semibold flex items-center gap-1.5 mb-1">
-                                        <Wrench className="h-4 w-4" />
-                                        Tidak Ada Mobil Yang Perlu Service
-                                    </div>
-                                    Saat ini semua kendaraan berada di status Ready / Not Ready / Belum Dicuci. Mobil otomatis beralih ke status <strong>Service</strong> ketika KM Terakhir mencapai KM Awal + 10.000 KM.
-                                </div>
-                            ) : null}
-
                             <div className="space-y-2">
-                                <Label>Pilih Mobil (Hanya Mobil Berstatus Service)</Label>
+                                <Label>Pilih Mobil</Label>
                                 <Select value={data.car_id ? String(data.car_id) : ''} onValueChange={handleCarSelect}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Pilih mobil berstatus Service..." />
+                                        <SelectValue placeholder="Pilih kendaraan..." />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {availableCars.map(c => (
                                             <SelectItem key={c.id} value={String(c.id)}>
-                                                {c.name} — {c.plate_number} (KM: {(c.last_km ?? 0).toLocaleString('id-ID')})
+                                                {c.status ? `[${c.status}] ` : ''}{c.name} — {c.plate_number} (KM: {(c.last_km ?? 0).toLocaleString('id-ID')})
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

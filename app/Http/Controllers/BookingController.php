@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Driver;
 use App\Models\Rental;
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -283,7 +284,7 @@ class BookingController extends Controller
         }
 
         $bookingNumber = 'BK-'.date('Ymd').'-'.strtoupper(Str::random(6));
-        Booking::create([
+        $booking = Booking::create([
             'user_id' => $userId,
             'customer_id' => $customerId,
             'car_type' => $validated['car_type'],
@@ -300,6 +301,20 @@ class BookingController extends Controller
             'booking_number' => $bookingNumber,
             'status' => 'Pending',
         ]);
+
+        // Send notification to Admin & Super Admin
+        $creatorName = $request->user()->name;
+        $customerName = Customer::find($customerId)?->name ?? 'Pelanggan';
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin'],
+            'Booking Baru Masuk',
+            "Marketing {$creatorName} telah membuat pesanan booking baru: {$bookingNumber} ({$customerName} - {$validated['car_type']}). Silakan lakukan alokasi armada & staf.",
+            '/allocations',
+            'booking_created',
+            'CalendarPlus',
+            ['booking_id' => $booking->id, 'booking_number' => $bookingNumber],
+            $request->user()->id
+        );
 
         Inertia::flash('toast', [
             'type' => 'success',
@@ -408,6 +423,41 @@ class BookingController extends Controller
             'cancellation_reason' => $validated['cancellation_reason'] ?? null,
             'cancelled_at' => now(),
         ]);
+
+        // Send notifications
+        $reasonText = ! empty($validated['cancellation_reason']) ? " (Alasan: {$validated['cancellation_reason']})" : '';
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin'],
+            'Booking Dibatalkan',
+            "Booking {$booking->booking_number} atas nama {$booking->customer?->name} telah dibatalkan oleh {$request->user()->name}{$reasonText}.",
+            '/bookings',
+            'booking_cancelled',
+            'Ban',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
+        if ($booking->peluncur_id && $booking->peluncur_id !== $request->user()->id) {
+            NotificationService::sendToUser(
+                $booking->peluncur_id,
+                'Tugas Booking Dibatalkan',
+                "Jadwal serah terima unit untuk booking {$booking->booking_number} ({$booking->customer?->name}) telah dibatalkan.",
+                '/bookings',
+                'booking_cancelled',
+                'Ban'
+            );
+        }
+
+        if ($booking->driver_id && $booking->driver?->user_id && $booking->driver->user_id !== $request->user()->id) {
+            NotificationService::sendToUser(
+                $booking->driver->user_id,
+                'Tugas Driver Dibatalkan',
+                "Jadwal penugasan supir untuk booking {$booking->booking_number} telah dibatalkan.",
+                '/bookings',
+                'booking_cancelled',
+                'Ban'
+            );
+        }
 
         Inertia::flash('toast', [
             'type' => 'success',
@@ -541,6 +591,19 @@ class BookingController extends Controller
             );
         }
 
+        // Send notification to Admin & Super Admin that unit is handed over / on trip
+        $carLabel = $booking->car ? "{$booking->car->name} ({$booking->car->plate_number})" : 'Armada';
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin'],
+            'Unit Diserahterimakan (On Trip)',
+            "Peluncur {$request->user()->name} telah menyelesaikan serah terima unit {$carLabel} untuk booking {$booking->booking_number} ({$booking->customer?->name}). Unit kini dalam status On Trip.",
+            '/rentals',
+            'unit_delivered',
+            'KeyRound',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => 'Proses serah terima & checklist berhasil disimpan. Unit dalam status On Trip.',
@@ -646,6 +709,19 @@ class BookingController extends Controller
             'status' => 'Returned',
         ]);
 
+        // Send notification to Admin, Super Admin, and Petugas Cuci
+        $carLabel = $booking->car ? "{$booking->car->name} ({$booking->car->plate_number})" : 'Armada';
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin', 'Petugas Cuci'],
+            'Unit Telah Kembali',
+            "Unit {$carLabel} untuk booking {$booking->booking_number} ({$booking->customer?->name}) telah dikembalikan oleh penyewa. Siap untuk proses penyelesaian / cuci unit.",
+            '/returns',
+            'unit_returned',
+            'RotateCcw',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => 'Checklist pengembalian mobil berhasil disimpan. Status unit kini Ready.',
@@ -673,9 +749,33 @@ class BookingController extends Controller
         // Automatically update rental contract status to 'Completed'
         Rental::where('booking_id', $booking->id)->update(['status' => 'Completed']);
 
+        // Send notification to Admin & Super Admin, and Marketing creator
+        $carLabel = $booking->car ? "{$booking->car->name} ({$booking->car->plate_number})" : 'Armada';
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin'],
+            'Booking Selesai (Completed)',
+            "Pesanan booking {$booking->booking_number} ({$booking->customer?->name}) telah selesai diproses. Unit {$carLabel} kini berstatus Ready.",
+            '/bookings',
+            'booking_completed',
+            'CheckCircle2',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+        );
+
+        if ($booking->user_id && $booking->user_id !== $request->user()->id) {
+            NotificationService::sendToUser(
+                $booking->user_id,
+                'Booking Selesai (Completed)',
+                "Pesanan booking {$booking->booking_number} ({$booking->customer?->name}) telah selesai diproses penuh.",
+                '/bookings',
+                'booking_completed',
+                'CheckCircle2',
+                ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+            );
+        }
+
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => 'Pencucian mobil selesai. Mobil kini status Ready.',
+            'message' => 'Pesanan booking berhasil diselesaikan. Status armada mobil kini Ready.',
         ]);
 
         return back();

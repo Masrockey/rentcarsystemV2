@@ -7,6 +7,7 @@ use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Driver;
 use App\Models\Rental;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -265,6 +266,17 @@ class BookingController extends BaseApiController
             'status' => 'Pending',
         ]);
 
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin'],
+            'Booking Baru Dibuat',
+            "Marketing ({$request->user()->name}) membuat booking baru: {$booking->booking_number} untuk customer {$customer->name}.",
+            route('bookings.index', ['search' => $booking->booking_number]),
+            'booking_created',
+            'CalendarPlus',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
         return $this->sendResponse(new BookingResource($booking->load(['customer', 'user'])), 'Booking berhasil dibuat.', 201);
     }
 
@@ -352,6 +364,41 @@ class BookingController extends BaseApiController
             'cancellation_reason' => $validated['cancellation_reason'] ?? null,
             'cancelled_at' => now(),
         ]);
+
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin'],
+            'Booking Dibatalkan',
+            "Booking {$booking->booking_number} ({$booking->customer?->name}) telah dibatalkan.",
+            route('bookings.index', ['search' => $booking->booking_number]),
+            'booking_cancelled',
+            'XCircle',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
+        if ($booking->peluncur_id && $booking->peluncur_id !== $request->user()->id) {
+            NotificationService::sendToUser(
+                $booking->peluncur_id,
+                'Tugas Booking Dibatalkan',
+                "Booking {$booking->booking_number} yang ditugaskan kepada Anda telah dibatalkan.",
+                route('bookings.index', ['search' => $booking->booking_number]),
+                'booking_cancelled',
+                'XCircle',
+                ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+            );
+        }
+
+        if ($booking->user_id && $booking->user_id !== $request->user()->id) {
+            NotificationService::sendToUser(
+                $booking->user_id,
+                'Booking Anda Dibatalkan',
+                "Booking {$booking->booking_number} Anda telah dibatalkan.",
+                route('bookings.index', ['search' => $booking->booking_number]),
+                'booking_cancelled',
+                'XCircle',
+                ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+            );
+        }
 
         return $this->sendResponse(new BookingResource($booking->fresh()), 'Booking berhasil dibatalkan.');
     }
@@ -476,6 +523,17 @@ class BookingController extends BaseApiController
             );
         }
 
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin'],
+            'Serah Terima Unit Berhasil (On Trip)',
+            "Unit untuk booking {$booking->booking_number} ({$booking->customer?->name}) telah diserahterimakan oleh {$request->user()->name} dan berstatus On Trip.",
+            route('bookings.index', ['search' => $booking->booking_number]),
+            'delivery_completed',
+            'KeyRound',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
         return $this->sendResponse(
             new BookingResource($booking->fresh()->load(['car', 'customer', 'rental'])),
             'Proses serah terima & checklist berhasil disimpan. Unit dalam status On Trip.'
@@ -573,6 +631,17 @@ class BookingController extends BaseApiController
             'status' => 'Returned',
         ]);
 
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin', 'Petugas Cuci'],
+            'Checklist Pengembalian Selesai',
+            "Checklist pengembalian untuk booking {$booking->booking_number} telah diselesaikan oleh {$request->user()->name}.",
+            route('bookings.index', ['search' => $booking->booking_number]),
+            'return_completed',
+            'ClipboardCheck',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
         return $this->sendResponse(
             new BookingResource($booking->fresh()->load(['car', 'customer', 'rental'])),
             'Checklist pengembalian mobil berhasil disimpan. Status unit kini Ready.'
@@ -596,9 +665,32 @@ class BookingController extends BaseApiController
 
         Rental::where('booking_id', $booking->id)->update(['status' => 'Completed']);
 
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin'],
+            'Pencucian Selesai / Booking Selesai',
+            "Pencucian unit untuk booking {$booking->booking_number} telah diselesaikan. Booking kini berstatus Completed.",
+            route('bookings.index', ['search' => $booking->booking_number]),
+            'wash_completed',
+            'CheckCircle2',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
+        if ($booking->user_id && $booking->user_id !== $request->user()->id) {
+            NotificationService::sendToUser(
+                $booking->user_id,
+                'Booking Telah Selesai',
+                "Booking {$booking->booking_number} ({$booking->customer?->name}) telah selesai secara menyeluruh.",
+                route('bookings.index', ['search' => $booking->booking_number]),
+                'booking_completed',
+                'CheckCircle2',
+                ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+            );
+        }
+
         return $this->sendResponse(
             new BookingResource($booking->fresh()->load(['car', 'customer', 'rental'])),
-            'Pencucian mobil selesai. Mobil kini status Ready.'
+            'Pesanan booking berhasil diselesaikan. Status armada mobil kini Ready.'
         );
     }
 

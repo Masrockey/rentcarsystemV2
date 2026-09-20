@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
-import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User, Calendar, Search, X, Filter, Clock, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User, Calendar, Search, X, Filter, Clock, MapPin, CheckCircle2 } from 'lucide-react';
 import { index as rentalsIndex } from '@/routes/rentals';
 import Pagination, { PaginatedData } from '@/components/pagination';
 
@@ -761,10 +761,11 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                              {r.booking_id && r.status === 'Returned' && (
                                                  <Button
                                                      size="sm"
-                                                     className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5"
+                                                     className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5 flex items-center gap-1.5 shadow-xs"
                                                      onClick={() => handleWash(r.booking_id)}
+                                                     title="Selesaikan pesanan booking & kembalikan status mobil ke Ready"
                                                  >
-                                                     Selesai Cuci
+                                                     <CheckCircle2 className="h-3.5 w-3.5" /> Complete Booking
                                                  </Button>
                                              )}
                                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
@@ -889,10 +890,11 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                  {r.booking_id && r.status === 'Returned' && (
                                                      <Button
                                                          size="sm"
-                                                         className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5"
+                                                         className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5 flex items-center gap-1.5 shadow-xs"
                                                          onClick={() => handleWash(r.booking_id)}
+                                                         title="Selesaikan pesanan booking & kembalikan status mobil ke Ready"
                                                      >
-                                                         Selesai Cuci
+                                                         <CheckCircle2 className="h-3.5 w-3.5" /> Complete Booking
                                                      </Button>
                                                  )}
                                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
@@ -1122,13 +1124,15 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                     </DialogContent>
                 </Dialog>
 
-                {/* CONFIRM WASH DIALOG */}
+                {/* CONFIRM COMPLETE BOOKING DIALOG */}
                 <Dialog open={washBookingId !== null} onOpenChange={(open) => !open && setWashBookingId(null)}>
                     <DialogContent className="max-w-md">
                         <DialogHeader>
-                            <DialogTitle>Konfirmasi Pencucian Selesai</DialogTitle>
+                            <DialogTitle className="flex items-center gap-2 text-green-600">
+                                <CheckCircle2 className="h-5 w-5" /> Selesaikan Booking (Complete Booking)
+                            </DialogTitle>
                             <DialogDescription>
-                                Apakah Anda yakin proses pencucian armada mobil ini telah selesai? Status armada kendaraan akan otomatis berubah menjadi <strong className="text-foreground font-semibold">Ready</strong>.
+                                Apakah Anda yakin ingin menyelesaikan pesanan booking ini? Status booking akan menjadi <strong className="text-foreground font-semibold">Completed</strong> dan status armada mobil akan otomatis kembali menjadi <strong className="text-foreground font-semibold">Ready</strong>.
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter className="gap-2 sm:gap-0 pt-4">
@@ -1136,16 +1140,16 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                 Batal
                             </Button>
                             <Button
-                                className="bg-green-600 hover:bg-green-700 text-white"
+                                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-1.5"
                                 onClick={() => {
                                     if (washBookingId) {
-                                        router.post(`/bookings/${washBookingId}/wash`, {}, {
+                                        router.post(`/bookings/${washBookingId}/complete`, {}, {
                                             onSuccess: () => setWashBookingId(null),
                                         });
                                     }
                                 }}
                             >
-                                Selesai Cuci (Set Ready)
+                                <CheckCircle2 className="h-4 w-4" /> Selesaikan Booking (Set Ready)
                             </Button>
                         </DialogFooter>
                     </DialogContent>

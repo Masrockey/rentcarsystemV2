@@ -11,6 +11,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DriverController;
 use App\Http\Controllers\DriverTripLogController;
 use App\Http\Controllers\InsuranceController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\RentalController;
 use App\Http\Controllers\ReportController;
@@ -32,7 +33,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Customers CRUD
     Route::resource('customers', CustomerController::class)->only(['index', 'store', 'update', 'destroy']);
 
-    // Cars CRUD
+    // Cars CRUD & Service Action
+    Route::post('cars/{car}/service', [CarController::class, 'sendToService'])->name('cars.service');
     Route::resource('cars', CarController::class)->only(['index', 'store', 'update', 'destroy']);
 
     // Car Types (Tipe & Jenis Mobil) CRUD
@@ -49,6 +51,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('bookings/{booking}/delivery', [BookingController::class, 'submitDelivery'])->name('bookings.delivery');
     Route::post('bookings/{booking}/return', [BookingController::class, 'submitReturn'])->name('bookings.return');
     Route::post('bookings/{booking}/wash', [BookingController::class, 'completeWash'])->name('bookings.wash');
+    Route::post('bookings/{booking}/complete', [BookingController::class, 'completeWash'])->name('bookings.complete');
 
     // Driver Trip Logs (Check-in & Check-out)
     Route::get('driver-trip-logs', [DriverTripLogController::class, 'overview'])->name('driver-trip-logs.index');
@@ -90,6 +93,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Super Admin Activity Logs
     Route::get('activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs.index');
+    Route::delete('activity-logs', [ActivityLogController::class, 'destroy'])->name('activity-logs.destroy');
+
+    // Notifications Management
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
+    Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
 });
 
 require __DIR__.'/settings.php';

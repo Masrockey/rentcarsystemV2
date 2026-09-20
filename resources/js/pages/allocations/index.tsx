@@ -12,14 +12,22 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
-import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight, Download, RefreshCw, FileSpreadsheet, Trash2 } from 'lucide-react';
+import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight, Download, RefreshCw, FileSpreadsheet, Trash2, Wrench } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { index as allocationsIndex } from '@/routes/allocations';
 import { maskPhoneNumber } from '@/lib/utils';
 
 import Pagination, { PaginatedData } from '@/components/pagination';
 
-type CarRef = { id: number; name: string; plate_number: string; daily_price?: string };
+type CarRef = {
+    id: number;
+    name: string;
+    plate_number: string;
+    daily_price?: string;
+    initial_km?: number;
+    last_km?: number;
+    is_service_due?: boolean;
+};
 type DriverRef = { id: number; name: string; phone?: string | null; daily_rate?: string };
 type UserRef = { id: number; name: string };
 type CustomerRef = { id: number; name: string; phone?: string | null; nik?: string | null; address?: string | null; email?: string | null };
@@ -221,6 +229,38 @@ export default function AllocationsIndex({
         petugas_cuci_id: '',
         amount: '',
     });
+
+    // Service warning when allocating a car that is due for service
+    const [serviceAlertCar, setServiceAlertCar] = useState<CarRef | null>(null);
+    const [isServiceAlertOpen, setIsServiceAlertOpen] = useState(false);
+    const [isSendingAllocationCarToService, setIsSendingAllocationCarToService] = useState(false);
+
+    const handleCarSelectInAllocation = (val: string) => {
+        setAssignData('car_id', val);
+        const selectedCar = readyCars.find(c => c.id.toString() === val);
+        if (selectedCar) {
+            const isDue = selectedCar.is_service_due || ((selectedCar.last_km ?? 0) >= ((selectedCar.initial_km ?? 0) + 10000));
+            if (isDue) {
+                setServiceAlertCar(selectedCar);
+                setIsServiceAlertOpen(true);
+            }
+        }
+    };
+
+    const handleSendCarToServiceFromAllocation = () => {
+        if (!serviceAlertCar) return;
+        setIsSendingAllocationCarToService(true);
+        router.post(`/cars/${serviceAlertCar.id}/service`, {}, {
+            onSuccess: () => {
+                setIsServiceAlertOpen(false);
+                setServiceAlertCar(null);
+                setAssignData('car_id', '');
+            },
+            onFinish: () => {
+                setIsSendingAllocationCarToService(false);
+            },
+        });
+    };
 
     const openAllocateDialog = (booking: Booking) => {
         setSelectedBooking(booking);
@@ -1232,14 +1272,17 @@ export default function AllocationsIndex({
                                                 : []),
                                             ...readyCars
                                                 .filter(c => c.id !== selectedBooking?.car_id)
-                                                .map(c => ({
-                                                    value: c.id.toString(),
-                                                    label: `${c.name} (${c.plate_number})`,
-                                                    sublabel: c.daily_price ? `Rp ${Number(c.daily_price).toLocaleString('id-ID')}/hari` : undefined,
-                                                })),
+                                                .map(c => {
+                                                    const isDue = c.is_service_due || ((c.last_km ?? 0) >= ((c.initial_km ?? 0) + 10000));
+                                                    return {
+                                                        value: c.id.toString(),
+                                                        label: `${c.name} (${c.plate_number})${isDue ? ' [⚠️ Perlu Servis]' : ''}`,
+                                                        sublabel: `${c.daily_price ? `Rp ${Number(c.daily_price).toLocaleString('id-ID')}/hari` : ''}${isDue ? ` • KM: ${(c.last_km ?? 0).toLocaleString('id-ID')} (Jatuh Tempo Servis)` : ''}`,
+                                                    };
+                                                }),
                                         ]}
                                         value={assignData.car_id}
-                                        onValueChange={(val) => setAssignData('car_id', val)}
+                                        onValueChange={handleCarSelectInAllocation}
                                         placeholder="Pilih kendaraan yang ready..."
                                         searchPlaceholder="Cari mobil / no. polisi..."
                                         emptyText="Mobil ready tidak ditemukan."
@@ -1365,6 +1408,76 @@ export default function AllocationsIndex({
                             >
                                 {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
                                 Ya, Hapus Data
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* SERVICE DUE WARNING DIALOG UPON CAR SELECTION */}
+                <Dialog open={isServiceAlertOpen} onOpenChange={setIsServiceAlertOpen}>
+                    <DialogContent className="max-w-md border-amber-400 bg-amber-50/90 dark:bg-amber-950/80 dark:border-amber-700">
+                        <DialogHeader>
+                            <div className="flex items-center gap-3">
+                                <div className="h-11 w-11 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                                    <Wrench className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-base font-bold text-amber-900 dark:text-amber-200">
+                                        Peringatan: Mobil Perlu Diservis!
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-amber-800/80 dark:text-amber-300/80">
+                                        Unit armada ini telah mencapai / melampaui batas servis berkala.
+                                    </DialogDescription>
+                                </div>
+                            </div>
+                        </DialogHeader>
+
+                        <div className="py-2 text-xs space-y-2.5">
+                            <div className="rounded-lg bg-background/90 p-3.5 border border-amber-300 dark:border-amber-800 space-y-1.5 shadow-xs">
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground font-medium">Armada:</span>
+                                    <span className="font-bold text-foreground">{serviceAlertCar?.name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground font-medium">No. Polisi:</span>
+                                    <span className="font-mono font-bold text-foreground">{serviceAlertCar?.plate_number}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground font-medium">KM Awal (Basis Servis):</span>
+                                    <span className="font-semibold text-foreground">{(serviceAlertCar?.initial_km ?? 0).toLocaleString('id-ID')} km</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground font-medium">KM Terakhir:</span>
+                                    <span className="font-bold text-amber-600 dark:text-amber-400">{(serviceAlertCar?.last_km ?? 0).toLocaleString('id-ID')} km</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground font-medium">Batas Servis (+10.000 KM):</span>
+                                    <span className="font-mono font-semibold text-foreground">{((serviceAlertCar?.initial_km ?? 0) + 10000).toLocaleString('id-ID')} km</span>
+                                </div>
+                            </div>
+
+                            <p className="text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed">
+                                Mobil ini disarankan untuk diservis terlebih dahulu sebelum diserahkan ke pelanggan berikutnya. Anda dapat langsung mengirim mobil ini ke status <strong>Service</strong> atau tetap <strong>Lanjutkan Alokasi</strong>.
+                            </p>
+                        </div>
+
+                        <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsServiceAlertOpen(false)}
+                                className="w-full sm:w-auto border-amber-400 text-amber-900 hover:bg-amber-100 hover:text-amber-950 dark:border-amber-700 dark:text-amber-200"
+                            >
+                                Lanjutkan Alokasi
+                            </Button>
+                            <Button
+                                type="button"
+                                disabled={isSendingAllocationCarToService}
+                                onClick={handleSendCarToServiceFromAllocation}
+                                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center justify-center gap-1.5 shadow-xs"
+                            >
+                                <Wrench className="h-4 w-4" />
+                                {isSendingAllocationCarToService ? 'Mengalihkan...' : 'Service Sekarang'}
                             </Button>
                         </DialogFooter>
                     </DialogContent>

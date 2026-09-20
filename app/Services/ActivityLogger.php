@@ -7,9 +7,15 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\Route;
 
 class ActivityLogger
 {
+    /**
+     * Context override for current operation.
+     */
+    protected static ?string $currentContext = null;
+
     /**
      * Hidden fields that must never be recorded in audit logs.
      *
@@ -21,6 +27,56 @@ class ActivityLogger
         'two_factor_secret',
         'two_factor_recovery_codes',
     ];
+
+    /**
+     * Explicitly set the business context for subsequent logs in the current request.
+     */
+    public static function setContext(?string $context): void
+    {
+        static::$currentContext = $context;
+    }
+
+    /**
+     * Get the current context or resolve automatically from route / request.
+     */
+    public static function resolveContext(): ?string
+    {
+        if (static::$currentContext !== null) {
+            return static::$currentContext;
+        }
+
+        $routeName = Route::currentRouteName();
+        if (! $routeName) {
+            return null;
+        }
+
+        $cleanRoute = str_replace('api.v1.', '', $routeName);
+
+        return match ($cleanRoute) {
+            'bookings.return', 'returns.store' => 'Unit Kembali',
+            'bookings.delivery', 'rentals.store' => 'Serah Terima Unit',
+            'bookings.wash', 'bookings.complete' => 'Complete Booking',
+            'cars.service' => 'Kirim ke Service',
+            'services.store' => 'Pencatatan Servis',
+            'allocations.update' => 'Alokasi Armada & Staf',
+            'bookings.cancel' => 'Pembatalan Booking',
+            'bookings.store' => 'Tambah Booking',
+            'bookings.update' => 'Edit Booking',
+            'cars.store' => 'Tambah Armada',
+            'cars.update' => 'Edit Armada',
+            'customers.store' => 'Tambah Pelanggan',
+            'customers.update' => 'Edit Pelanggan',
+            'drivers.store' => 'Tambah Driver',
+            'drivers.update' => 'Edit Driver',
+            'driver-trip-logs.checkin' => 'Check-in Log Perjalanan',
+            'driver-trip-logs.checkout' => 'Check-out Log Perjalanan',
+            'payments.store' => 'Pembayaran Sewa',
+            'insurances.store' => 'Pencatatan Asuransi',
+            'vehicle-taxes.store' => 'Pencatatan Pajak',
+            'blacklists.store' => 'Blacklist Konsumen',
+            default => null,
+        };
+    }
 
     /**
      * Record an activity log entry.

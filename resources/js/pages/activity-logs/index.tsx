@@ -106,6 +106,33 @@ export default function ActivityLogsIndex({
     // Modal state for viewing diff/properties
     const [selectedLog, setSelectedLog] = useState<ActivityLog | null>(null);
 
+    // Modal state for deleting logs
+    const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+    const [deletePeriod, setDeletePeriod] = useState<'1_day' | '1_week' | '2_weeks' | '1_month' | 'custom' | 'all'>('1_month');
+    const [deleteStartDate, setDeleteStartDate] = useState('');
+    const [deleteEndDate, setDeleteEndDate] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDeleteSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsDeleting(true);
+
+        router.delete('/activity-logs', {
+            data: {
+                period: deletePeriod,
+                start_date: deleteStartDate,
+                end_date: deleteEndDate,
+            },
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsDeleteOpen(false);
+                setDeleteStartDate('');
+                setDeleteEndDate('');
+            },
+            onFinish: () => setIsDeleting(false),
+        });
+    };
+
     const applyFilters = (newFilters: Partial<typeof filters>) => {
         router.get(
             '/activity-logs',
@@ -281,6 +308,14 @@ export default function ActivityLogsIndex({
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => setIsDeleteOpen(true)}
+                            className="flex items-center gap-1.5 text-xs font-semibold shadow-xs"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" /> Hapus Log
+                        </Button>
                         <Button
                             variant="outline"
                             size="sm"
@@ -802,6 +837,215 @@ export default function ActivityLogsIndex({
                             Tutup
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal Hapus Log Aktivitas */}
+            <Dialog open={isDeleteOpen} onOpenChange={(open) => !open && !isDeleting && setIsDeleteOpen(false)}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-destructive">
+                            <Trash2 className="h-5 w-5" /> Hapus / Bersihkan Log Aktivitas
+                        </DialogTitle>
+                        <DialogDescription>
+                            Pilih periode log aktivitas yang ingin dihapus. Tindakan ini bersifat permanen dan tidak dapat dibatalkan.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleDeleteSubmit} className="space-y-4 py-2 text-xs">
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-foreground block">
+                                Periode Log yang Dihapus:
+                            </label>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <label
+                                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                        deletePeriod === '1_day'
+                                            ? 'border-destructive bg-destructive/10 text-destructive font-semibold'
+                                            : 'border-input hover:bg-muted/50 text-foreground'
+                                    }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="delete_period"
+                                        value="1_day"
+                                        checked={deletePeriod === '1_day'}
+                                        onChange={() => setDeletePeriod('1_day')}
+                                        className="text-destructive focus:ring-destructive"
+                                    />
+                                    <div>
+                                        <div className="text-xs">1 Hari Terakhir</div>
+                                        <div className="text-[10px] text-muted-foreground font-normal">24 jam terakhir</div>
+                                    </div>
+                                </label>
+
+                                <label
+                                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                        deletePeriod === '1_week'
+                                            ? 'border-destructive bg-destructive/10 text-destructive font-semibold'
+                                            : 'border-input hover:bg-muted/50 text-foreground'
+                                    }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="delete_period"
+                                        value="1_week"
+                                        checked={deletePeriod === '1_week'}
+                                        onChange={() => setDeletePeriod('1_week')}
+                                        className="text-destructive focus:ring-destructive"
+                                    />
+                                    <div>
+                                        <div className="text-xs">1 Minggu Terakhir</div>
+                                        <div className="text-[10px] text-muted-foreground font-normal">7 hari terakhir</div>
+                                    </div>
+                                </label>
+
+                                <label
+                                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                        deletePeriod === '2_weeks'
+                                            ? 'border-destructive bg-destructive/10 text-destructive font-semibold'
+                                            : 'border-input hover:bg-muted/50 text-foreground'
+                                    }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="delete_period"
+                                        value="2_weeks"
+                                        checked={deletePeriod === '2_weeks'}
+                                        onChange={() => setDeletePeriod('2_weeks')}
+                                        className="text-destructive focus:ring-destructive"
+                                    />
+                                    <div>
+                                        <div className="text-xs">2 Minggu Terakhir</div>
+                                        <div className="text-[10px] text-muted-foreground font-normal">14 hari terakhir</div>
+                                    </div>
+                                </label>
+
+                                <label
+                                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                        deletePeriod === '1_month'
+                                            ? 'border-destructive bg-destructive/10 text-destructive font-semibold'
+                                            : 'border-input hover:bg-muted/50 text-foreground'
+                                    }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="delete_period"
+                                        value="1_month"
+                                        checked={deletePeriod === '1_month'}
+                                        onChange={() => setDeletePeriod('1_month')}
+                                        className="text-destructive focus:ring-destructive"
+                                    />
+                                    <div>
+                                        <div className="text-xs">1 Bulan Terakhir</div>
+                                        <div className="text-[10px] text-muted-foreground font-normal">30 hari terakhir</div>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                                <label
+                                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                        deletePeriod === 'custom'
+                                            ? 'border-destructive bg-destructive/10 text-destructive font-semibold'
+                                            : 'border-input hover:bg-muted/50 text-foreground'
+                                    }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="delete_period"
+                                        value="custom"
+                                        checked={deletePeriod === 'custom'}
+                                        onChange={() => setDeletePeriod('custom')}
+                                        className="text-destructive focus:ring-destructive"
+                                    />
+                                    <div>
+                                        <div className="text-xs">Pilih Rentang Tanggal</div>
+                                        <div className="text-[10px] text-muted-foreground font-normal">Tanggal kustom</div>
+                                    </div>
+                                </label>
+
+                                <label
+                                    className={`flex items-center gap-2.5 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                        deletePeriod === 'all'
+                                            ? 'border-destructive bg-destructive/10 text-destructive font-semibold'
+                                            : 'border-input hover:bg-muted/50 text-foreground'
+                                    }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="delete_period"
+                                        value="all"
+                                        checked={deletePeriod === 'all'}
+                                        onChange={() => setDeletePeriod('all')}
+                                        className="text-destructive focus:ring-destructive"
+                                    />
+                                    <div>
+                                        <div className="text-xs">Semua Riwayat Log</div>
+                                        <div className="text-[10px] text-muted-foreground font-normal">Bersihkan seluruh data</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        {deletePeriod === 'custom' && (
+                            <div className="p-3 bg-muted/40 rounded-lg border space-y-2">
+                                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                    <Calendar className="h-3.5 w-3.5 text-primary" /> Tentukan Rentang Tanggal:
+                                </span>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-[11px] text-muted-foreground block mb-1">Dari Tanggal</label>
+                                        <Input
+                                            type="date"
+                                            value={deleteStartDate}
+                                            onChange={(e) => setDeleteStartDate(e.target.value)}
+                                            className="h-8 text-xs"
+                                            required={deletePeriod === 'custom'}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] text-muted-foreground block mb-1">Sampai Tanggal</label>
+                                        <Input
+                                            type="date"
+                                            value={deleteEndDate}
+                                            onChange={(e) => setDeleteEndDate(e.target.value)}
+                                            className="h-8 text-xs"
+                                            required={deletePeriod === 'custom'}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20 text-destructive flex items-start gap-2 text-xs">
+                            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                            <span>
+                                <strong>Peringatan:</strong> Data log aktivitas yang terhapus tidak dapat dipulihkan. Pastikan Anda telah memeriksa periode yang dipilih sebelum melanjutkan.
+                            </span>
+                        </div>
+
+                        <DialogFooter className="gap-2 sm:gap-0 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsDeleteOpen(false)}
+                                disabled={isDeleting}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="destructive"
+                                disabled={isDeleting}
+                                className="flex items-center gap-1.5"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                {isDeleting ? 'Sedang Menghapus...' : 'Hapus Log Sekarang'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
             </Dialog>
         </>

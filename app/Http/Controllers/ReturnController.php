@@ -6,6 +6,7 @@ use App\Models\Booking;
 use App\Models\Car;
 use App\Models\Rental;
 use App\Models\User;
+use App\Services\NotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -108,6 +109,33 @@ class ReturnController extends Controller
                 'status' => 'Ready',
                 'last_km' => max($validated['km_in'], $booking->car->last_km ?? 0),
             ]);
+        }
+
+        $carName = $booking->car ? "{$booking->car->name} ({$booking->car->plate_number})" : 'Armada Mobil';
+
+        // Notify Admin, Super Admin, and Petugas Cuci
+        NotificationService::sendToRoles(
+            ['Admin', 'Super Admin', 'Petugas Cuci'],
+            'Unit Mobil Dikembalikan',
+            "Mobil {$carName} dari booking {$booking->booking_number} telah berhasil dikembalikan.",
+            route('returns.index'),
+            'unit_returned',
+            'RotateCcw',
+            ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
+            $request->user()->id
+        );
+
+        // If specific petugas cuci was assigned
+        if ($booking->petugas_cuci_id && $booking->petugas_cuci_id !== $request->user()->id) {
+            NotificationService::sendToUser(
+                $booking->petugas_cuci_id,
+                'Tugas Cuci Armada',
+                "Mobil {$carName} dari booking {$booking->booking_number} telah dikembalikan dan siap dibersihkan/dicuci.",
+                route('wash.index'),
+                'unit_returned',
+                'Sparkles',
+                ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+            );
         }
 
         Inertia::flash('toast', [

@@ -109,4 +109,64 @@ class ActivityLogController extends Controller
             'availableSubjectTypes' => $availableSubjectTypes,
         ]);
     }
+
+    /**
+     * Delete activity logs based on period or custom date range.
+     */
+    public function destroy(Request $request)
+    {
+        $this->authorizeSuperAdmin();
+
+        $validated = $request->validate([
+            'period' => ['required', 'string', 'in:1_day,1_week,2_weeks,1_month,custom,all'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date'],
+        ]);
+
+        $query = ActivityLog::query();
+        $label = '';
+
+        switch ($validated['period']) {
+            case '1_day':
+                $query->where('created_at', '>=', Carbon::now()->subDay());
+                $label = '1 hari terakhir';
+                break;
+            case '1_week':
+                $query->where('created_at', '>=', Carbon::now()->subDays(7));
+                $label = '1 minggu terakhir';
+                break;
+            case '2_weeks':
+                $query->where('created_at', '>=', Carbon::now()->subDays(14));
+                $label = '2 minggu terakhir';
+                break;
+            case '1_month':
+                $query->where('created_at', '>=', Carbon::now()->subDays(30));
+                $label = '1 bulan terakhir';
+                break;
+            case 'custom':
+                if (! empty($validated['start_date'])) {
+                    $query->where('created_at', '>=', Carbon::parse($validated['start_date'])->startOfDay());
+                }
+                if (! empty($validated['end_date'])) {
+                    $query->where('created_at', '<=', Carbon::parse($validated['end_date'])->endOfDay());
+                }
+                $sDate = $validated['start_date'] ?? 'Awal';
+                $eDate = $validated['end_date'] ?? 'Sekarang';
+                $label = "rentang {$sDate} s/d {$eDate}";
+                break;
+            case 'all':
+                $label = 'semua riwayat';
+                break;
+        }
+
+        $count = $query->count();
+        $query->delete();
+
+        Inertia::flash('toast', [
+            'type' => 'success',
+            'message' => "Berhasil menghapus {$count} entri log aktivitas ({$label}).",
+        ]);
+
+        return to_route('activity-logs.index');
+    }
 }

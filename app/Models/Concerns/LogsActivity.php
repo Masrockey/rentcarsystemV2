@@ -15,13 +15,16 @@ trait LogsActivity
         static::created(function (Model $model) {
             $label = ActivityLogger::resolveSubjectLabel($model);
             $className = self::getModelFriendlyName($model);
+            $context = ActivityLogger::resolveContext();
+            $contextSuffix = $context ? " melalui \"{$context}\"" : '';
 
             ActivityLogger::log(
                 action: 'created',
-                description: "Menambahkan {$className} baru: {$label}",
+                description: "Menambahkan {$className} baru: {$label}{$contextSuffix}",
                 subject: $model,
                 properties: [
                     'attributes' => $model->attributesToArray(),
+                    'context' => $context,
                 ]
             );
         });
@@ -41,14 +44,16 @@ trait LogsActivity
 
             $label = ActivityLogger::resolveSubjectLabel($model);
             $className = self::getModelFriendlyName($model);
+            $context = ActivityLogger::resolveContext();
+            $contextSuffix = $context ? " melalui \"{$context}\"" : '';
 
             // Special description for status changes
             if (isset($changes['status'])) {
                 $oldStatus = $old['status'] ?? '-';
                 $newStatus = $changes['status'];
-                $desc = "Memperbarui status {$className} {$label} dari '{$oldStatus}' menjadi '{$newStatus}'";
+                $desc = "Memperbarui status {$className} {$label} dari '{$oldStatus}' menjadi '{$newStatus}'{$contextSuffix}";
             } else {
-                $desc = "Memperbarui data {$className}: {$label}";
+                $desc = "Memperbarui data {$className}: {$label}{$contextSuffix}";
             }
 
             ActivityLogger::log(
@@ -58,6 +63,7 @@ trait LogsActivity
                 properties: [
                     'old' => $old,
                     'new' => $changes,
+                    'context' => $context,
                 ]
             );
         });
@@ -65,13 +71,16 @@ trait LogsActivity
         static::deleted(function (Model $model) {
             $label = ActivityLogger::resolveSubjectLabel($model);
             $className = self::getModelFriendlyName($model);
+            $context = ActivityLogger::resolveContext();
+            $contextSuffix = $context ? " melalui \"{$context}\"" : '';
 
             ActivityLogger::log(
                 action: 'deleted',
-                description: "Menghapus data {$className}: {$label}",
+                description: "Menghapus data {$className}: {$label}{$contextSuffix}",
                 subject: $model,
                 properties: [
                     'attributes' => $model->attributesToArray(),
+                    'context' => $context,
                 ]
             );
         });

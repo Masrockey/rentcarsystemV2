@@ -165,6 +165,22 @@ class CarController extends Controller
     }
 
     /**
+     * Set car status to Service.
+     */
+    public function sendToService(Request $request, Car $car): RedirectResponse
+    {
+        if (! ($request->user()->isAdmin() || $request->user()->isSuperAdmin())) {
+            abort(403, 'Akses ditolak.');
+        }
+
+        $car->update(['status' => 'Service']);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => "Mobil {$car->name} ({$car->plate_number}) berhasil dialihkan ke status Service."]);
+
+        return back();
+    }
+
+    /**
      * Remove the specified resource from storage.
      */
     public function destroy(Car $car): RedirectResponse

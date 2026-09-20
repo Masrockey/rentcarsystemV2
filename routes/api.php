@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\DriverController;
 use App\Http\Controllers\Api\V1\DriverTripLogController;
 use App\Http\Controllers\Api\V1\InsuranceController;
 use App\Http\Controllers\Api\V1\LookupController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\RentalController;
@@ -54,6 +55,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('customers', CustomerController::class)->names('api.v1.customers');
 
         // Cars / Armada Management
+        Route::post('cars/{car}/service', [CarController::class, 'sendToService'])->name('api.v1.cars.service');
         Route::apiResource('cars', CarController::class)->names('api.v1.cars');
 
         // Car Types (Tipe Mobil) Management
@@ -70,6 +72,7 @@ Route::prefix('v1')->group(function () {
         Route::post('bookings/{booking}/delivery', [BookingController::class, 'submitDelivery'])->name('api.v1.bookings.delivery');
         Route::post('bookings/{booking}/return', [BookingController::class, 'submitReturn'])->name('api.v1.bookings.return');
         Route::post('bookings/{booking}/wash', [BookingController::class, 'completeWash'])->name('api.v1.bookings.wash');
+        Route::post('bookings/{booking}/complete', [BookingController::class, 'completeWash'])->name('api.v1.bookings.complete');
 
         // Driver Trip Logs (Check-in & Check-out)
         Route::get('bookings/{booking}/trip-logs', [DriverTripLogController::class, 'index'])->name('api.v1.bookings.trip-logs.index');
@@ -110,5 +113,12 @@ Route::prefix('v1')->group(function () {
 
         // Activity Logs (Super Admin only)
         Route::get('activity-logs', [ActivityLogController::class, 'index'])->name('api.v1.activity-logs.index');
+        Route::delete('activity-logs', [ActivityLogController::class, 'destroy'])->name('api.v1.activity-logs.destroy');
+
+        // Notifications Management
+        Route::get('notifications', [NotificationController::class, 'index'])->name('api.v1.notifications.index');
+        Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('api.v1.notifications.read');
+        Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('api.v1.notifications.mark-all-read');
+        Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])->name('api.v1.notifications.destroy');
     });
 });

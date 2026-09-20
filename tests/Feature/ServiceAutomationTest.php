@@ -7,7 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('car status automatically changes to Service when last_km reaches initial_km + 10000', function () {
+test('car status does not automatically change to Service when last_km reaches initial_km + 10000, but isServiceDue returns true', function () {
     $car = Car::factory()->create([
         'initial_km' => 10000,
         'last_km' => 10000,
@@ -26,9 +26,25 @@ test('car status automatically changes to Service when last_km reaches initial_k
     // Update last_km to reach service threshold (+10000 km)
     $car->update(['last_km' => 20000]);
     $car->refresh();
-    expect($car->status)->toBe('Service');
+    expect($car->status)->toBe('Ready'); // Status remains Ready, not automatically Service
     expect($car->isServiceDue())->toBeTrue();
+    expect($car->is_service_due)->toBeTrue();
     expect($car->next_service_km)->toBe(20000);
+});
+
+test('admin can manually send car to service via cars.service route', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $car = Car::factory()->create([
+        'initial_km' => 10000,
+        'last_km' => 20500,
+        'status' => 'Ready',
+    ]);
+
+    $response = $this->actingAs($admin)->post(route('cars.service', $car));
+    $response->assertRedirect();
+
+    $car->refresh();
+    expect($car->status)->toBe('Service');
 });
 
 test('service index page passes only cars with status Service in cars prop', function () {

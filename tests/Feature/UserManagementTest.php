@@ -67,4 +67,3 @@ test('super admin can update a user and assign Driver role via web', function ()
     expect($targetUser->roles)->toContain('Peluncur');
     expect($targetUser->isDriver())->toBeTrue();
 });
-

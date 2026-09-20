@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
-import { Plus, Edit, Trash2, Car, Search, X } from 'lucide-react';
+import { Plus, Edit, Trash2, Car, Search, X, Wrench, AlertTriangle, ArrowRight } from 'lucide-react';
 import { index as carsIndex } from '@/routes/cars';
 
 type CarRecord = {
@@ -36,6 +36,9 @@ type CarRecord = {
     photo: string | null;
     owner_partner: string | null;
     status: string;
+    is_service_due?: boolean;
+    next_service_km?: number;
+    km_until_service?: number;
 };
 
 import Pagination, { PaginatedData } from '@/components/pagination';
@@ -66,6 +69,8 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
     const [isOpen, setIsOpen] = useState(false);
     const [editingCar, setEditingCar] = useState<CarRecord | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
+    const [serviceCar, setServiceCar] = useState<CarRecord | null>(null);
+    const [isSendingToService, setIsSendingToService] = useState(false);
 
     const counts = statusCounts ?? {
         all: 'total' in cars ? cars.total : carList.length,
@@ -152,6 +157,25 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
         } else {
             post('/cars', options);
         }
+    };
+
+    const handleSendToService = () => {
+        if (!serviceCar) return;
+        if (serviceCar.status === 'Service') {
+            setServiceCar(null);
+            router.visit('/services');
+            return;
+        }
+
+        setIsSendingToService(true);
+        router.post(`/cars/${serviceCar.id}/service`, {}, {
+            onSuccess: () => {
+                setServiceCar(null);
+            },
+            onFinish: () => {
+                setIsSendingToService(false);
+            },
+        });
     };
 
     const getStatusColor = (status: string) => {
@@ -299,62 +323,83 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                     Tidak ada kendaraan dengan status ini.
                                 </div>
                             ) : (
-                                carList.map((car) => (
-                                    <div key={car.id} className="flex flex-col gap-3 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
-                                        <div className="flex items-center gap-3">
-                                            {car.photo ? (
-                                                <img src={`/storage/${car.photo}`} alt={car.name} className="h-12 w-16 rounded object-cover" />
-                                            ) : (
-                                                <div className="flex h-12 w-16 items-center justify-center rounded bg-muted">
-                                                    <Car className="h-6 w-6 text-muted-foreground" />
+                                carList.map((car) => {
+                                    const isDue = car.is_service_due || (car.last_km >= ((car.initial_km ?? 0) + 10000));
+                                    return (
+                                        <div key={car.id} className="flex flex-col gap-3 p-4 rounded-lg border bg-card text-card-foreground shadow-xs">
+                                            <div className="flex items-center gap-3">
+                                                {car.photo ? (
+                                                    <img src={`/storage/${car.photo}`} alt={car.name} className="h-12 w-16 rounded object-cover" />
+                                                ) : (
+                                                    <div className="flex h-12 w-16 items-center justify-center rounded bg-muted">
+                                                        <Car className="h-6 w-6 text-muted-foreground" />
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-semibold text-sm truncate">{car.brand} {car.model}</div>
+                                                    <div className="text-xs text-muted-foreground truncate">{car.name} · {car.year}</div>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <Badge variant="outline" className={getStatusColor(car.status)}>{car.status}</Badge>
+                                                    {isDue && (
+                                                        <Badge variant="outline" className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-semibold">
+                                                            ⚠️ Perlu Servis
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
+                                                <div className="flex justify-between">
+                                                    <span>No. Polisi:</span>
+                                                    <span className="font-mono font-semibold text-foreground">{car.plate_number}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Mitra / Pemilik:</span>
+                                                    <span className="font-medium text-foreground">{car.owner_partner || 'Milik Sendiri'}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Spesifikasi:</span>
+                                                    <span className="text-foreground">{car.transmission} · {car.fuel_type} · {car.passenger_capacity} Penumpang</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>Harga/Hari:</span>
+                                                    <span className="font-semibold text-foreground">{formatCurrency(car.daily_price)}</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>KM Awal:</span>
+                                                    <span className="text-foreground">{(car.initial_km ?? 0).toLocaleString('id-ID')} km</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span>KM Terakhir:</span>
+                                                    <span className="text-foreground font-medium">{car.last_km.toLocaleString('id-ID')} km</span>
+                                                </div>
+                                                <div className="flex justify-between text-[11px] text-muted-foreground">
+                                                    <span>Batas Service (+10k):</span>
+                                                    <span className="font-mono text-blue-600 dark:text-blue-400 font-semibold">{((car.initial_km ?? 0) + 10000).toLocaleString('id-ID')} km</span>
+                                                </div>
+                                            </div>
+
+                                            {canManageCars && (
+                                                <div className="flex justify-end gap-1.5 pt-2 border-t mt-1">
+                                                    {(isDue || car.status === 'Service') && (
+                                                        <Button
+                                                            size="sm"
+                                                            className={`h-8 px-3 text-xs font-semibold flex items-center gap-1.5 shadow-xs ${car.status === 'Service' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}
+                                                            onClick={() => setServiceCar(car)}
+                                                            title={car.status === 'Service' ? 'Lihat / Catat Service' : 'Mobil perlu diservis (+10.000 KM)'}
+                                                        >
+                                                            <Wrench className="h-3.5 w-3.5" />
+                                                            {car.status === 'Service' ? 'Proses Servis' : 'Service'}
+                                                        </Button>
+                                                    )}
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(car)} title="Edit Kendaraan"><Edit className="h-4 w-4" /></Button>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)} title="Hapus Kendaraan"><Trash2 className="h-4 w-4" /></Button>
                                                 </div>
                                             )}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="font-semibold text-sm truncate">{car.brand} {car.model}</div>
-                                                <div className="text-xs text-muted-foreground truncate">{car.name} · {car.year}</div>
-                                            </div>
-                                            <Badge variant="outline" className={getStatusColor(car.status)}>{car.status}</Badge>
                                         </div>
-                                        
-                                        <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
-                                            <div className="flex justify-between">
-                                                <span>No. Polisi:</span>
-                                                <span className="font-mono font-semibold text-foreground">{car.plate_number}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Mitra / Pemilik:</span>
-                                                <span className="font-medium text-foreground">{car.owner_partner || 'Milik Sendiri'}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Spesifikasi:</span>
-                                                <span className="text-foreground">{car.transmission} · {car.fuel_type} · {car.passenger_capacity} Penumpang</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>Harga/Hari:</span>
-                                                <span className="font-semibold text-foreground">{formatCurrency(car.daily_price)}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>KM Awal:</span>
-                                                <span className="text-foreground">{(car.initial_km ?? 0).toLocaleString('id-ID')} km</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span>KM Terakhir:</span>
-                                                <span className="text-foreground font-medium">{car.last_km.toLocaleString('id-ID')} km</span>
-                                            </div>
-                                            <div className="flex justify-between text-[11px] text-muted-foreground">
-                                                <span>Batas Service (+10k):</span>
-                                                <span className="font-mono text-blue-600 dark:text-blue-400 font-semibold">{((car.initial_km ?? 0) + 10000).toLocaleString('id-ID')} km</span>
-                                            </div>
-                                        </div>
-
-                                        {canManageCars && (
-                                            <div className="flex justify-end gap-2 pt-2 border-t mt-1">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(car)}><Edit className="h-4 w-4" /></Button>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)}><Trash2 className="h-4 w-4" /></Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
 
@@ -377,56 +422,77 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                 <tbody className="divide-y">
                                     {carList.length === 0 ? (
                                         <tr><td colSpan={canManageCars ? 9 : 8} className="px-6 py-8 text-center text-muted-foreground">Tidak ada kendaraan dengan status ini.</td></tr>
-                                    ) : carList.map((car) => (
-                                        <tr key={car.id} className="hover:bg-muted/50">
-                                            <td className="px-5 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    {car.photo ? (
-                                                        <img src={`/storage/${car.photo}`} alt={car.name} className="h-10 w-14 rounded object-cover" />
-                                                    ) : (
-                                                        <div className="flex h-10 w-14 items-center justify-center rounded bg-muted">
-                                                            <Car className="h-5 w-5 text-muted-foreground" />
+                                    ) : carList.map((car) => {
+                                        const isDue = car.is_service_due || (car.last_km >= ((car.initial_km ?? 0) + 10000));
+                                        return (
+                                            <tr key={car.id} className="hover:bg-muted/50">
+                                                <td className="px-5 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        {car.photo ? (
+                                                            <img src={`/storage/${car.photo}`} alt={car.name} className="h-10 w-14 rounded object-cover" />
+                                                        ) : (
+                                                            <div className="flex h-10 w-14 items-center justify-center rounded bg-muted">
+                                                                <Car className="h-5 w-5 text-muted-foreground" />
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <div className="font-semibold">{car.brand} {car.model}</div>
+                                                            <div className="text-xs text-muted-foreground">{car.name} · {car.year} · {car.color}</div>
                                                         </div>
-                                                    )}
-                                                    <div>
-                                                        <div className="font-semibold">{car.brand} {car.model}</div>
-                                                        <div className="text-xs text-muted-foreground">{car.name} · {car.year} · {car.color}</div>
                                                     </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-4 font-mono font-semibold">{car.plate_number}</td>
-                                            <td className="px-4 py-4 text-xs font-medium">
-                                                {car.owner_partner ? (
-                                                    <span className="font-semibold text-foreground">{car.owner_partner}</span>
-                                                ) : (
-                                                    <span className="text-muted-foreground italic">Milik Sendiri</span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-4 text-xs">
-                                                <div>{car.transmission} · {car.fuel_type}</div>
-                                                <div>{car.passenger_capacity} penumpang · {car.type}</div>
-                                            </td>
-                                            <td className="px-4 py-4 font-semibold">{formatCurrency(car.daily_price)}</td>
-                                            <td className="px-4 py-4">
-                                                <span className="font-medium">{(car.initial_km ?? 0).toLocaleString('id-ID')} km</span>
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <div className="font-medium">{car.last_km.toLocaleString('id-ID')} km</div>
-                                                <div className="text-[11px] text-muted-foreground">
-                                                    Batas: {((car.initial_km ?? 0) + 10000).toLocaleString('id-ID')} km
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-4">
-                                                <Badge variant="outline" className={getStatusColor(car.status)}>{car.status}</Badge>
-                                            </td>
-                                            {canManageCars && (
-                                                <td className="px-5 py-4 text-right flex items-center justify-end gap-2">
-                                                    <Button variant="ghost" size="icon" onClick={() => openEdit(car)}><Edit className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)}><Trash2 className="h-4 w-4" /></Button>
                                                 </td>
-                                            )}
-                                        </tr>
-                                    ))}
+                                                <td className="px-4 py-4 font-mono font-semibold">{car.plate_number}</td>
+                                                <td className="px-4 py-4 text-xs font-medium">
+                                                    {car.owner_partner ? (
+                                                        <span className="font-semibold text-foreground">{car.owner_partner}</span>
+                                                    ) : (
+                                                        <span className="text-muted-foreground italic">Milik Sendiri</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-4 text-xs">
+                                                    <div>{car.transmission} · {car.fuel_type}</div>
+                                                    <div>{car.passenger_capacity} penumpang · {car.type}</div>
+                                                </td>
+                                                <td className="px-4 py-4 font-semibold">{formatCurrency(car.daily_price)}</td>
+                                                <td className="px-4 py-4">
+                                                    <span className="font-medium">{(car.initial_km ?? 0).toLocaleString('id-ID')} km</span>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <div className="font-medium">{car.last_km.toLocaleString('id-ID')} km</div>
+                                                    <div className="text-[11px] text-muted-foreground">
+                                                        Batas: {((car.initial_km ?? 0) + 10000).toLocaleString('id-ID')} km
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <div className="flex flex-col items-start gap-1">
+                                                        <Badge variant="outline" className={getStatusColor(car.status)}>{car.status}</Badge>
+                                                        {isDue && (
+                                                            <Badge variant="outline" className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-semibold whitespace-nowrap">
+                                                                ⚠️ Perlu Servis
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                {canManageCars && (
+                                                    <td className="px-5 py-4 text-right flex items-center justify-end gap-2">
+                                                        {(isDue || car.status === 'Service') && (
+                                                            <Button
+                                                                size="sm"
+                                                                className={`h-8 px-3 text-xs font-semibold flex items-center gap-1.5 shadow-xs ${car.status === 'Service' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}
+                                                                onClick={() => setServiceCar(car)}
+                                                                title={car.status === 'Service' ? 'Lihat / Catat Service' : 'Mobil perlu diservis (+10.000 KM)'}
+                                                            >
+                                                                <Wrench className="h-3.5 w-3.5" />
+                                                                {car.status === 'Service' ? 'Proses Servis' : 'Service'}
+                                                            </Button>
+                                                        )}
+                                                        <Button variant="ghost" size="icon" onClick={() => openEdit(car)} title="Edit Kendaraan"><Edit className="h-4 w-4" /></Button>
+                                                        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => setDeleteId(car.id)} title="Hapus Kendaraan"><Trash2 className="h-4 w-4" /></Button>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -588,6 +654,74 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setDeleteId(null)}>Batal</Button>
                             <Button variant="destructive" onClick={() => { if (deleteId) router.delete(`/cars/${deleteId}`, { onSuccess: () => setDeleteId(null) }); }}>Hapus</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+
+                {/* Service Confirmation / Action Dialog */}
+                <Dialog open={serviceCar !== null} onOpenChange={open => !open && setServiceCar(null)}>
+                    <DialogContent className="max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <Wrench className="h-5 w-5 text-primary" />
+                                {serviceCar?.status === 'Service' ? 'Status Kendaraan: Service' : 'Kirim Unit ke Service (Bengkel)'}
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="py-3 text-xs space-y-3">
+                            <div className="p-3 rounded-lg bg-muted/60 border space-y-1.5">
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Armada Mobil:</span>
+                                    <span className="font-bold text-foreground">{serviceCar?.brand} {serviceCar?.name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">No. Polisi:</span>
+                                    <span className="font-mono font-bold text-foreground">{serviceCar?.plate_number}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">KM Awal (Basis Servis):</span>
+                                    <span className="font-medium text-foreground">{(serviceCar?.initial_km ?? 0).toLocaleString('id-ID')} km</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">KM Terakhir:</span>
+                                    <span className="font-medium text-foreground">{(serviceCar?.last_km ?? 0).toLocaleString('id-ID')} km</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Status Saat Ini:</span>
+                                    <Badge variant="outline" className={getStatusColor(serviceCar?.status || '')}>{serviceCar?.status}</Badge>
+                                </div>
+                            </div>
+
+                            {(serviceCar?.is_service_due || (serviceCar && serviceCar.last_km >= ((serviceCar.initial_km ?? 0) + 10000))) && (
+                                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs leading-relaxed">
+                                    ⚠️ <strong>Peringatan Servis:</strong> Kendaraan ini telah melampaui batas jarak servis berkala (+10.000 KM). Disarankan untuk segera dilakukan servis berkala & ganti oli.
+                                </div>
+                            )}
+
+                            {serviceCar?.status === 'Service' ? (
+                                <p className="text-muted-foreground text-xs leading-relaxed">
+                                    Mobil ini saat ini sedang berstatus <strong>Service</strong>. Untuk mencatat pengerjaan bengkel dan mengembalikan status ke <strong>Ready</strong>, buka halaman Riwayat Service.
+                                </p>
+                            ) : (
+                                <p className="text-muted-foreground text-xs leading-relaxed">
+                                    Apakah Anda ingin mengubah status mobil ini menjadi <strong>Service</strong> agar tidak dapat dipilih pada alokasi sampai selesai diservis?
+                                </p>
+                            )}
+                        </div>
+                        <DialogFooter className="pt-2">
+                            <Button variant="outline" onClick={() => setServiceCar(null)}>Batal</Button>
+                            {serviceCar?.status === 'Service' ? (
+                                <Button onClick={() => { setServiceCar(null); router.visit('/services'); }} className="flex items-center gap-1.5">
+                                    Buka Riwayat Service <ArrowRight className="h-4 w-4" />
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={handleSendToService}
+                                    disabled={isSendingToService}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5"
+                                >
+                                    <Wrench className="h-4 w-4" /> {isSendingToService ? 'Memproses...' : 'Kirim ke Service'}
+                                </Button>
+                            )}
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>

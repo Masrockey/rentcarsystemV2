@@ -1,6 +1,8 @@
 <?php
 
 use App\Models\ActivityLog;
+use App\Models\Booking;
+use App\Models\Car;
 use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Auth\Events\Login;
@@ -181,4 +183,121 @@ test('auth events login and logout generate activity logs', function () {
     $logoutLog = ActivityLog::where('action', 'logout')->where('user_id', $user->id)->first();
     expect($logoutLog)->not->toBeNull();
     expect($logoutLog->description)->toContain('logout');
+});
+
+test('activity log descriptions include workflow context like melalui Unit Kembali or Complete Booking', function () {
+    $superAdmin = User::factory()->create(['roles' => ['Super Admin']]);
+    $this->actingAs($superAdmin);
+
+    $car = Car::factory()->create(['status' => 'Not Ready', 'name' => 'PREMIO', 'plate_number' => 'B 7773 TDB']);
+    $customer = Customer::create([
+        'name' => 'John Doe',
+        'phone' => '081234567890',
+        'email' => 'john@example.com',
+        'address' => 'Jakarta',
+    ]);
+    $booking = Booking::create([
+        'booking_number' => 'BK-'.date('Ymd').'-TEST01',
+        'customer_id' => $customer->id,
+        'car_id' => $car->id,
+        'car_type' => 'PREMIO',
+        'booking_date' => now()->toDateString(),
+        'return_date' => now()->addDays(2)->toDateString(),
+        'rental_type' => 'Lepas Kunci',
+        'payment_method' => 'Cash',
+        'payment_status' => 'Paid',
+        'amount' => 500000,
+        'status' => 'On Trip',
+    ]);
+
+    // Submit return checklist
+    $this->post("/bookings/{$booking->id}/return", [
+        'checklist' => [
+            'kunci_kontak' => 'OK',
+            'body_depan' => 'Baik',
+        ],
+        'km_out' => 5000,
+        'fuel_out' => 80,
+    ]);
+
+    $log = ActivityLog::where('subject_type', 'Car')
+        ->where('subject_id', $car->id)
+        ->latest('id')
+        ->first();
+
+    expect($log)->not->toBeNull();
+    expect($log->description)->toContain('melalui "Unit Kembali"');
+});
+
+test('super admin can delete activity logs by period or date range', function () {
+    $superAdmin = User::factory()->create(['roles' => ['Super Admin']]);
+    $this->actingAs($superAdmin);
+
+    // Create logs with various dates
+    ActivityLog::create([
+        'user_name' => 'Old Log',
+        'action' => 'created',
+        'description' => 'Log 40 hari lalu',
+        'created_at' => now()->subDays(40),
+    ]);
+    ActivityLog::create([
+        'user_name' => 'Month Log',
+        'action' => 'created',
+        'description' => 'Log 20 hari lalu',
+        'created_at' => now()->subDays(20),
+    ]);
+    ActivityLog::create([
+        'user_name' => 'Week Log',
+        'action' => 'created',
+        'description' => 'Log 5 hari lalu',
+        'created_at' => now()->subDays(5),
+    ]);
+    ActivityLog::create([
+        'user_name' => 'Today Log',
+        'action' => 'created',
+        'description' => 'Log hari ini',
+        'created_at' => now(),
+    ]);
+
+    // 1. Delete 1 week logs
+    $response = $this->delete(route('activity-logs.destroy'), [
+        'period' => '1_week',
+    ]);
+    $response->assertRedirect(route('activity-logs.index'));
+
+    expect(ActivityLog::where('description', 'Log hari ini')->exists())->toBeFalse();
+    expect(ActivityLog::where('description', 'Log 5 hari lalu')->exists())->toBeFalse();
+    expect(ActivityLog::where('description', 'Log 20 hari lalu')->exists())->toBeTrue();
+    expect(ActivityLog::where('description', 'Log 40 hari lalu')->exists())->toBeTrue();
+
+    // 2. Delete with custom range
+    $this->delete(route('activity-logs.destroy'), [
+        'period' => 'custom',
+        'start_date' => now()->subDays(25)->toDateString(),
+        'end_date' => now()->subDays(15)->toDateString(),
+    ]);
+
+    expect(ActivityLog::where('description', 'Log 20 hari lalu')->exists())->toBeFalse();
+    expect(ActivityLog::where('description', 'Log 40 hari lalu')->exists())->toBeTrue();
+});
+
+test('api endpoint can delete activity logs for super admin', function () {
+    $superAdmin = User::factory()->create(['roles' => ['Super Admin']]);
+    Sanctum::actingAs($superAdmin);
+
+    ActivityLog::create([
+        'user_name' => 'API Test Log',
+        'action' => 'created',
+        'description' => 'Log to delete via API',
+        'created_at' => now()->subDays(2),
+    ]);
+
+    $response = $this->deleteJson('/api/v1/activity-logs', [
+        'period' => '1_week',
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('success', true);
+
+    expect(ActivityLog::where('description', 'Log to delete via API')->exists())->toBeFalse();
 });

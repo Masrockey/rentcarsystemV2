@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Resources\Api\V1\BookingResource;
 use App\Models\Booking;
 use App\Models\Car;
+use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -160,6 +161,48 @@ class AllocationController extends BaseApiController
 
         if ($oldCarId && $newCarId && $oldCarId != $newCarId) {
             $booking->rentals()->where('status', 'Active')->update(['car_id' => $newCarId]);
+        }
+
+        $booking->loadMissing(['customer', 'car', 'driver']);
+
+        // Notify Peluncur
+        if ($booking->peluncur_id) {
+            NotificationService::sendToUser(
+                $booking->peluncur_id,
+                'Tugas Serah Terima Booking',
+                "Anda ditugaskan sebagai peluncur untuk booking {$booking->booking_number} (Customer: ".($booking->customer?->name ?? '-').'). Mohon lakukan serah terima kendaraan.',
+                route('bookings.index', ['search' => $booking->booking_number]),
+                'booking_allocated',
+                'Car',
+                ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+            );
+        }
+
+        // Notify Driver if linked to a user account
+        if ($booking->driver?->user_id) {
+            NotificationService::sendToUser(
+                $booking->driver->user_id,
+                'Penugasan Driver Booking',
+                "Anda ditugaskan sebagai driver untuk booking {$booking->booking_number} (Customer: ".($booking->customer?->name ?? '-').').',
+                route('bookings.index', ['search' => $booking->booking_number]),
+                'booking_allocated',
+                'Car',
+                ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+            );
+        }
+
+        // Notify Marketing user who created the booking
+        if ($booking->user_id && $booking->user_id !== $request->user()->id) {
+            $carName = $booking->car ? "{$booking->car->name} ({$booking->car->plate_number})" : 'Armada Mobil';
+            NotificationService::sendToUser(
+                $booking->user_id,
+                'Booking Telah Dialokasikan',
+                "Booking {$booking->booking_number} Anda telah dialokasikan armada {$carName}.",
+                route('bookings.index', ['search' => $booking->booking_number]),
+                'booking_allocated',
+                'CheckCircle',
+                ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
+            );
         }
 
         return $this->sendResponse(

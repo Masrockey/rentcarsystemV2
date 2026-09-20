@@ -22,7 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle, ClipboardCheck, FileSpreadsheet, Loader2, Navigation } from 'lucide-react';
+import { Plus, User, Key, UserCheck, Calendar, DollarSign, Settings, Car, Edit, Trash2, Search, X, CalendarDays, Filter, Ban, AlertTriangle, ClipboardCheck, FileSpreadsheet, Loader2, Navigation, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import DriverTripLogDialog from '@/components/driver-trip-log-dialog';
 import { index as bookingsIndex } from '@/routes/bookings';
@@ -1104,10 +1104,11 @@ export default function BookingsIndex({
                                                     <Button
                                                         size="sm"
                                                         variant="default"
-                                                        className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs"
+                                                        className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold flex items-center gap-1.5 shadow-xs"
                                                         onClick={() => handleCompleteWash(booking.id)}
+                                                        title="Selesaikan pesanan booking & kembalikan status mobil ke Ready"
                                                     >
-                                                        Cuci Selesai
+                                                        <CheckCircle2 className="h-3.5 w-3.5" /> Complete Booking
                                                     </Button>
                                                 )}
                                             </div>
@@ -1296,10 +1297,11 @@ export default function BookingsIndex({
                                                                 <Button
                                                                     size="sm"
                                                                     variant="default"
-                                                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                                                    className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold flex items-center gap-1.5 shadow-xs"
                                                                     onClick={() => handleCompleteWash(booking.id)}
+                                                                    title="Selesaikan pesanan booking & kembalikan status mobil ke Ready"
                                                                 >
-                                                                    Wash Complete
+                                                                    <CheckCircle2 className="h-3.5 w-3.5" /> Complete Booking
                                                                 </Button>
                                                             )}
 
@@ -1878,29 +1880,30 @@ export default function BookingsIndex({
                 </Dialog>
 
                 <Dialog open={washConfirmId !== null} onOpenChange={(open) => !open && setWashConfirmId(null)}>
-                    <DialogContent>
+                    <DialogContent className="max-w-md">
                         <DialogHeader>
-                            <DialogTitle>Konfirmasi Selesai Cuci</DialogTitle>
+                            <DialogTitle className="flex items-center gap-2 text-green-600">
+                                <CheckCircle2 className="h-5 w-5" /> Selesaikan Booking (Complete Booking)
+                            </DialogTitle>
+                            <DialogDescription>
+                                Apakah Anda yakin ingin menyelesaikan pesanan booking ini? Status booking akan diubah menjadi <strong className="text-foreground">Completed</strong> dan armada mobil akan otomatis kembali berstatus <strong className="text-foreground">Ready</strong>.
+                            </DialogDescription>
                         </DialogHeader>
-                        <div className="py-4">
-                            <p className="text-sm text-muted-foreground">
-                                Apakah Anda yakin ingin menyelesaikan pencucian mobil dan mengubah status mobil menjadi Ready?
-                            </p>
-                        </div>
-                        <DialogFooter>
+                        <DialogFooter className="gap-2 sm:gap-0 pt-4">
                             <Button variant="outline" onClick={() => setWashConfirmId(null)}>
                                 Batal
                             </Button>
                             <Button
+                                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-1.5"
                                 onClick={() => {
                                     if (washConfirmId) {
-                                        router.post(`/bookings/${washConfirmId}/wash`, {}, {
+                                        router.post(`/bookings/${washConfirmId}/complete`, {}, {
                                             onSuccess: () => setWashConfirmId(null)
                                         });
                                     }
                                 }}
                             >
-                                Selesaikan Cuci
+                                <CheckCircle2 className="h-4 w-4" /> Selesaikan Booking (Set Ready)
                             </Button>
                         </DialogFooter>
                     </DialogContent>

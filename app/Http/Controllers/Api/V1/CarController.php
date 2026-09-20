@@ -196,6 +196,18 @@ class CarController extends BaseApiController
     }
 
     /**
+     * Set car status to Service.
+     */
+    public function sendToService(Request $request, Car $car): JsonResponse
+    {
+        $this->checkAccess($request);
+
+        $car->update(['status' => 'Service']);
+
+        return $this->sendResponse(new CarResource($car->fresh()), 'Status armada mobil berhasil diubah menjadi Service.');
+    }
+
+    /**
      * Remove the specified car.
      */
     public function destroy(Request $request, Car $car): JsonResponse
