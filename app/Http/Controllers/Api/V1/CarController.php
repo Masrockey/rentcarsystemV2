@@ -84,13 +84,19 @@ class CarController extends BaseApiController
     {
         $this->checkAccess($request);
 
+        if ($request->has('plate_number')) {
+            $request->merge([
+                'plate_number' => strtoupper(trim(preg_replace('/\s+/', ' ', (string) $request->plate_number))),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'max:100'],
             'model' => ['nullable', 'string', 'max:100'],
             'type' => ['nullable', 'string', 'max:100'],
             'year' => ['required', 'integer', 'min:1900', 'max:'.(date('Y') + 1)],
-            'plate_number' => ['required', 'string', 'max:50', 'unique:cars'],
+            'plate_number' => ['required', 'string', 'max:50', 'unique:cars,plate_number'],
             'color' => ['nullable', 'string', 'max:50'],
             'transmission' => ['nullable', 'string', Rule::in(['Manual', 'Automatic'])],
             'fuel_type' => ['nullable', 'string', Rule::in(['Bensin', 'Diesel', 'Hybrid', 'Listrik'])],
@@ -105,6 +111,9 @@ class CarController extends BaseApiController
             'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'owner_partner' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'string', Rule::in(['Ready', 'Not Ready', 'Belum Dicuci', 'Service'])],
+        ], [
+            'plate_number.unique' => 'Nomor plat kendaraan sudah terdaftar.',
+            'plate_number.required' => 'Nomor plat kendaraan wajib diisi.',
         ]);
 
         if (isset($validated['initial_km']) && ! isset($validated['last_km'])) {
@@ -139,13 +148,19 @@ class CarController extends BaseApiController
     {
         $this->checkAccess($request);
 
+        if ($request->has('plate_number')) {
+            $request->merge([
+                'plate_number' => strtoupper(trim(preg_replace('/\s+/', ' ', (string) $request->plate_number))),
+            ]);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'brand' => ['nullable', 'string', 'max:100'],
             'model' => ['nullable', 'string', 'max:100'],
             'type' => ['nullable', 'string', 'max:100'],
             'year' => ['required', 'integer', 'min:1900', 'max:'.(date('Y') + 1)],
-            'plate_number' => ['required', 'string', 'max:50', Rule::unique('cars')->ignore($car->id)],
+            'plate_number' => ['required', 'string', 'max:50', Rule::unique('cars', 'plate_number')->ignore($car->id)],
             'color' => ['nullable', 'string', 'max:50'],
             'transmission' => ['nullable', 'string', Rule::in(['Manual', 'Automatic'])],
             'fuel_type' => ['nullable', 'string', Rule::in(['Bensin', 'Diesel', 'Hybrid', 'Listrik'])],
@@ -160,6 +175,9 @@ class CarController extends BaseApiController
             'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'owner_partner' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'string', Rule::in(['Ready', 'Not Ready', 'Belum Dicuci', 'Service'])],
+        ], [
+            'plate_number.unique' => 'Nomor plat kendaraan sudah terdaftar.',
+            'plate_number.required' => 'Nomor plat kendaraan wajib diisi.',
         ]);
 
         if (! $request->user()->isSuperAdmin()) {

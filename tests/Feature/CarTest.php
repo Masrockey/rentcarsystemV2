@@ -146,3 +146,79 @@ test('driver role cannot access cars page', function () {
         ->get(route('cars.index'))
         ->assertForbidden();
 });
+
+test('cannot add car with duplicate plate number', function () {
+    $admin = User::factory()->create([
+        'roles' => ['Admin'],
+    ]);
+
+    Car::create([
+        'name' => 'Avanza Lama',
+        'plate_number' => 'B 1234 ABC',
+        'year' => 2022,
+        'status' => 'Ready',
+    ]);
+
+    // Exact duplicate
+    $this->actingAs($admin)
+        ->post(route('cars.store'), [
+            'name' => 'Avanza Baru',
+            'plate_number' => 'B 1234 ABC',
+            'year' => 2023,
+            'status' => 'Ready',
+        ])
+        ->assertSessionHasErrors(['plate_number']);
+
+    // Case-insensitive / whitespace duplicate
+    $this->actingAs($admin)
+        ->post(route('cars.store'), [
+            'name' => 'Avanza Baru 2',
+            'plate_number' => '  b 1234 abc  ',
+            'year' => 2023,
+            'status' => 'Ready',
+        ])
+        ->assertSessionHasErrors(['plate_number']);
+
+    expect(Car::where('name', 'Avanza Baru')->count())->toBe(0);
+});
+
+test('cannot update car with duplicate plate number of another car', function () {
+    $admin = User::factory()->create([
+        'roles' => ['Admin'],
+    ]);
+
+    $car1 = Car::create([
+        'name' => 'Car 1',
+        'plate_number' => 'B 1111 AAA',
+        'year' => 2022,
+        'status' => 'Ready',
+    ]);
+
+    $car2 = Car::create([
+        'name' => 'Car 2',
+        'plate_number' => 'B 2222 BBB',
+        'year' => 2022,
+        'status' => 'Ready',
+    ]);
+
+    // Updating car2 with car1's plate number should fail
+    $this->actingAs($admin)
+        ->put(route('cars.update', $car2), [
+            'name' => 'Car 2 Updated',
+            'plate_number' => 'b 1111 aaa',
+            'year' => 2022,
+        ])
+        ->assertSessionHasErrors(['plate_number']);
+
+    // Updating car2 keeping its own plate number should succeed
+    $this->actingAs($admin)
+        ->put(route('cars.update', $car2), [
+            'name' => 'Car 2 Updated Name',
+            'plate_number' => 'B 2222 BBB',
+            'year' => 2022,
+        ])
+        ->assertSessionHasNoErrors();
+
+    $car2->refresh();
+    expect($car2->name)->toBe('Car 2 Updated Name');
+});
