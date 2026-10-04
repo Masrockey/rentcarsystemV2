@@ -18,9 +18,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AllocationController extends Controller
 {
     /**
-     * Export car & staff allocations to Excel/CSV or JSON.
+     * Build base query for car & staff allocations with all filters applied.
      */
-    public function export(Request $request): StreamedResponse|JsonResponse
+    private function buildAllocationsQuery(Request $request)
     {
         $user = $request->user();
 
@@ -35,7 +35,7 @@ class AllocationController extends Controller
         }
 
         // Apply Status Filter
-        if ($request->filled('status')) {
+        if ($request->filled('status') && $request->query('status') !== 'all') {
             $status = $request->query('status');
             if ($status === 'unallocated') {
                 $query->whereNull('car_id');
@@ -44,10 +44,30 @@ class AllocationController extends Controller
             }
         }
 
-        // Apply Date Filters
+        // Apply Marketing Filter
+        if ($request->filled('marketing_id') && $request->query('marketing_id') !== 'all') {
+            $query->where('user_id', $request->query('marketing_id'));
+        }
+
+        // Apply Date Filters & Preset
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
         $dateField = $request->query('date_field', 'booking_date');
+        $preset = $request->query('preset');
+
+        if ($preset === 'today') {
+            $startDate = now()->format('Y-m-d');
+            $endDate = now()->format('Y-m-d');
+        } elseif ($preset === 'tomorrow') {
+            $startDate = now()->addDay()->format('Y-m-d');
+            $endDate = now()->addDay()->format('Y-m-d');
+        } elseif ($preset === 'this_week') {
+            $startDate = now()->startOfWeek()->format('Y-m-d');
+            $endDate = now()->endOfWeek()->format('Y-m-d');
+        } elseif ($preset === 'this_month') {
+            $startDate = now()->startOfMonth()->format('Y-m-d');
+            $endDate = now()->endOfMonth()->format('Y-m-d');
+        }
 
         if ($startDate || $endDate) {
             if ($dateField === 'booking_date') {
@@ -79,7 +99,7 @@ class AllocationController extends Controller
 
         // Apply Search Filter
         if ($request->filled('search')) {
-            $search = $request->query('search');
+            $search = trim((string) $request->query('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('booking_number', 'like', "%{$search}%")
                     ->orWhere('car_type', 'like', "%{$search}%")
@@ -107,11 +127,15 @@ class AllocationController extends Controller
             });
         }
 
-        if ($request->filled('marketing_id') && $request->query('marketing_id') !== 'all') {
-            $query->where('user_id', $request->query('marketing_id'));
-        }
+        return $query;
+    }
 
-        $bookings = $query->get();
+    /**
+     * Export car & staff allocations to Excel/CSV or JSON.
+     */
+    public function export(Request $request): StreamedResponse|JsonResponse
+    {
+        $bookings = $this->buildAllocationsQuery($request)->get();
 
         if ($request->wantsJson() || $request->query('format') === 'json') {
             return response()->json([
@@ -202,21 +226,11 @@ class AllocationController extends Controller
      */
     public function index(Request $request): Response
     {
-        $user = $request->user();
+        $baseQuery = $this->buildAllocationsQuery($request);
 
-        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
-
-        if (! ($user->isAdmin() || $user->isPeluncur())) {
-            $query->where(function ($q) use ($user) {
-                $q->where('user_id', $user->id)
-                    ->orWhere('peluncur_id', $user->id)
-                    ->orWhere('petugas_cuci_id', $user->id);
-            });
-        }
-
-        $unallocatedCount = (clone $query)->whereNull('car_id')->count();
-        $allocatedCount = (clone $query)->whereNotNull('car_id')->count();
-        $bookings = $query->paginate(10)->withQueryString();
+        $unallocatedCount = (clone $baseQuery)->whereNull('car_id')->count();
+        $allocatedCount = (clone $baseQuery)->whereNotNull('car_id')->count();
+        $bookings = $baseQuery->paginate(10)->withQueryString();
 
         return Inertia::render('allocations/index', [
             'bookings' => $bookings,
@@ -227,6 +241,15 @@ class AllocationController extends Controller
             'unallocatedCount' => $unallocatedCount,
             'allocatedCount' => $allocatedCount,
             'blacklists' => Blacklist::all(),
+            'filters' => [
+                'search' => (string) $request->query('search', ''),
+                'status' => (string) $request->query('status', 'all'),
+                'marketing_id' => (string) $request->query('marketing_id', 'all'),
+                'start_date' => (string) $request->query('start_date', ''),
+                'end_date' => (string) $request->query('end_date', ''),
+                'date_field' => (string) $request->query('date_field', 'booking_date'),
+                'preset' => (string) $request->query('preset', 'all'),
+            ],
         ]);
     }
 

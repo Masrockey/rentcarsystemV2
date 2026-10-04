@@ -181,11 +181,18 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'Ready': return 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/25';
-            case 'Not Ready': return 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25';
+            case 'Not Ready':
+            case 'On Trip':
+                return 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25';
             case 'Belum Dicuci': return 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25';
             case 'Service': return 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/25';
             default: return 'bg-neutral-500/15 text-neutral-600 dark:text-neutral-400 border-neutral-500/25';
         }
+    };
+
+    const getStatusLabel = (status: string) => {
+        if (status === 'Not Ready') return 'On Trip';
+        return status;
     };
 
     const formatCurrency = (val: string | number) =>
@@ -193,8 +200,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
 
     const cardConfigs = [
         { status: 'Ready', label: 'Mobil Ready', count: counts.ready, color: 'text-green-600 dark:text-green-400' },
-        { status: 'Not Ready', label: 'Sedang Disewa', count: counts.not_ready, color: 'text-purple-600 dark:text-purple-400' },
-        { status: 'Belum Dicuci', label: 'Perlu Dicuci', count: counts.belum_dicuci, color: 'text-amber-600 dark:text-amber-400' },
+        { status: 'Not Ready', label: 'On Trip', count: counts.not_ready, color: 'text-purple-600 dark:text-purple-400' },
         { status: 'Service', label: 'Sedang Service', count: counts.service, color: 'text-blue-600 dark:text-blue-400' },
     ];
 
@@ -215,7 +221,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                 </div>
 
                 {/* Summary Cards (Clickable) */}
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     {cardConfigs.map(item => (
                         <Card
                             key={item.status}
@@ -239,7 +245,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                 <CardTitle className="text-base font-bold">
                                     {selectedStatus === 'all'
                                         ? `Semua Kendaraan (${counts.all})`
-                                        : `Kendaraan Status: ${selectedStatus === 'Not Ready' ? 'Sedang Disewa' : selectedStatus}`}
+                                        : `Kendaraan Status: ${selectedStatus === 'Not Ready' ? 'On Trip' : selectedStatus}`}
                                 </CardTitle>
                                 {searchQuery && (
                                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -282,7 +288,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                     <Button
                                         variant={selectedStatus === 'Ready' ? 'default' : 'outline'}
                                         size="sm"
-                                        className={`h-8 text-xs ${selectedStatus === 'Ready' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                                        className={`h-8 text-xs ${selectedStatus === 'Ready' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
                                         onClick={() => handleFilterChange('Ready')}
                                     >
                                         Ready ({counts.ready})
@@ -290,23 +296,15 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                     <Button
                                         variant={selectedStatus === 'Not Ready' ? 'default' : 'outline'}
                                         size="sm"
-                                        className={`h-8 text-xs ${selectedStatus === 'Not Ready' ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
+                                        className={`h-8 text-xs ${selectedStatus === 'Not Ready' ? 'bg-purple-600 hover:bg-purple-700 text-white' : ''}`}
                                         onClick={() => handleFilterChange('Not Ready')}
                                     >
-                                        Disewa ({counts.not_ready})
-                                    </Button>
-                                    <Button
-                                        variant={selectedStatus === 'Belum Dicuci' ? 'default' : 'outline'}
-                                        size="sm"
-                                        className={`h-8 text-xs ${selectedStatus === 'Belum Dicuci' ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
-                                        onClick={() => handleFilterChange('Belum Dicuci')}
-                                    >
-                                        Cuci ({counts.belum_dicuci})
+                                        On Trip ({counts.not_ready})
                                     </Button>
                                     <Button
                                         variant={selectedStatus === 'Service' ? 'default' : 'outline'}
                                         size="sm"
-                                        className={`h-8 text-xs ${selectedStatus === 'Service' ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                                        className={`h-8 text-xs ${selectedStatus === 'Service' ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''}`}
                                         onClick={() => handleFilterChange('Service')}
                                     >
                                         Service ({counts.service})
@@ -340,7 +338,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                                     <div className="text-xs text-muted-foreground truncate">{car.name} · {car.year}</div>
                                                 </div>
                                                 <div className="flex flex-col items-end gap-1">
-                                                    <Badge variant="outline" className={getStatusColor(car.status)}>{car.status}</Badge>
+                                                    <Badge variant="outline" className={getStatusColor(car.status)}>{getStatusLabel(car.status)}</Badge>
                                                     {isDue && (
                                                         <Badge variant="outline" className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-semibold">
                                                             ⚠️ Perlu Servis
@@ -465,7 +463,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <div className="flex flex-col items-start gap-1">
-                                                        <Badge variant="outline" className={getStatusColor(car.status)}>{car.status}</Badge>
+                                                        <Badge variant="outline" className={getStatusColor(car.status)}>{getStatusLabel(car.status)}</Badge>
                                                         {isDue && (
                                                             <Badge variant="outline" className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-semibold whitespace-nowrap">
                                                                 ⚠️ Perlu Servis
@@ -625,8 +623,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="Ready">Ready</SelectItem>
-                                            <SelectItem value="Not Ready">Not Ready</SelectItem>
-                                            <SelectItem value="Belum Dicuci">Belum Dicuci</SelectItem>
+                                            <SelectItem value="Not Ready">On Trip</SelectItem>
                                             <SelectItem value="Service">Service</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -687,7 +684,7 @@ export default function CarsIndex({ cars, selectedStatus = 'all', search = '', s
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-muted-foreground">Status Saat Ini:</span>
-                                    <Badge variant="outline" className={getStatusColor(serviceCar?.status || '')}>{serviceCar?.status}</Badge>
+                                    <Badge variant="outline" className={getStatusColor(serviceCar?.status || '')}>{getStatusLabel(serviceCar?.status || '')}</Badge>
                                 </div>
                             </div>
 

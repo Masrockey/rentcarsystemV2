@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, Settings, AlertTriangle, CheckCircle2, Car, UserCheck, KeyRound, Calendar, X, Filter, ShieldAlert, ShieldCheck, Loader2, AlertOctagon, ExternalLink, ArrowRight, Download, RefreshCw, FileSpreadsheet, Trash2, Wrench } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { index as allocationsIndex } from '@/routes/allocations';
@@ -72,6 +72,16 @@ type Booking = {
     user?: UserRef;
 };
 
+type FilterState = {
+    search?: string;
+    status?: string;
+    marketing_id?: string;
+    start_date?: string;
+    end_date?: string;
+    date_field?: 'booking_date' | 'return_date' | 'active_period';
+    preset?: string;
+};
+
 type Props = {
     bookings: PaginatedData<Booking> | Booking[];
     readyCars: CarRef[];
@@ -81,6 +91,7 @@ type Props = {
     unallocatedCount: number;
     allocatedCount: number;
     blacklists?: BlacklistRef[];
+    filters?: FilterState;
 };
 
 export default function AllocationsIndex({
@@ -92,6 +103,7 @@ export default function AllocationsIndex({
     unallocatedCount,
     allocatedCount,
     blacklists = [],
+    filters,
 }: Props) {
     const { auth } = usePage().props;
     const user = auth?.user as any;
@@ -101,8 +113,8 @@ export default function AllocationsIndex({
     const shouldMaskPhone = roles.includes('Admin') && !isSuperAdmin;
 
     const bookingList = useMemo(() => Array.isArray(bookings) ? bookings : (bookings?.data || []), [bookings]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [activeFilter, setActiveFilter] = useState<'all' | 'unallocated' | 'allocated'>('all');
+    const [searchQuery, setSearchQuery] = useState(filters?.search || '');
+    const [activeFilter, setActiveFilter] = useState<'all' | 'unallocated' | 'allocated'>((filters?.status as any) || 'all');
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [isAllocateOpen, setIsAllocateOpen] = useState(false);
     const [deleteBooking, setDeleteBooking] = useState<Booking | null>(null);
@@ -133,9 +145,12 @@ export default function AllocationsIndex({
     const [matchedBlacklist, setMatchedBlacklist] = useState<BlacklistRef | null>(null);
 
     // Date Filters
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
-    const [dateFilterField, setDateFilterField] = useState<'booking_date' | 'return_date' | 'active_period'>('booking_date');
+    const [startDate, setStartDate] = useState(filters?.start_date || '');
+    const [endDate, setEndDate] = useState(filters?.end_date || '');
+    const [dateFilterField, setDateFilterField] = useState<'booking_date' | 'return_date' | 'active_period'>(
+        filters?.date_field || 'booking_date'
+    );
+    const [activePreset, setActivePreset] = useState<string>(filters?.preset || 'all');
 
     const formatLocalDate = (date: Date) => {
         const year = date.getFullYear();
@@ -175,33 +190,81 @@ export default function AllocationsIndex({
         };
     };
 
+    const applyFilters = (overrides: Partial<FilterState> = {}) => {
+        const nextFilters: FilterState = {
+            search: searchQuery,
+            status: activeFilter,
+            start_date: startDate,
+            end_date: endDate,
+            date_field: dateFilterField,
+            preset: activePreset,
+            ...overrides,
+        };
+
+        const params: Record<string, string> = {};
+        if (nextFilters.search && nextFilters.search.trim()) params.search = nextFilters.search.trim();
+        if (nextFilters.status && nextFilters.status !== 'all') params.status = nextFilters.status;
+        if (nextFilters.start_date) params.start_date = nextFilters.start_date;
+        if (nextFilters.end_date) params.end_date = nextFilters.end_date;
+        if (nextFilters.date_field && nextFilters.date_field !== 'booking_date') params.date_field = nextFilters.date_field;
+        if (nextFilters.preset && nextFilters.preset !== 'all') params.preset = nextFilters.preset;
+
+        router.get(allocationsIndex(), params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    // Debounce search query to server
+    useEffect(() => {
+        const currentServerSearch = filters?.search || '';
+        if (searchQuery === currentServerSearch) return;
+
+        const timer = setTimeout(() => {
+            applyFilters({ search: searchQuery });
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
     const handleFilterAll = () => {
         setStartDate('');
         setEndDate('');
+        setActivePreset('all');
+        applyFilters({ start_date: '', end_date: '', preset: 'all' });
     };
 
     const handleFilterToday = () => {
         const today = getTodayStr();
         setStartDate(today);
         setEndDate(today);
+        setActivePreset('today');
+        applyFilters({ start_date: today, end_date: today, preset: 'today' });
     };
 
     const handleFilterTomorrow = () => {
         const tomorrow = getTomorrowStr();
         setStartDate(tomorrow);
         setEndDate(tomorrow);
+        setActivePreset('tomorrow');
+        applyFilters({ start_date: tomorrow, end_date: tomorrow, preset: 'tomorrow' });
     };
 
     const handleFilterThisWeek = () => {
         const range = getThisWeekRange();
         setStartDate(range.start);
         setEndDate(range.end);
+        setActivePreset('this_week');
+        applyFilters({ start_date: range.start, end_date: range.end, preset: 'this_week' });
     };
 
     const handleFilterThisMonth = () => {
         const range = getThisMonthRange();
         setStartDate(range.start);
         setEndDate(range.end);
+        setActivePreset('this_month');
+        applyFilters({ start_date: range.start, end_date: range.end, preset: 'this_month' });
     };
 
     const handleResetAllFilters = () => {
@@ -210,6 +273,34 @@ export default function AllocationsIndex({
         setDateFilterField('booking_date');
         setActiveFilter('all');
         setSearchQuery('');
+        setActivePreset('all');
+        router.get(allocationsIndex(), {}, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
+    const handleStartDateChange = (val: string) => {
+        setStartDate(val);
+        setActivePreset('custom');
+        applyFilters({ start_date: val, preset: 'custom' });
+    };
+
+    const handleEndDateChange = (val: string) => {
+        setEndDate(val);
+        setActivePreset('custom');
+        applyFilters({ end_date: val, preset: 'custom' });
+    };
+
+    const handleDateFieldChange = (val: 'booking_date' | 'return_date' | 'active_period') => {
+        setDateFilterField(val);
+        applyFilters({ date_field: val });
+    };
+
+    const handleStatusFilterChange = (status: 'all' | 'unallocated' | 'allocated') => {
+        setActiveFilter(status);
+        applyFilters({ status });
     };
 
     const todayStr = getTodayStr();
@@ -217,10 +308,10 @@ export default function AllocationsIndex({
     const thisWeek = getThisWeekRange();
     const thisMonth = getThisMonthRange();
 
-    const isTodayActive = startDate === todayStr && endDate === todayStr;
-    const isTomorrowActive = startDate === tomorrowStr && endDate === tomorrowStr;
-    const isThisWeekActive = startDate === thisWeek.start && endDate === thisWeek.end;
-    const isThisMonthActive = startDate === thisMonth.start && endDate === thisMonth.end;
+    const isTodayActive = activePreset === 'today' || (startDate === todayStr && endDate === todayStr);
+    const isTomorrowActive = activePreset === 'tomorrow' || (startDate === tomorrowStr && endDate === tomorrowStr);
+    const isThisWeekActive = activePreset === 'this_week' || (startDate === thisWeek.start && endDate === thisWeek.end);
+    const isThisMonthActive = activePreset === 'this_month' || (startDate === thisMonth.start && endDate === thisMonth.end);
 
     const { data: assignData, setData: setAssignData, put: putAssign, processing: processingAssign } = useForm({
         car_id: '',
@@ -412,91 +503,10 @@ export default function AllocationsIndex({
     };
 
     // Dynamic counts based on active date range
-    const currentUnallocatedCount = useMemo(() => {
-        return bookingList.filter((b) => {
-            if (startDate || endDate) {
-                const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
-                const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
-                if (dateFilterField === 'booking_date') {
-                    if (!bStartDate || (startDate && bStartDate < startDate) || (endDate && bStartDate > endDate)) return false;
-                } else if (dateFilterField === 'return_date') {
-                    if (!bReturnDate || (startDate && bReturnDate < startDate) || (endDate && bReturnDate > endDate)) return false;
-                } else if (dateFilterField === 'active_period') {
-                    const rangeStart = startDate || endDate;
-                    const rangeEnd = endDate || startDate;
-                    const bookingEnd = bReturnDate || bStartDate;
-                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) return false;
-                }
-            }
-            return b.car_id === null;
-        }).length;
-    }, [bookingList, startDate, endDate, dateFilterField]);
-
-    const currentAllocatedCount = useMemo(() => {
-        return bookingList.filter((b) => {
-            if (startDate || endDate) {
-                const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
-                const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
-                if (dateFilterField === 'booking_date') {
-                    if (!bStartDate || (startDate && bStartDate < startDate) || (endDate && bStartDate > endDate)) return false;
-                } else if (dateFilterField === 'return_date') {
-                    if (!bReturnDate || (startDate && bReturnDate < startDate) || (endDate && bReturnDate > endDate)) return false;
-                } else if (dateFilterField === 'active_period') {
-                    const rangeStart = startDate || endDate;
-                    const rangeEnd = endDate || startDate;
-                    const bookingEnd = bReturnDate || bStartDate;
-                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) return false;
-                }
-            }
-            return b.car_id !== null;
-        }).length;
-    }, [bookingList, startDate, endDate, dateFilterField]);
-
+    const currentUnallocatedCount = unallocatedCount ?? 0;
+    const currentAllocatedCount = allocatedCount ?? 0;
     const currentTotalCount = currentUnallocatedCount + currentAllocatedCount;
-
-    const filteredBookings = useMemo(() => {
-        return bookingList.filter((b) => {
-            const matchesSearch =
-                (b.customer?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.booking_number ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.car_type ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.car?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.car?.plate_number ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.peluncur?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.petugas_cuci?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.user?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                (b.driver?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase());
-
-            if (!matchesSearch) return false;
-
-            if (activeFilter === 'unallocated' && b.car_id !== null) return false;
-            if (activeFilter === 'allocated' && b.car_id === null) return false;
-
-            if (startDate || endDate) {
-                const bStartDate = b.booking_date ? b.booking_date.substring(0, 10) : '';
-                const bReturnDate = b.return_date ? b.return_date.substring(0, 10) : '';
-
-                if (dateFilterField === 'booking_date') {
-                    if (!bStartDate) return false;
-                    if (startDate && bStartDate < startDate) return false;
-                    if (endDate && bStartDate > endDate) return false;
-                } else if (dateFilterField === 'return_date') {
-                    if (!bReturnDate) return false;
-                    if (startDate && bReturnDate < startDate) return false;
-                    if (endDate && bReturnDate > endDate) return false;
-                } else if (dateFilterField === 'active_period') {
-                    const rangeStart = startDate || endDate;
-                    const rangeEnd = endDate || startDate;
-                    const bookingEnd = bReturnDate || bStartDate;
-                    if (bStartDate > rangeEnd || bookingEnd < rangeStart) {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        });
-    }, [bookingList, searchQuery, activeFilter, startDate, endDate, dateFilterField]);
+    const filteredBookings = bookingList;
 
     const [isExporting, setIsExporting] = useState(false);
 
@@ -624,7 +634,7 @@ export default function AllocationsIndex({
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <Card
                         className={`cursor-pointer transition-all hover:scale-[1.01] ${activeFilter === 'all' ? 'ring-2 ring-primary shadow-xs' : ''}`}
-                        onClick={() => setActiveFilter('all')}
+                        onClick={() => handleStatusFilterChange('all')}
                     >
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Total Booking</CardTitle>
@@ -640,7 +650,7 @@ export default function AllocationsIndex({
 
                     <Card
                         className={`cursor-pointer transition-all hover:scale-[1.01] border-red-200 bg-red-50/10 dark:bg-red-950/10 ${activeFilter === 'unallocated' ? 'ring-2 ring-red-500 shadow-xs' : ''}`}
-                        onClick={() => setActiveFilter('unallocated')}
+                        onClick={() => handleStatusFilterChange('unallocated')}
                     >
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-red-600 dark:text-red-400">Belum Dialokasi</CardTitle>
@@ -654,7 +664,7 @@ export default function AllocationsIndex({
 
                     <Card
                         className={`cursor-pointer transition-all hover:scale-[1.01] border-green-200 bg-green-50/10 dark:bg-green-950/10 ${activeFilter === 'allocated' ? 'ring-2 ring-green-500 shadow-xs' : ''}`}
-                        onClick={() => setActiveFilter('allocated')}
+                        onClick={() => handleStatusFilterChange('allocated')}
                     >
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium text-green-600 dark:text-green-400">Sudah Dialokasi</CardTitle>
@@ -679,7 +689,7 @@ export default function AllocationsIndex({
                                     variant={activeFilter === 'all' ? 'default' : 'ghost'}
                                     size="sm"
                                     className="h-7 text-xs px-2.5"
-                                    onClick={() => setActiveFilter('all')}
+                                    onClick={() => handleStatusFilterChange('all')}
                                 >
                                     Semua ({currentTotalCount})
                                 </Button>
@@ -687,7 +697,7 @@ export default function AllocationsIndex({
                                     variant={activeFilter === 'unallocated' ? 'destructive' : 'ghost'}
                                     size="sm"
                                     className="h-7 text-xs px-2.5"
-                                    onClick={() => setActiveFilter('unallocated')}
+                                    onClick={() => handleStatusFilterChange('unallocated')}
                                 >
                                     ⚠️ Belum Dialokasi ({currentUnallocatedCount})
                                 </Button>
@@ -695,7 +705,7 @@ export default function AllocationsIndex({
                                     variant={activeFilter === 'allocated' ? 'default' : 'ghost'}
                                     size="sm"
                                     className={`h-7 text-xs px-2.5 ${activeFilter === 'allocated' ? 'bg-green-600 hover:bg-green-700' : ''}`}
-                                    onClick={() => setActiveFilter('allocated')}
+                                    onClick={() => handleStatusFilterChange('allocated')}
                                 >
                                     ✓ Dialokasi ({currentAllocatedCount})
                                 </Button>
@@ -793,7 +803,7 @@ export default function AllocationsIndex({
                                     <Label htmlFor="dateFilterField" className="text-[11px] text-muted-foreground font-medium">Tipe Tanggal</Label>
                                     <Select
                                         value={dateFilterField}
-                                        onValueChange={(val: any) => setDateFilterField(val)}
+                                        onValueChange={handleDateFieldChange}
                                     >
                                         <SelectTrigger id="dateFilterField" className="h-8 text-xs bg-background">
                                             <SelectValue />
@@ -813,7 +823,7 @@ export default function AllocationsIndex({
                                         type="date"
                                         className="h-8 text-xs bg-background"
                                         value={startDate}
-                                        onChange={(e) => setStartDate(e.target.value)}
+                                        onChange={(e) => handleStartDateChange(e.target.value)}
                                     />
                                 </div>
 
@@ -825,7 +835,7 @@ export default function AllocationsIndex({
                                             type="date"
                                             className="h-8 text-xs bg-background"
                                             value={endDate}
-                                            onChange={(e) => setEndDate(e.target.value)}
+                                            onChange={(e) => handleEndDateChange(e.target.value)}
                                         />
                                         {(startDate || endDate || activeFilter !== 'all' || searchQuery) && (
                                             <Button

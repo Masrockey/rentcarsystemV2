@@ -99,3 +99,41 @@ test('non super admin cannot delete allocation record', function () {
     $response->assertForbidden();
     expect(Booking::find($booking->id))->not->toBeNull();
 });
+
+test('admin can filter allocations by preset tomorrow and date range', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $customer1 = Customer::create(['name' => 'Cust Today', 'phone' => '0811111111']);
+    $customer2 = Customer::create(['name' => 'Cust Tomorrow', 'phone' => '0822222222']);
+
+    $bookingToday = Booking::create([
+        'customer_id' => $customer1->id,
+        'car_type' => 'Innova',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => now()->format('Y-m-d'),
+        'payment_method' => 'Cash',
+        'status' => 'Pending',
+        'amount' => 500000,
+    ]);
+
+    $bookingTomorrow = Booking::create([
+        'customer_id' => $customer2->id,
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => now()->addDay()->format('Y-m-d'),
+        'payment_method' => 'Cash',
+        'status' => 'Pending',
+        'amount' => 400000,
+    ]);
+
+    // Filter by preset=tomorrow
+    $response = $this->actingAs($admin)
+        ->get(route('allocations.index', ['preset' => 'tomorrow']));
+
+    $response->assertStatus(200);
+    $response->assertInertia(fn ($page) => $page
+        ->component('allocations/index')
+        ->has('bookings.data', 1)
+        ->where('bookings.data.0.id', $bookingTomorrow->id)
+        ->where('unallocatedCount', 1)
+    );
+});

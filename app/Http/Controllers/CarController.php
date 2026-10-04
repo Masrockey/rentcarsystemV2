@@ -25,7 +25,11 @@ class CarController extends Controller
 
         $query = Car::orderBy('brand')->orderBy('name');
         if ($selectedStatus && $selectedStatus !== 'all') {
-            $query->where('status', $selectedStatus);
+            if ($selectedStatus === 'On Trip' || $selectedStatus === 'on_trip') {
+                $query->where('status', 'Not Ready');
+            } else {
+                $query->where('status', $selectedStatus);
+            }
         }
 
         if ($search) {
@@ -87,11 +91,15 @@ class CarController extends Controller
             'monthly_price' => ['nullable', 'numeric', 'min:0'],
             'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'owner_partner' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'string', Rule::in(['Ready', 'Not Ready', 'Belum Dicuci', 'Service'])],
+            'status' => ['required', 'string', Rule::in(['Ready', 'Not Ready', 'On Trip', 'Belum Dicuci', 'Service'])],
         ], [
             'plate_number.unique' => 'Nomor plat kendaraan sudah terdaftar.',
             'plate_number.required' => 'Nomor plat kendaraan wajib diisi.',
         ]);
+
+        if (isset($validated['status']) && $validated['status'] === 'On Trip') {
+            $validated['status'] = 'Not Ready';
+        }
 
         if (isset($validated['initial_km']) && ! isset($validated['last_km'])) {
             $validated['last_km'] = $validated['initial_km'];
@@ -141,7 +149,7 @@ class CarController extends Controller
             'monthly_price' => ['nullable', 'numeric', 'min:0'],
             'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'owner_partner' => ['nullable', 'string', 'max:255'],
-            'status' => ['nullable', 'string', Rule::in(['Ready', 'Not Ready', 'Belum Dicuci', 'Service'])],
+            'status' => ['nullable', 'string', Rule::in(['Ready', 'Not Ready', 'On Trip', 'Belum Dicuci', 'Service'])],
         ], [
             'plate_number.unique' => 'Nomor plat kendaraan sudah terdaftar.',
             'plate_number.required' => 'Nomor plat kendaraan wajib diisi.',
@@ -149,6 +157,8 @@ class CarController extends Controller
 
         if (! $request->user()->isSuperAdmin()) {
             unset($validated['status']);
+        } elseif (isset($validated['status']) && $validated['status'] === 'On Trip') {
+            $validated['status'] = 'Not Ready';
         }
 
         if ($request->hasFile('photo')) {
