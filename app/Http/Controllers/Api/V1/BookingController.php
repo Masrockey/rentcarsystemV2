@@ -24,7 +24,9 @@ class BookingController extends BaseApiController
     {
         $user = $request->user();
 
-        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver', 'rental'])->latest();
+        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver', 'rental'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
         if (! ($user->isAdmin() || $user->isPeluncur())) {
             $driverId = $user->driver?->id ?? Driver::where('user_id', $user->id)->value('id') ?? ($user->phone ? Driver::where('phone', $user->phone)->value('id') : null);

@@ -28,7 +28,9 @@ class BookingController extends Controller
     {
         $user = $request->user();
 
-        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
+        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
         if (! ($user->isAdmin() || $user->isPeluncur())) {
             $driverId = $user->driver?->id ?? Driver::where('user_id', $user->id)->value('id') ?? ($user->phone ? Driver::where('phone', $user->phone)->value('id') : null);

@@ -15,7 +15,9 @@ class AllocationController extends BaseApiController
     {
         $user = $request->user();
 
-        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])->latest();
+        $query = Booking::with(['customer', 'car', 'peluncur', 'petugasCuci', 'user', 'driver'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
         if (! ($user->isAdmin() || $user->isPeluncur())) {
             $query->where(function ($q) use ($user) {
