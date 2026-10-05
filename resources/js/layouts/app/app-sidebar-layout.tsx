@@ -6,7 +6,7 @@ import { Link, usePage } from '@inertiajs/react';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import {
     LayoutGrid, CalendarDays, ClipboardList, Car, UserSquare2, CreditCard,
-    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings, RotateCcw, ShieldAlert, Layers
+    Users, BarChart3, Truck, Wrench, Shield, FileText, Menu, KeyRound, LogOut, Settings, RotateCcw, ShieldAlert, Layers, MessageSquare
 } from 'lucide-react';
 import {
     Sheet,
@@ -62,6 +62,7 @@ export default function AppSidebarLayout({
         allItems.push({ title: 'Customers', href: customersIndex(), icon: UserSquare2 });
         allItems.push({ title: 'Blacklist', href: blacklistsIndex(), icon: ShieldAlert });
         if (roles.includes('Super Admin')) {
+            allItems.push({ title: 'WA Server', href: '/wa-server', icon: MessageSquare });
             allItems.push({ title: 'Users', href: usersIndex(), icon: Users });
         }
         allItems.push({ title: 'Reports', href: reports(), icon: BarChart3 });

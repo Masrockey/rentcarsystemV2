@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Models\Driver;
 use App\Models\Rental;
 use App\Services\NotificationService;
+use App\Services\WhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -278,6 +279,9 @@ class BookingController extends BaseApiController
             ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
             $request->user()->id
         );
+
+        // Send WhatsApp notification to configured group
+        WhatsAppService::sendNewBookingNotification($booking);
 
         return $this->sendResponse(new BookingResource($booking->load(['customer', 'user'])), 'Booking berhasil dibuat.', 201);
     }

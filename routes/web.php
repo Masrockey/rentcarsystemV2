@@ -19,6 +19,7 @@ use App\Http\Controllers\ReturnController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VehicleTaxController;
+use App\Http\Controllers\WaServerController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/login')->name('home');
@@ -100,6 +101,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
     Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // WA Server (WhatsApp API MultiDevice Management)
+    Route::get('wa-server', [WaServerController::class, 'index'])->name('wa-server.index');
+    Route::post('wa-server/settings', [WaServerController::class, 'updateSettings'])->name('wa-server.settings');
+    Route::get('wa-server/qr', [WaServerController::class, 'getQr'])->name('wa-server.qr');
+    Route::post('wa-server/pair-code', [WaServerController::class, 'getPairingCode'])->name('wa-server.pair-code');
+    Route::get('wa-server/status', [WaServerController::class, 'checkStatus'])->name('wa-server.status');
+    Route::post('wa-server/reconnect', [WaServerController::class, 'reconnect'])->name('wa-server.reconnect');
+    Route::post('wa-server/logout', [WaServerController::class, 'logout'])->name('wa-server.logout');
+    Route::post('wa-server/devices', [WaServerController::class, 'addDevice'])->name('wa-server.devices.store');
+    Route::delete('wa-server/devices/{deviceId}', [WaServerController::class, 'deleteDevice'])->name('wa-server.devices.destroy');
+    Route::get('wa-server/groups', [WaServerController::class, 'getGroups'])->name('wa-server.groups');
+    Route::post('wa-server/target-group', [WaServerController::class, 'setTargetGroup'])->name('wa-server.target-group');
+    Route::post('wa-server/test-message', [WaServerController::class, 'sendTestMessage'])->name('wa-server.test-message');
 });
 
 require __DIR__.'/settings.php';
