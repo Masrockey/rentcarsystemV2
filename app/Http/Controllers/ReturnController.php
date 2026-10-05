@@ -131,7 +131,7 @@ class ReturnController extends Controller
                 $booking->petugas_cuci_id,
                 'Tugas Cuci Armada',
                 "Mobil {$carName} dari booking {$booking->booking_number} telah dikembalikan dan siap dibersihkan/dicuci.",
-                route('wash.index'),
+                route('returns.index'),
                 'unit_returned',
                 'Sparkles',
                 ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
