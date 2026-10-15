@@ -528,6 +528,7 @@ class WhatsAppService
             $pickupLocation = $booking->pickup_location ?: '-';
             $dropoffLocation = $booking->dropoff_location ?: '-';
             $marketingName = $booking->user?->name ?? auth()->user()?->name ?? 'System';
+            $createdByName = auth()->user()?->name ?? $booking->user?->name ?? 'System';
             $createdAt = $booking->created_at ? $booking->created_at->format('d/m/Y H:i') : now()->format('d/m/Y H:i');
 
             $message = "━━━━━━━━━━━━━━━━━━━━\n"
@@ -547,6 +548,7 @@ class WhatsAppService
                 ."Lokasi Pengembalian: {$dropoffLocation}\n\n"
                 ."Marketing: {$marketingName}\n"
                 ."Dibuat pada: {$createdAt}\n"
+                ."Dibuat Oleh: {$createdByName}\n"
                 .'━━━━━━━━━━━━━━━━━━━━';
 
             $waService = new self($setting);

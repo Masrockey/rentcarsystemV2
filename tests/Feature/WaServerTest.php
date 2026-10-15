@@ -210,6 +210,7 @@ test('whatsapp booking notification masks last 5 digits of customer phone number
             expect($data['phone'])->toBe('120363028192839182@g.us');
             expect($data['message'])->toContain('Telepon: 0877603XXXXX');
             expect($data['message'])->not->toContain('087760365455');
+            expect($data['message'])->toContain('Dibuat Oleh:');
 
             return Http::response([
                 'status' => 200,
@@ -239,6 +240,63 @@ test('whatsapp booking notification masks last 5 digits of customer phone number
         'payment_method' => 'Cash',
         'status' => 'Pending',
     ]);
+
+    $result = WhatsAppService::sendNewBookingNotification($booking);
+
+    expect($result)->toBeTrue();
+});
+
+test('whatsapp booking notification includes creator name in Dibuat Oleh', function () {
+    $setting = WaServerSetting::current();
+    $setting->update([
+        'server_url' => 'http://localhost:3000',
+        'device_id' => 'rentcars_main',
+        'target_group_jid' => '120363028192839182@g.us',
+    ]);
+
+    $creator = User::factory()->create([
+        'name' => 'Admin Testing',
+        'roles' => ['Admin'],
+    ]);
+
+    $marketing = User::factory()->create([
+        'name' => 'Marketing Budi',
+        'roles' => ['Marketing'],
+    ]);
+
+    $customer = Customer::create([
+        'name' => 'Pelanggan Setia',
+        'phone' => '081234567890',
+    ]);
+
+    $booking = Booking::create([
+        'user_id' => $marketing->id,
+        'customer_id' => $customer->id,
+        'booking_number' => 'BK-20261015-CREAT1',
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-10-16',
+        'payment_method' => 'Cash',
+        'status' => 'Pending',
+    ]);
+
+    Http::fake([
+        '*/send/message' => function (Request $request) {
+            $data = $request->data();
+            expect($data['message'])->toContain('Marketing: Marketing Budi');
+            expect($data['message'])->toContain('Dibuat Oleh: Admin Testing');
+            expect($data['message'])->toContain('Dibuat pada:');
+
+            return Http::response([
+                'status' => 200,
+                'results' => [
+                    'message_id' => 'MSG_TEST_CREATOR',
+                ],
+            ], 200);
+        },
+    ]);
+
+    $this->actingAs($creator);
 
     $result = WhatsAppService::sendNewBookingNotification($booking);
 
