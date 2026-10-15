@@ -7,6 +7,7 @@ use App\Http\Resources\Api\V1\RentalResource;
 use App\Models\Booking;
 use App\Models\Rental;
 use App\Services\NotificationService;
+use App\Services\WhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -139,6 +140,9 @@ class ReturnController extends BaseApiController
                 ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
             );
         }
+
+        // Send WhatsApp return notification to configured group
+        WhatsAppService::sendReturnNotification($booking->fresh(), $request->user()->name);
 
         return $this->sendResponse(
             new RentalResource($rental->fresh()->load(['car', 'customer', 'officer', 'booking'])),

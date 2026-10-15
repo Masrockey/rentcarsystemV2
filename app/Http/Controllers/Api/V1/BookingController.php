@@ -540,6 +540,9 @@ class BookingController extends BaseApiController
             $request->user()->id
         );
 
+        // Send WhatsApp delivery notification to configured group
+        WhatsAppService::sendDeliveryNotification($booking->fresh(), $request->user()->name);
+
         return $this->sendResponse(
             new BookingResource($booking->fresh()->load(['car', 'customer', 'rental'])),
             'Proses serah terima & checklist berhasil disimpan. Unit dalam status On Trip.'
@@ -647,6 +650,9 @@ class BookingController extends BaseApiController
             ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
             $request->user()->id
         );
+
+        // Send WhatsApp return notification to configured group
+        WhatsAppService::sendReturnNotification($booking->fresh(), $request->user()->name);
 
         return $this->sendResponse(
             new BookingResource($booking->fresh()->load(['car', 'customer', 'rental'])),

@@ -610,6 +610,9 @@ class BookingController extends Controller
             $request->user()->id
         );
 
+        // Send WhatsApp delivery notification to configured group
+        WhatsAppService::sendDeliveryNotification($booking->fresh(), $request->user()->name);
+
         Inertia::flash('toast', [
             'type' => 'success',
             'message' => 'Proses serah terima & checklist berhasil disimpan. Unit dalam status On Trip.',
@@ -727,6 +730,9 @@ class BookingController extends Controller
             ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number],
             $request->user()->id
         );
+
+        // Send WhatsApp return notification to configured group
+        WhatsAppService::sendReturnNotification($booking->fresh(), $request->user()->name);
 
         Inertia::flash('toast', [
             'type' => 'success',

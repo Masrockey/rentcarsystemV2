@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Booking;
 use App\Models\WaServerSetting;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Carbon;
@@ -485,6 +486,64 @@ class WhatsAppService
     }
 
     /**
+     * Send file or document attachment via WhatsApp API.
+     *
+     * @return array{success: bool, message_id: ?string, message: string, raw: ?array}
+     */
+    public function sendFile(string $phone, string $fileContentOrPath, ?string $caption = null, ?string $filename = null, ?string $deviceId = null): array
+    {
+        $activeDeviceId = $deviceId ?: ($this->setting->device_id ?: 'rentcars_main');
+        $formattedPhone = self::formatPhone($phone);
+
+        try {
+            if (is_string($fileContentOrPath) && strlen($fileContentOrPath) < 4096 && @is_file($fileContentOrPath)) {
+                $contents = file_get_contents($fileContentOrPath);
+                $name = $filename ?: basename($fileContentOrPath);
+            } else {
+                $contents = $fileContentOrPath;
+                $name = $filename ?: 'checklist.pdf';
+            }
+
+            $data = ['phone' => $formattedPhone];
+            if ($caption) {
+                $data['caption'] = $caption;
+            }
+
+            $res = $this->client($activeDeviceId)
+                ->timeout(60)
+                ->connectTimeout(15)
+                ->attach('file', $contents, $name)
+                ->post('/send/file', $data);
+
+            if ($res->successful()) {
+                $results = $res->json('results') ?? $res->json();
+                $messageId = $results['message_id'] ?? $results['id'] ?? null;
+
+                return [
+                    'success' => true,
+                    'message_id' => $messageId,
+                    'message' => 'File WhatsApp berhasil dikirim.',
+                    'raw' => $results,
+                ];
+            }
+
+            return [
+                'success' => false,
+                'message_id' => null,
+                'message' => $this->extractErrorMessage($res, 'Gagal mengirim file WhatsApp.'),
+                'raw' => $res->json(),
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'message_id' => null,
+                'message' => 'Error: '.$e->getMessage(),
+                'raw' => null,
+            ];
+        }
+    }
+
+    /**
      * Get list of WhatsApp groups the connected account is member of.
      *
      * @return array<int, array{jid: string, name: string}>
@@ -612,6 +671,255 @@ class WhatsAppService
             return true;
         } catch (\Throwable $e) {
             Log::error('Error sending booking WA notification: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
+     * Generate BAST checklist PDF file binary string.
+     */
+    public static function generateChecklistPdf(Booking $booking, string $type = 'delivery', ?string $officerName = null): ?string
+    {
+        try {
+            $booking->loadMissing(['customer', 'car', 'user', 'peluncur', 'rental']);
+
+            $checklistData = $type === 'delivery'
+                ? ($booking->delivery_checklist ?? [])
+                : ($booking->return_checklist ?? []);
+
+            $pdf = Pdf::loadView('pdf.checklist', [
+                'booking' => $booking,
+                'type' => $type,
+                'officerName' => $officerName,
+                'checklistData' => $checklistData,
+            ]);
+
+            $pdf->setPaper('a4', 'portrait');
+            $pdf->setOption('enable_font_subsetting', true);
+            $pdf->setOption('isRemoteEnabled', true);
+
+            return $pdf->output();
+        } catch (\Throwable $e) {
+            Log::error('Failed to generate checklist PDF: '.$e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
+     * Send unit delivery / handover notification and PDF to the configured WhatsApp group.
+     */
+    public static function sendDeliveryNotification(Booking $booking, ?string $officerName = null): bool
+    {
+        try {
+            $setting = WaServerSetting::current();
+
+            if (empty($setting->target_group_jid)) {
+                Log::info('WA delivery notification skipped: target_group_jid is not configured.');
+
+                return false;
+            }
+
+            $booking->loadMissing(['customer', 'user', 'car', 'peluncur', 'rental']);
+
+            $customerName = $booking->customer?->name ?? '-';
+            $rawPhone = trim($booking->customer?->phone ?? '');
+            if ($rawPhone !== '' && strlen($rawPhone) > 5) {
+                $customerPhone = substr($rawPhone, 0, -5).'XXXXX';
+            } elseif ($rawPhone !== '') {
+                $customerPhone = 'XXXXX';
+            } else {
+                $customerPhone = '-';
+            }
+
+            $rentalType = $booking->rental_type ?? 'Lepas Kunci';
+            $carName = $booking->car?->name ?? ($booking->car_type ?: '-');
+            $plateNumber = $booking->car?->plate_number ?? '-';
+
+            $deliveryData = $booking->delivery_checklist ?? [];
+            $lokasiAntar = $deliveryData['handover_location'] ?? ($booking->pickup_location ?: '-');
+            $kmKeluar = $deliveryData['km_out'] ?? ($booking->car?->last_km ?: '-');
+            $peluncurName = $booking->peluncur?->name ?? ($officerName ?? '-');
+
+            $diantarPada = null;
+            if (! empty($deliveryData['checkout_datetime'])) {
+                $diantarPada = Carbon::parse($deliveryData['checkout_datetime'])->format('d/m/Y H:i');
+            } elseif (! empty($deliveryData['checkout_date'])) {
+                $rawDate = (string) $deliveryData['checkout_date'];
+                if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $rawDate)) {
+                    $dateFormatted = $rawDate;
+                } else {
+                    try {
+                        $dateFormatted = Carbon::parse($rawDate)->format('d/m/Y');
+                    } catch (\Throwable) {
+                        $dateFormatted = $rawDate;
+                    }
+                }
+                $timeFormatted = ! empty($deliveryData['checkout_time']) ? substr($deliveryData['checkout_time'], 0, 5) : date('H:i');
+                $diantarPada = "{$dateFormatted} {$timeFormatted}";
+            } else {
+                $diantarPada = now()->format('d/m/Y H:i');
+            }
+
+            $marketingName = $booking->user?->name ?? '-';
+            $dibuatOleh = $officerName ?? auth()->user()?->name ?? 'Petugas';
+
+            $message = "━━━━━━━━━━━━━━━━━━━━\n"
+                ."PT. Cahaya Auto Nusantara\n"
+                ."Serah Terima Unit / Unit Keluar\n"
+                ."━━━━━━━━━━━━━━━━━━━━\n"
+                ."No. Booking: {$booking->booking_number}\n"
+                ."Customer: {$customerName}\n"
+                ."Telepon: {$customerPhone}\n"
+                ."Type: {$rentalType}\n\n"
+                ."--- Kendaraan ---\n"
+                ."Nama Kendaraan: {$carName}\n"
+                ."No. Polisi: {$plateNumber}\n"
+                ."Lokasi Antar: {$lokasiAntar}\n"
+                ."KM Keluar (Awal): {$kmKeluar}\n\n"
+                ."--- Petugas ---\n"
+                ."Peluncur: {$peluncurName}\n"
+                ."Diantar pada: {$diantarPada}\n\n"
+                ."Marketing: {$marketingName}\n"
+                ."Dibuat Oleh: {$dibuatOleh}\n"
+                .'━━━━━━━━━━━━━━━━━━━━';
+
+            $waService = new self($setting);
+            $res = $waService->sendMessage($setting->target_group_jid, $message);
+
+            if (! ($res['success'] ?? false)) {
+                Log::warning('Failed to send delivery WA notification message to group: '.($res['message'] ?? 'Unknown error'));
+            }
+
+            // Generate and send Checklist PDF to the group
+            $pdfContent = self::generateChecklistPdf($booking, 'delivery', $dibuatOleh);
+            if ($pdfContent) {
+                $fileName = "BAST-Keluar-{$booking->booking_number}.pdf";
+                $fileRes = $waService->sendFile(
+                    $setting->target_group_jid,
+                    $pdfContent,
+                    "📄 Lampiran PDF Checklist Serah Terima Unit ({$booking->booking_number})",
+                    $fileName
+                );
+
+                if (! ($fileRes['success'] ?? false)) {
+                    Log::warning('Failed to send delivery WA checklist PDF: '.($fileRes['message'] ?? 'Unknown error'));
+                }
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Error sending delivery WA notification: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
+     * Send unit return notification and PDF to the configured WhatsApp group.
+     */
+    public static function sendReturnNotification(Booking $booking, ?string $officerName = null): bool
+    {
+        try {
+            $setting = WaServerSetting::current();
+
+            if (empty($setting->target_group_jid)) {
+                Log::info('WA return notification skipped: target_group_jid is not configured.');
+
+                return false;
+            }
+
+            $booking->loadMissing(['customer', 'user', 'car', 'peluncur', 'rental']);
+
+            $customerName = $booking->customer?->name ?? '-';
+            $rawPhone = trim($booking->customer?->phone ?? '');
+            if ($rawPhone !== '' && strlen($rawPhone) > 5) {
+                $customerPhone = substr($rawPhone, 0, -5).'XXXXX';
+            } elseif ($rawPhone !== '') {
+                $customerPhone = 'XXXXX';
+            } else {
+                $customerPhone = '-';
+            }
+
+            $rentalType = $booking->rental_type ?? 'Lepas Kunci';
+            $carName = $booking->car?->name ?? ($booking->car_type ?: '-');
+            $plateNumber = $booking->car?->plate_number ?? '-';
+
+            $returnData = $booking->return_checklist ?? [];
+            $lokasiAntar = $returnData['handover_location'] ?? ($booking->dropoff_location ?: ($booking->pickup_location ?: '-'));
+            $kmMasuk = $returnData['km_out'] ?? ($booking->rental?->km_in ?? ($booking->car?->last_km ?: '-'));
+            $peluncurName = $booking->peluncur?->name ?? ($officerName ?? '-');
+
+            $diantarPada = null;
+            if (! empty($returnData['checkout_datetime'])) {
+                $diantarPada = Carbon::parse($returnData['checkout_datetime'])->format('d/m/Y H:i');
+            } elseif (! empty($returnData['checkout_date'])) {
+                $rawDate = (string) $returnData['checkout_date'];
+                if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $rawDate)) {
+                    $dateFormatted = $rawDate;
+                } else {
+                    try {
+                        $dateFormatted = Carbon::parse($rawDate)->format('d/m/Y');
+                    } catch (\Throwable) {
+                        $dateFormatted = $rawDate;
+                    }
+                }
+                $timeFormatted = ! empty($returnData['checkout_time']) ? substr($returnData['checkout_time'], 0, 5) : date('H:i');
+                $diantarPada = "{$dateFormatted} {$timeFormatted}";
+            } else {
+                $diantarPada = now()->format('d/m/Y H:i');
+            }
+
+            $marketingName = $booking->user?->name ?? '-';
+            $dibuatOleh = $officerName ?? auth()->user()?->name ?? 'Petugas';
+
+            $message = "━━━━━━━━━━━━━━━━━━━━\n"
+                ."PT. Cahaya Auto Nusantara\n"
+                ."Pengembalian Unit / Unit Masuk\n"
+                ."━━━━━━━━━━━━━━━━━━━━\n"
+                ."No. Booking: {$booking->booking_number}\n"
+                ."Customer: {$customerName}\n"
+                ."Telepon: {$customerPhone}\n"
+                ."Type: {$rentalType}\n\n"
+                ."--- Kendaraan ---\n"
+                ."Nama Kendaraan: {$carName}\n"
+                ."No. Polisi: {$plateNumber}\n"
+                ."Lokasi Antar: {$lokasiAntar}\n"
+                ."KM Masuk (Kembali): {$kmMasuk}\n\n"
+                ."--- Petugas ---\n"
+                ."Peluncur: {$peluncurName}\n"
+                ."Diantar pada: {$diantarPada}\n\n"
+                ."Marketing: {$marketingName}\n"
+                ."Dibuat Oleh: {$dibuatOleh}\n"
+                .'━━━━━━━━━━━━━━━━━━━━';
+
+            $waService = new self($setting);
+            $res = $waService->sendMessage($setting->target_group_jid, $message);
+
+            if (! ($res['success'] ?? false)) {
+                Log::warning('Failed to send return WA notification message to group: '.($res['message'] ?? 'Unknown error'));
+            }
+
+            // Generate and send Checklist PDF to the group
+            $pdfContent = self::generateChecklistPdf($booking, 'return', $dibuatOleh);
+            if ($pdfContent) {
+                $fileName = "BAST-Kembali-{$booking->booking_number}.pdf";
+                $fileRes = $waService->sendFile(
+                    $setting->target_group_jid,
+                    $pdfContent,
+                    "📄 Lampiran PDF Checklist Pengembalian Unit ({$booking->booking_number})",
+                    $fileName
+                );
+
+                if (! ($fileRes['success'] ?? false)) {
+                    Log::warning('Failed to send return WA checklist PDF: '.($fileRes['message'] ?? 'Unknown error'));
+                }
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Error sending return WA notification: '.$e->getMessage());
 
             return false;
         }

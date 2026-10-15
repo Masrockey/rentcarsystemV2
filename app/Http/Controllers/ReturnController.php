@@ -7,6 +7,7 @@ use App\Models\Car;
 use App\Models\Rental;
 use App\Models\User;
 use App\Services\NotificationService;
+use App\Services\WhatsAppService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -137,6 +138,9 @@ class ReturnController extends Controller
                 ['booking_id' => $booking->id, 'booking_number' => $booking->booking_number]
             );
         }
+
+        // Send WhatsApp return notification to configured group
+        WhatsAppService::sendReturnNotification($booking->fresh(), $request->user()->name);
 
         Inertia::flash('toast', [
             'type' => 'success',

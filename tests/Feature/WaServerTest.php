@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Booking;
+use App\Models\Car;
 use App\Models\Customer;
 use App\Models\User;
 use App\Models\WaServerSetting;
@@ -349,4 +350,237 @@ test('whatsapp booking notification includes calculated duration', function () {
     $result = WhatsAppService::sendNewBookingNotification($booking);
 
     expect($result)->toBeTrue();
+});
+
+test('generateChecklistPdf generates valid pdf binary for delivery and return', function () {
+    $customer = Customer::create([
+        'name' => 'Bang Iskandar',
+        'phone' => '087760365455',
+    ]);
+
+    $car = Car::create([
+        'name' => 'CR-V',
+        'year' => 2023,
+        'plate_number' => 'DR 1234 XY',
+        'status' => 'Ready',
+        'last_km' => 50000,
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'car_id' => $car->id,
+        'booking_number' => 'BK-20261005-NWG4CE',
+        'car_type' => 'CR-V',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-10-06',
+        'return_date' => '2026-10-07',
+        'pickup_time' => '14:43:00',
+        'return_time' => '16:06:00',
+        'pickup_location' => 'garasi',
+        'dropoff_location' => 'garasi',
+        'payment_method' => 'Cash',
+        'status' => 'On Trip',
+        'delivery_checklist' => [
+            'km_out' => 50000,
+            'fuel_out' => 100,
+            'handover_location' => 'garasi',
+            'checkout_date' => '06/10/2026',
+            'checkout_time' => '14:43',
+            'kunci_kontak' => 'OK',
+            'copy_stnk' => 'OK',
+            'body_kiri' => 'Baik',
+            'body_kanan' => 'Baik',
+            'photos' => [
+                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+            ],
+        ],
+    ]);
+
+    $pdfDelivery = WhatsAppService::generateChecklistPdf($booking, 'delivery', 'Petugas Uji');
+    expect($pdfDelivery)->not->toBeNull();
+    expect(str_starts_with($pdfDelivery, '%PDF'))->toBeTrue();
+    expect($pdfDelivery)->not->toContain('[ ? ]');
+
+    $pdfReturn = WhatsAppService::generateChecklistPdf($booking, 'return', 'Petugas Uji');
+    expect($pdfReturn)->not->toBeNull();
+    expect(str_starts_with($pdfReturn, '%PDF'))->toBeTrue();
+    expect($pdfReturn)->not->toContain('[ ? ]');
+});
+
+test('whatsapp delivery notification sends formatted text and pdf attachment', function () {
+    $setting = WaServerSetting::current();
+    $setting->update([
+        'server_url' => 'http://localhost:3000',
+        'device_id' => 'rentcars_main',
+        'target_group_jid' => '120363028192839182@g.us',
+    ]);
+
+    $customer = Customer::create([
+        'name' => 'Bang Iskandar',
+        'phone' => '087760365455',
+    ]);
+
+    $marketing = User::factory()->create(['name' => 'INGGAR SANJAYA', 'roles' => ['Marketing']]);
+    $peluncur = User::factory()->create(['name' => 'Budi Peluncur', 'roles' => ['Driver']]);
+
+    $car = Car::create([
+        'name' => 'CR-V',
+        'year' => 2023,
+        'plate_number' => 'DR 1234 XY',
+        'status' => 'On Trip',
+        'last_km' => 50000,
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'car_id' => $car->id,
+        'user_id' => $marketing->id,
+        'peluncur_id' => $peluncur->id,
+        'booking_number' => 'BK-20261005-NWG4CE',
+        'car_type' => 'CR-V',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-10-06',
+        'return_date' => '2026-10-07',
+        'pickup_time' => '14:43:00',
+        'return_time' => '16:06:00',
+        'pickup_location' => 'garasi',
+        'dropoff_location' => 'garasi',
+        'payment_method' => 'Cash',
+        'status' => 'On Trip',
+        'delivery_checklist' => [
+            'km_out' => 50000,
+            'fuel_out' => 100,
+            'handover_location' => 'garasi',
+            'checkout_date' => '05/10/2026',
+            'checkout_time' => '22:24',
+        ],
+    ]);
+
+    $sentMessage = false;
+    $sentFile = false;
+
+    Http::fake([
+        '*/send/message' => function (Request $request) use (&$sentMessage) {
+            $data = $request->data();
+            expect($data['phone'])->toBe('120363028192839182@g.us');
+            expect($data['message'])->toContain('Serah Terima Unit / Unit Keluar');
+            expect($data['message'])->toContain('No. Booking: BK-20261005-NWG4CE');
+            expect($data['message'])->toContain('Customer: Bang Iskandar');
+            expect($data['message'])->toContain('Telepon: 0877603XXXXX');
+            expect($data['message'])->not->toContain('087760365455');
+            expect($data['message'])->toContain('Type: Lepas Kunci');
+            expect($data['message'])->toContain('Nama Kendaraan: CR-V');
+            expect($data['message'])->toContain('No. Polisi: DR 1234 XY');
+            expect($data['message'])->toContain('Lokasi Antar: garasi');
+            expect($data['message'])->toContain('KM Keluar (Awal): 50000');
+            expect($data['message'])->toContain('Peluncur: Budi Peluncur');
+            expect($data['message'])->toContain('Diantar pada: 05/10/2026 22:24');
+            expect($data['message'])->toContain('Marketing: INGGAR SANJAYA');
+            expect($data['message'])->toContain('Dibuat Oleh: Admin Operasional');
+
+            $sentMessage = true;
+
+            return Http::response(['status' => 200, 'results' => ['message_id' => 'MSG_DELIVERY_123']], 200);
+        },
+        '*/send/file' => function (Request $request) use (&$sentFile) {
+            $sentFile = true;
+
+            return Http::response(['status' => 200, 'results' => ['message_id' => 'FILE_DELIVERY_123']], 200);
+        },
+    ]);
+
+    $result = WhatsAppService::sendDeliveryNotification($booking, 'Admin Operasional');
+
+    expect($result)->toBeTrue();
+    expect($sentMessage)->toBeTrue();
+    expect($sentFile)->toBeTrue();
+});
+
+test('whatsapp return notification sends formatted text and pdf attachment', function () {
+    $setting = WaServerSetting::current();
+    $setting->update([
+        'server_url' => 'http://localhost:3000',
+        'device_id' => 'rentcars_main',
+        'target_group_jid' => '120363028192839182@g.us',
+    ]);
+
+    $customer = Customer::create([
+        'name' => 'Bang Iskandar',
+        'phone' => '087760365455',
+    ]);
+
+    $marketing = User::factory()->create(['name' => 'INGGAR SANJAYA', 'roles' => ['Marketing']]);
+    $peluncur = User::factory()->create(['name' => 'Budi Peluncur', 'roles' => ['Driver']]);
+
+    $car = Car::create([
+        'name' => 'CR-V',
+        'year' => 2023,
+        'plate_number' => 'DR 1234 XY',
+        'status' => 'Ready',
+        'last_km' => 50350,
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'car_id' => $car->id,
+        'user_id' => $marketing->id,
+        'peluncur_id' => $peluncur->id,
+        'booking_number' => 'BK-20261005-NWG4CE',
+        'car_type' => 'CR-V',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-10-06',
+        'return_date' => '2026-10-07',
+        'pickup_time' => '14:43:00',
+        'return_time' => '16:06:00',
+        'pickup_location' => 'garasi',
+        'dropoff_location' => 'garasi',
+        'payment_method' => 'Cash',
+        'status' => 'Returned',
+        'return_checklist' => [
+            'km_out' => 50350,
+            'fuel_out' => 90,
+            'handover_location' => 'garasi',
+            'checkout_date' => '05/10/2026',
+            'checkout_time' => '22:24',
+        ],
+    ]);
+
+    $sentMessage = false;
+    $sentFile = false;
+
+    Http::fake([
+        '*/send/message' => function (Request $request) use (&$sentMessage) {
+            $data = $request->data();
+            expect($data['phone'])->toBe('120363028192839182@g.us');
+            expect($data['message'])->toContain('Pengembalian Unit / Unit Masuk');
+            expect($data['message'])->toContain('No. Booking: BK-20261005-NWG4CE');
+            expect($data['message'])->toContain('Customer: Bang Iskandar');
+            expect($data['message'])->toContain('Telepon: 0877603XXXXX');
+            expect($data['message'])->not->toContain('087760365455');
+            expect($data['message'])->toContain('Type: Lepas Kunci');
+            expect($data['message'])->toContain('Nama Kendaraan: CR-V');
+            expect($data['message'])->toContain('No. Polisi: DR 1234 XY');
+            expect($data['message'])->toContain('Lokasi Antar: garasi');
+            expect($data['message'])->toContain('KM Masuk (Kembali): 50350');
+            expect($data['message'])->toContain('Peluncur: Budi Peluncur');
+            expect($data['message'])->toContain('Diantar pada: 05/10/2026 22:24');
+            expect($data['message'])->toContain('Marketing: INGGAR SANJAYA');
+            expect($data['message'])->toContain('Dibuat Oleh: Petugas Lapangan');
+
+            $sentMessage = true;
+
+            return Http::response(['status' => 200, 'results' => ['message_id' => 'MSG_RETURN_123']], 200);
+        },
+        '*/send/file' => function (Request $request) use (&$sentFile) {
+            $sentFile = true;
+
+            return Http::response(['status' => 200, 'results' => ['message_id' => 'FILE_RETURN_123']], 200);
+        },
+    ]);
+
+    $result = WhatsAppService::sendReturnNotification($booking, 'Petugas Lapangan');
+
+    expect($result)->toBeTrue();
+    expect($sentMessage)->toBeTrue();
+    expect($sentFile)->toBeTrue();
 });
