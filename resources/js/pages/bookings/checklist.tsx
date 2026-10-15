@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { ArrowLeft, Fuel, Key, FileText, Wrench, Volume2, Snowflake, Disc, ShieldCheck, Printer, Check, AlertCircle, AlertTriangle, User, Car, Camera, UploadCloud, X, Image as ImageIcon, CheckSquare, Lock, MapPin, Navigation, Crosshair, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 import { index as bookingsIndex } from '@/routes/bookings';
 import { Link } from '@inertiajs/react';
-import { maskPhoneNumber } from '@/lib/utils';
+import { maskPhoneNumber, maskPrintPhone } from '@/lib/utils';
 
 type Booking = {
     id: number;
@@ -22,6 +22,7 @@ type Booking = {
     pickup_location?: string | null;
     dropoff_location?: string | null;
     rental_type?: string;
+    booking_number?: string;
     fuel_range_km?: number | null;
     status: 'Pending' | 'Confirmed' | 'On Trip' | 'Returned' | 'Completed';
     delivery_checklist?: Record<string, any> | null;
@@ -50,6 +51,20 @@ type Booking = {
         km_in?: number | null;
         fuel_out?: number | null;
         fuel_in?: number | null;
+    } | null;
+    peluncur?: {
+        id: number;
+        name: string;
+        phone?: string | null;
+    } | null;
+    driver?: {
+        id: number;
+        name: string;
+        phone?: string | null;
+    } | null;
+    user?: {
+        id: number;
+        name: string;
     } | null;
 };
 
@@ -421,13 +436,13 @@ export default function BookingChecklist({ booking }: Props) {
     return (
         <>
             <Head title={isDelivery ? 'Checklist Serah Terima Mobil' : 'Checklist Pengembalian Mobil'} />
-            <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 max-w-4xl mx-auto w-full">
+            <div className="print:hidden flex flex-1 flex-col gap-6 p-4 md:p-6 max-w-4xl mx-auto w-full">
                 <div className="flex items-center justify-between">
                     <Link href={bookingsIndex().url} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
                         <ArrowLeft className="h-4 w-4" /> Kembali ke Data Booking
                     </Link>
-                    <Button variant="outline" size="sm" onClick={() => window.print()} className="hidden md:flex items-center gap-1.5">
-                        <Printer className="h-4 w-4" /> Cetak Form Checklist
+                    <Button variant="outline" size="sm" onClick={() => window.print()} className="flex items-center gap-1.5 shadow-xs font-semibold hover:bg-primary/10 hover:text-primary">
+                        <Printer className="h-4 w-4 text-primary" /> Cetak Form Checklist
                     </Button>
                 </div>
 
@@ -677,11 +692,10 @@ export default function BookingChecklist({ booking }: Props) {
                                                     variant={data.latitude && data.longitude ? 'outline' : 'default'}
                                                     onClick={handleCheckIn}
                                                     disabled={isLocating}
-                                                    className={`h-8 text-xs font-semibold gap-1.5 shadow-xs transition-all ${
-                                                        !data.latitude || !data.longitude
-                                                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                                            : 'border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
-                                                    }`}
+                                                    className={`h-8 text-xs font-semibold gap-1.5 shadow-xs transition-all ${!data.latitude || !data.longitude
+                                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                        : 'border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                                                        }`}
                                                 >
                                                     {isLocating ? (
                                                         <>
@@ -1545,6 +1559,401 @@ export default function BookingChecklist({ booking }: Props) {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+            </div>
+
+            {/* DEDICATED PRINTABLE BAST DOCUMENT (A4 PRINT VIEW) */}
+            <div className="hidden print:block w-full text-black bg-white p-2">
+                {/* KOP SURAT / HEADER */}
+                <div className="flex items-start justify-between border-b-2 border-black pb-2 mb-3">
+                    <div>
+                        <h1 className="text-xl font-black tracking-wider uppercase text-black">
+                            PT. CAHAYA AUTO NUSANTARA
+                        </h1>
+                        <p className="text-[10px] text-gray-700 tracking-wide font-medium">
+                            Jasa Sewa & Rental Mobil Terbaik di Lombok | Nusa Tenggara Barat
+                        </p>
+                    </div>
+                    <div className="text-right border border-black p-1.5 rounded-xs bg-gray-50 min-w-[210px]">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-black">
+                            No. Booking: <span className="font-mono">{booking.booking_number || `BK-${booking.id}`}</span>
+                        </div>
+                        <div className="text-[9px] text-gray-700">
+                            Tgl Cetak: {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        <div className="text-[9px] font-bold text-gray-800">
+                            Layanan: {booking.rental_type ?? 'Lepas Kunci'}
+                        </div>
+                    </div>
+                </div>
+
+                {/* JUDUL DOKUMEN */}
+                <div className="text-center mb-2.5">
+                    <h2 className="text-sm font-black uppercase tracking-wider underline">
+                        BERITA ACARA SERAH TERIMA KENDARAAN (BAST)
+                    </h2>
+                    <p className="text-[10px] font-semibold text-gray-800 mt-0.5 uppercase tracking-wide">
+                        {isDelivery ? 'FORMULIR PENYERAHAN UNIT JALAN (CHECK-OUT)' : 'FORMULIR PENGEMBALIAN UNIT KENDARAAN (CHECK-IN)'}
+                    </p>
+                </div>
+
+                {/* GRID 2 KOLOM: DATA PENYEWA & DATA KENDARAAN */}
+                <div className="grid grid-cols-2 gap-2 mb-2 text-[10px] break-inside-avoid">
+                    {/* DATA PENYEWA */}
+                    <div className="border border-black rounded-xs p-2 bg-white">
+                        <div className="font-bold uppercase tracking-wider border-b border-black pb-1 mb-1.5 bg-gray-100 -mx-2 -mt-2 p-1 px-2 text-[10px]">
+                            I. Data Pihak Penyewa
+                        </div>
+                        <table className="w-full text-[10px]">
+                            <tbody>
+                                <tr>
+                                    <td className="w-28 text-gray-600 py-0.5">Nama Penyewa</td>
+                                    <td className="w-2 text-gray-600 py-0.5">:</td>
+                                    <td className="font-bold text-black py-0.5">{booking.customer?.name || '-'}</td>
+                                </tr>
+                                <tr>
+                                    <td className="text-gray-600 py-0.5">No. Telepon / WA</td>
+                                    <td className="text-gray-600 py-0.5">:</td>
+                                    <td className="font-medium text-black py-0.5">
+                                        {maskPrintPhone(booking.customer?.phone)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="text-gray-600 py-0.5">No. KTP / SIM</td>
+                                    <td className="text-gray-600 py-0.5">:</td>
+                                    <td className="font-medium text-black py-0.5">{booking.customer?.nik || booking.customer?.sim_number || '-'}</td>
+                                </tr>
+                                <tr>
+                                    <td className="text-gray-600 py-0.5 align-top">Alamat</td>
+                                    <td className="text-gray-600 py-0.5 align-top">:</td>
+                                    <td className="font-medium text-black py-0.5 leading-tight">{booking.customer?.address || '-'}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* DATA ARMADA & SEWA */}
+                    <div className="border border-black rounded-xs p-2 bg-white">
+                        <div className="font-bold uppercase tracking-wider border-b border-black pb-1 mb-1.5 bg-gray-100 -mx-2 -mt-2 p-1 px-2 text-[10px]">
+                            II. Data Kendaraan & Jadwal
+                        </div>
+                        <table className="w-full text-[10px]">
+                            <tbody>
+                                <tr>
+                                    <td className="w-32 text-gray-600 py-0.5">Unit Mobil</td>
+                                    <td className="w-2 text-gray-600 py-0.5">:</td>
+                                    <td className="font-bold text-black py-0.5">{booking.car?.name || booking.car_type}</td>
+                                </tr>
+                                <tr>
+                                    <td className="text-gray-600 py-0.5">No. Polisi (Plat)</td>
+                                    <td className="text-gray-600 py-0.5">:</td>
+                                    <td className="font-bold text-black py-0.5 font-mono">{booking.car?.plate_number || '-'}</td>
+                                </tr>
+                                <tr>
+                                    <td className="text-gray-600 py-0.5">Periode Sewa</td>
+                                    <td className="text-gray-600 py-0.5">:</td>
+                                    <td className="font-medium text-black py-0.5">
+                                        {booking.booking_date ? new Date(booking.booking_date).toLocaleDateString('id-ID') : '-'}
+                                        {booking.return_date ? ` s/d ${new Date(booking.return_date).toLocaleDateString('id-ID')}` : ''}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="text-gray-600 py-0.5">Lokasi Serah Terima</td>
+                                    <td className="text-gray-600 py-0.5">:</td>
+                                    <td className="font-medium text-black py-0.5">{data.handover_location || booking.pickup_location || '-'}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* SECTION: METERAN & KONDISI TEKNIS */}
+                <div className="border border-black rounded-xs mb-2 break-inside-avoid">
+                    <div className="font-bold uppercase tracking-wider border-b border-black bg-gray-100 p-1 px-2 text-[10px]">
+                        III. Status Meteran, Bahan Bakar & Waktu {isDelivery ? 'Penyerahan' : 'Pengembalian'}
+                    </div>
+                    <div className="grid grid-cols-4 divide-x divide-black p-2 text-center text-[10px]">
+                        <div>
+                            <span className="text-[9px] text-gray-600 uppercase block font-semibold">Odometer (KM)</span>
+                            <span className="text-xs font-black font-mono mt-0.5 block">
+                                {data.km_out ? Number(data.km_out).toLocaleString('id-ID') : '-'} KM
+                            </span>
+                        </div>
+                        <div>
+                            <span className="text-[9px] text-gray-600 uppercase block font-semibold">Bahan Bakar (BBM)</span>
+                            <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                                <span className="text-xs font-black font-mono">{data.fuel_out}%</span>
+                                <span className="text-[9px] text-gray-500">
+                                    ({data.fuel_out >= 90 ? 'Full' : data.fuel_out >= 70 ? '3/4' : data.fuel_out >= 45 ? '1/2' : data.fuel_out >= 20 ? '1/4' : 'E'})
+                                </span>
+                            </div>
+                        </div>
+                        <div>
+                            <span className="text-[9px] text-gray-600 uppercase block font-semibold">Waktu Serah Terima</span>
+                            <span className="text-[10px] font-bold mt-0.5 block">
+                                {data.checkout_date} {data.checkout_time || ''}
+                            </span>
+                        </div>
+                        <div>
+                            <span className="text-[9px] text-gray-600 uppercase block font-semibold">Titik GPS Koordinat</span>
+                            <span className="text-[9px] font-mono mt-0.5 block truncate px-1">
+                                {data.latitude && data.longitude ? `${Number(data.latitude).toFixed(4)}, ${Number(data.longitude).toFixed(4)}` : '-'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SECTION: CHECKLIST KELENGKAPAN UNIT */}
+                <div className="border border-black rounded-xs mb-2 break-inside-avoid">
+                    <div className="font-bold uppercase tracking-wider border-b border-black bg-gray-100 p-1 px-2 text-[10px] flex justify-between items-center">
+                        <span>IV. Pemeriksaan Kelengkapan Standar Kendaraan (8 Item)</span>
+                        <span className="text-[9px] font-normal text-gray-600">Periksa fisik kelengkapan</span>
+                    </div>
+                    <div className="grid grid-cols-2 divide-x divide-black p-1 text-[10px]">
+                        <table className="w-full">
+                            <tbody>
+                                {CHECKLIST_ITEMS.slice(0, 4).map((item, idx) => {
+                                    const val = data.checklist[item.key];
+                                    return (
+                                        <tr key={item.key} className="border-b border-gray-200 last:border-b-0">
+                                            <td className="py-0.5 px-1.5 text-gray-700">{idx + 1}. {item.label}</td>
+                                            <td className="py-0.5 px-1.5 text-right font-bold w-24">
+                                                {val === 'OK' ? (
+                                                    <span className="text-emerald-700 font-bold">[ ✓ ] ADA / BAIK</span>
+                                                ) : val === 'Tidak' ? (
+                                                    <span className="text-red-700 font-bold">[ ✗ ] TIDAK ADA</span>
+                                                ) : (
+                                                    <span className="text-gray-500">[ - ] Belum Dicek</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                        <table className="w-full">
+                            <tbody>
+                                {CHECKLIST_ITEMS.slice(4).map((item, idx) => {
+                                    const val = data.checklist[item.key];
+                                    return (
+                                        <tr key={item.key} className="border-b border-gray-200 last:border-b-0">
+                                            <td className="py-0.5 px-1.5 text-gray-700">{idx + 5}. {item.label}</td>
+                                            <td className="py-0.5 px-1.5 text-right font-bold w-24">
+                                                {val === 'OK' ? (
+                                                    <span className="text-emerald-700 font-bold">[ ✓ ] ADA / BAIK</span>
+                                                ) : val === 'Tidak' ? (
+                                                    <span className="text-red-700 font-bold">[ ✗ ] TIDAK ADA</span>
+                                                ) : (
+                                                    <span className="text-gray-500">[ - ] Belum Dicek</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* SECTION: INSPEKSI KONDISI FISIK BODI MOBIL (5 SISI) */}
+                <div className="border border-black rounded-xs mb-2 break-inside-avoid">
+                    <div className="font-bold uppercase tracking-wider border-b border-black bg-gray-100 p-1 px-2 text-[10px] flex justify-between items-center">
+                        <span>V. Hasil Inspeksi Kondisi Fisik Bodi Mobil (5 Sisi)</span>
+                        <span className="text-[9px] font-normal text-gray-600">Keterangan: Baik / Baret / Penyok / Rusak</span>
+                    </div>
+                    <div className="grid grid-cols-5 divide-x divide-black p-1.5 text-center text-[9px]">
+                        {/* 1. Samping Kiri */}
+                        <div className="px-1 flex flex-col justify-between items-center">
+                            <span className="font-bold text-black uppercase mb-0.5">Samping Kiri</span>
+                            <svg viewBox="0 0 160 65" className="w-16 h-8 my-0.5 text-black">
+                                <path d="M 10 42 Q 15 25 35 20 Q 55 12 90 12 Q 130 12 145 28 L 155 35 L 155 45 Q 155 48 150 48 L 10 48 Z" fill="none" stroke="currentColor" strokeWidth="2" />
+                                <path d="M 38 22 L 72 22 L 72 34 L 28 34 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <path d="M 76 22 L 125 22 Q 135 22 138 34 L 76 34 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <circle cx="38" cy="48" r="8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <circle cx="122" cy="48" r="8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                            </svg>
+                            <div className="w-full mt-0.5">
+                                <span className={`inline-block px-1 py-0.2 rounded text-[8.5px] font-bold w-full ${data.checklist.body_kiri === 'Baret' ? 'bg-amber-100 text-amber-900 border border-amber-400' :
+                                    data.checklist.body_kiri === 'Penyok' ? 'bg-orange-100 text-orange-900 border border-orange-400' :
+                                        data.checklist.body_kiri === 'Rusak' ? 'bg-red-100 text-red-900 border border-red-400' :
+                                            'bg-emerald-100 text-emerald-900 border border-emerald-400'
+                                    }`}>
+                                    {data.checklist.body_kiri || 'Baik'}
+                                </span>
+                                {data.checklist.body_kiri_note && (
+                                    <p className="text-[7.5px] text-gray-700 italic mt-0.5 leading-tight">{data.checklist.body_kiri_note}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 2. Samping Kanan */}
+                        <div className="px-1 flex flex-col justify-between items-center">
+                            <span className="font-bold text-black uppercase mb-0.5">Samping Kanan</span>
+                            <svg viewBox="0 0 160 65" className="w-16 h-8 my-0.5 text-black scale-x-[-1]">
+                                <path d="M 10 42 Q 15 25 35 20 Q 55 12 90 12 Q 130 12 145 28 L 155 35 L 155 45 Q 155 48 150 48 L 10 48 Z" fill="none" stroke="currentColor" strokeWidth="2" />
+                                <path d="M 38 22 L 72 22 L 72 34 L 28 34 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <path d="M 76 22 L 125 22 Q 135 22 138 34 L 76 34 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <circle cx="38" cy="48" r="8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <circle cx="122" cy="48" r="8" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                            </svg>
+                            <div className="w-full mt-0.5">
+                                <span className={`inline-block px-1 py-0.2 rounded text-[8.5px] font-bold w-full ${data.checklist.body_kanan === 'Baret' ? 'bg-amber-100 text-amber-900 border border-amber-400' :
+                                    data.checklist.body_kanan === 'Penyok' ? 'bg-orange-100 text-orange-900 border border-orange-400' :
+                                        data.checklist.body_kanan === 'Rusak' ? 'bg-red-100 text-red-900 border border-red-400' :
+                                            'bg-emerald-100 text-emerald-900 border border-emerald-400'
+                                    }`}>
+                                    {data.checklist.body_kanan || 'Baik'}
+                                </span>
+                                {data.checklist.body_kanan_note && (
+                                    <p className="text-[7.5px] text-gray-700 italic mt-0.5 leading-tight">{data.checklist.body_kanan_note}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 3. Tampak Depan */}
+                        <div className="px-1 flex flex-col justify-between items-center">
+                            <span className="font-bold text-black uppercase mb-0.5">Tampak Depan</span>
+                            <svg viewBox="0 0 110 65" className="w-14 h-8 my-0.5 text-black">
+                                <path d="M 15 45 Q 20 22 35 15 Q 55 12 75 15 Q 90 22 95 45 L 95 55 Q 95 58 90 58 L 20 58 Q 15 58 15 55 Z" fill="none" stroke="currentColor" strokeWidth="2" />
+                                <path d="M 24 25 Q 55 18 86 25 L 82 36 L 28 36 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <rect x="18" y="42" width="16" height="7" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <rect x="76" y="42" width="16" height="7" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                            </svg>
+                            <div className="w-full mt-0.5">
+                                <span className={`inline-block px-1 py-0.2 rounded text-[8.5px] font-bold w-full ${data.checklist.body_depan === 'Baret' ? 'bg-amber-100 text-amber-900 border border-amber-400' :
+                                    data.checklist.body_depan === 'Penyok' ? 'bg-orange-100 text-orange-900 border border-orange-400' :
+                                        data.checklist.body_depan === 'Rusak' ? 'bg-red-100 text-red-900 border border-red-400' :
+                                            'bg-emerald-100 text-emerald-900 border border-emerald-400'
+                                    }`}>
+                                    {data.checklist.body_depan || 'Baik'}
+                                </span>
+                                {data.checklist.body_depan_note && (
+                                    <p className="text-[7.5px] text-gray-700 italic mt-0.5 leading-tight">{data.checklist.body_depan_note}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 4. Tampak Belakang */}
+                        <div className="px-1 flex flex-col justify-between items-center">
+                            <span className="font-bold text-black uppercase mb-0.5">Tampak Belakang</span>
+                            <svg viewBox="0 0 110 65" className="w-14 h-8 my-0.5 text-black">
+                                <path d="M 15 45 Q 20 22 35 15 Q 55 12 75 15 Q 90 22 95 45 L 95 55 Q 95 58 90 58 L 20 58 Q 15 58 15 55 Z" fill="none" stroke="currentColor" strokeWidth="2" />
+                                <path d="M 26 24 Q 55 20 84 24 L 80 35 L 30 35 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <rect x="18" y="42" width="18" height="6" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <rect x="74" y="42" width="18" height="6" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                            </svg>
+                            <div className="w-full mt-0.5">
+                                <span className={`inline-block px-1 py-0.2 rounded text-[8.5px] font-bold w-full ${data.checklist.body_belakang === 'Baret' ? 'bg-amber-100 text-amber-900 border border-amber-400' :
+                                    data.checklist.body_belakang === 'Penyok' ? 'bg-orange-100 text-orange-900 border border-orange-400' :
+                                        data.checklist.body_belakang === 'Rusak' ? 'bg-red-100 text-red-900 border border-red-400' :
+                                            'bg-emerald-100 text-emerald-900 border border-emerald-400'
+                                    }`}>
+                                    {data.checklist.body_belakang || 'Baik'}
+                                </span>
+                                {data.checklist.body_belakang_note && (
+                                    <p className="text-[7.5px] text-gray-700 italic mt-0.5 leading-tight">{data.checklist.body_belakang_note}</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* 5. Tampak Atas */}
+                        <div className="px-1 flex flex-col justify-between items-center">
+                            <span className="font-bold text-black uppercase mb-0.5">Tampak Atas</span>
+                            <svg viewBox="0 0 80 130" className="w-10 h-8 my-0.5 text-black">
+                                <rect x="15" y="10" width="50" height="110" rx="15" fill="none" stroke="currentColor" strokeWidth="2" />
+                                <path d="M 20 30 Q 40 25 60 30 L 58 45 L 22 45 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <rect x="22" y="48" width="36" height="40" rx="4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                                <path d="M 22 92 L 58 92 L 60 102 Q 40 106 20 102 Z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                            </svg>
+                            <div className="w-full mt-0.5">
+                                <span className={`inline-block px-1 py-0.2 rounded text-[8.5px] font-bold w-full ${data.checklist.body_atap === 'Baret' ? 'bg-amber-100 text-amber-900 border border-amber-400' :
+                                    data.checklist.body_atap === 'Penyok' ? 'bg-orange-100 text-orange-900 border border-orange-400' :
+                                        data.checklist.body_atap === 'Rusak' ? 'bg-red-100 text-red-900 border border-red-400' :
+                                            'bg-emerald-100 text-emerald-900 border border-emerald-400'
+                                    }`}>
+                                    {data.checklist.body_atap || 'Baik'}
+                                </span>
+                                {data.checklist.body_atap_note && (
+                                    <p className="text-[7.5px] text-gray-700 italic mt-0.5 leading-tight">{data.checklist.body_atap_note}</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SECTION: CATATAN KONDISI / KETERANGAN */}
+                <div className="border border-black rounded-xs p-1.5 px-2 mb-2 text-[9px] bg-white break-inside-avoid">
+                    <span className="font-bold uppercase tracking-wider block text-gray-800 mb-0.5">Catatan Tambahan & Kondisi Khusus:</span>
+                    <p className="text-gray-800 italic leading-relaxed">
+                        {data.notes}
+                    </p>
+                </div>
+
+                {/* KLAUSUL PERNYATAAN BAST */}
+                <div className="p-1 px-2 border border-gray-400 rounded-xs bg-gray-50 mb-2.5 text-[8.5px] leading-tight text-gray-700 break-inside-avoid">
+                    <strong>Pernyataan Bersama:</strong> Pihak Penyewa menyatakan telah memeriksa dan menerima unit kendaraan beserta kelengkapannya dalam kondisi fisik dan teknis sebagaimana tertulis pada Berita Acara ini. Pihak Penyewa bertanggung jawab penuh atas penggunaan unit kendaraan selama masa sewa sesuai ketentuan sewa menyewa PT. Cahaya Auto Nusantara.
+                </div>
+
+                {/* KOLOM TANDA TANGAN (3 PIHAK) */}
+                <div className="grid grid-cols-3 gap-3 text-center text-[10px] break-inside-avoid">
+                    {/* PIHAK PENYEWA */}
+                    <div className="border border-black rounded-xs p-2 flex flex-col justify-between h-24">
+                        <span className="font-bold uppercase text-[9px] text-gray-700">Pihak Penyewa</span>
+                        <div className="border-b border-black border-dashed mx-4 mb-1"></div>
+                        <div>
+                            <span className="font-bold underline block uppercase text-[10px]">
+                                {booking.customer?.name || '( ...................................... )'}
+                            </span>
+                            <span className="text-[8px] text-gray-600">Penyewa / Penanggung Jawab</span>
+                        </div>
+                    </div>
+
+                    {/* PETUGAS PELUNCUR / SERAH TERIMA */}
+                    <div className="border border-black rounded-xs p-2 flex flex-col justify-between h-24">
+                        <span className="font-bold uppercase text-[9px] text-gray-700">
+                            {isDelivery ? 'Petugas Penyerah Unit' : 'Petugas Penerima Unit'}
+                        </span>
+                        <div className="border-b border-black border-dashed mx-4 mb-1"></div>
+                        <div>
+                            <span className="font-bold underline block uppercase text-[10px]">
+                                {booking.peluncur?.name || authUser?.name || '( ...................................... )'}
+                            </span>
+                            <span className="text-[8px] text-gray-600">Petugas Lapangan / Peluncur</span>
+                        </div>
+                    </div>
+
+                    {/* MANAJEMEN RENTAL */}
+                    <div className="border border-black rounded-xs p-2 flex flex-col justify-between h-24">
+                        <span className="font-bold uppercase text-[9px] text-gray-700">Manajemen Rental</span>
+                        <div className="border-b border-black border-dashed mx-4 mb-1"></div>
+                        <div>
+                            <span className="font-bold underline block uppercase text-[10px]">
+                                PT. Cahaya Auto Nusantara
+                            </span>
+                            <span className="text-[8px] text-gray-600">Pemberi Sewa Kendaraan</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* FOTO DOKUMENTASI (JIKA ADA) */}
+                {photoPreviews && photoPreviews.length > 0 && (
+                    <div className="mt-3 pt-2 border-t-2 border-black break-inside-avoid">
+                        <div className="font-bold uppercase tracking-wider text-[10px] text-gray-800 mb-1.5 flex items-center justify-between">
+                            <span>Lampiran Foto Dokumentasi Serah Terima Kendaraan ({photoPreviews.length} Foto)</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                            {photoPreviews.slice(0, 4).map((photo, idx) => (
+                                <div key={idx} className="border border-black rounded-xs overflow-hidden bg-gray-50 flex flex-col items-center">
+                                    <img
+                                        src={photo}
+                                        alt={`Dokumentasi ${idx + 1}`}
+                                        className="w-full h-20 object-cover"
+                                    />
+                                    <span className="text-[8px] text-gray-600 py-0.5">Foto #{idx + 1}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     );

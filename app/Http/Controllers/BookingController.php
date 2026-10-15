@@ -480,7 +480,7 @@ class BookingController extends Controller
     {
         $this->authorizeBookingAccess($request, $booking);
 
-        $booking->load(['customer', 'car', 'rental']);
+        $booking->load(['customer', 'car', 'rental', 'peluncur', 'driver', 'user']);
 
         return Inertia::render('bookings/checklist', [
             'booking' => $booking,

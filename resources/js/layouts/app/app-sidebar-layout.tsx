@@ -100,14 +100,18 @@ export default function AppSidebarLayout({
 
     return (
         <AppShell variant="sidebar">
-            <AppSidebar />
-            <AppContent variant="sidebar" className="overflow-x-hidden pb-20 md:pb-0">
-                <AppSidebarHeader breadcrumbs={breadcrumbs} />
+            <div className="print:hidden">
+                <AppSidebar />
+            </div>
+            <AppContent variant="sidebar" className="overflow-x-hidden pb-20 md:pb-0 print:p-0 print:m-0 print:overflow-visible">
+                <div className="print:hidden">
+                    <AppSidebarHeader breadcrumbs={breadcrumbs} />
+                </div>
                 {children}
             </AppContent>
 
             {/* Premium Mobile Bottom Nav Bar */}
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t h-16 md:hidden flex items-center justify-around px-2 shadow-md border-muted">
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t h-16 md:hidden flex items-center justify-around px-2 shadow-md border-muted print:hidden">
                 {bottomTabs.map((tab) => {
                     const active = isCurrentUrl(tab.href);
                     return (

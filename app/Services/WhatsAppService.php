@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Booking;
 use App\Models\WaServerSetting;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -27,6 +28,7 @@ class WhatsAppService
         $activeDeviceId = $deviceId ?: ($this->setting->device_id ?: 'rentcars_main');
 
         $request = Http::baseUrl($baseUrl)
+            ->withoutVerifying()
             ->timeout(12)
             ->connectTimeout(5)
             ->withHeaders([
@@ -66,6 +68,38 @@ class WhatsAppService
     }
 
     /**
+     * Extract a user-friendly error message from a non-successful HTTP response.
+     */
+    protected function extractErrorMessage(Response $res, string $defaultMessage = 'Permintaan gagal'): string
+    {
+        $status = $res->status();
+
+        if ($status === 401) {
+            return 'Autentikasi WA Server gagal (HTTP 401 Unauthorized): Username atau Password Basic Auth tidak cocok. Silakan periksa pengaturan Username dan Password WA Server.';
+        }
+
+        if ($status === 403) {
+            return 'Akses ditolak oleh WA Server (HTTP 403 Forbidden).';
+        }
+
+        if ($status === 404) {
+            return 'Endpoint tidak ditemukan di WA Server (HTTP 404 Not Found). Pastikan URL server benar.';
+        }
+
+        $serverMsg = $res->json('message') ?? $res->json('error');
+        if (! empty($serverMsg) && is_string($serverMsg)) {
+            return $serverMsg;
+        }
+
+        $body = trim($res->body());
+        if (! empty($body) && strlen($body) < 200 && ! str_contains($body, '<html')) {
+            return "HTTP {$status}: {$body}";
+        }
+
+        return "HTTP {$status}: {$defaultMessage}";
+    }
+
+    /**
      * Check WA Server Health and Info.
      *
      * @return array{healthy: bool, info: ?array, error: ?string}
@@ -83,6 +117,14 @@ class WhatsAppService
                 ];
             }
 
+            if ($res->status() === 401) {
+                return [
+                    'healthy' => false,
+                    'info' => null,
+                    'error' => 'Server online, tetapi autentikasi gagal (HTTP 401 Unauthorized): Username atau Password salah. Periksa pengaturan Basic Auth di bawah.',
+                ];
+            }
+
             // Fallback to /health
             $healthRes = $this->client()->get('/health');
             if ($healthRes->successful()) {
@@ -96,7 +138,7 @@ class WhatsAppService
             return [
                 'healthy' => false,
                 'info' => null,
-                'error' => "Server merespons status HTTP {$res->status()}",
+                'error' => $this->extractErrorMessage($res, 'Koneksi ke WA Server gagal.'),
             ];
         } catch (\Throwable $e) {
             return [
@@ -149,7 +191,7 @@ class WhatsAppService
                 'jid' => null,
                 'phone' => null,
                 'raw' => null,
-                'error' => "HTTP {$res->status()}: ".($res->json('message') ?? 'Status tidak dapat diambil'),
+                'error' => $this->extractErrorMessage($res, 'Status tidak dapat diambil.'),
             ];
         } catch (\Throwable $e) {
             return [
@@ -199,7 +241,7 @@ class WhatsAppService
                 'qr_link' => null,
                 'qr_duration' => 20,
                 'raw' => null,
-                'error' => $res->json('message') ?? 'Gagal membuat QR Login dari WA Server',
+                'error' => $this->extractErrorMessage($res, 'Gagal membuat QR Login dari WA Server.'),
             ];
         } catch (\Throwable $e) {
             return [
@@ -241,7 +283,7 @@ class WhatsAppService
             return [
                 'success' => false,
                 'pair_code' => null,
-                'error' => $res->json('message') ?? 'Gagal meminta kode pairing.',
+                'error' => $this->extractErrorMessage($res, 'Gagal meminta kode pairing.'),
             ];
         } catch (\Throwable $e) {
             return [
@@ -266,7 +308,9 @@ class WhatsAppService
 
             return [
                 'success' => $res->successful(),
-                'message' => $res->json('message') ?? ($res->successful() ? 'Perintah reconnect berhasil dikirim.' : 'Gagal reconnect.'),
+                'message' => $res->successful()
+                    ? ($res->json('message') ?? 'Perintah reconnect berhasil dikirim.')
+                    : $this->extractErrorMessage($res, 'Gagal reconnect.'),
             ];
         } catch (\Throwable $e) {
             return [
@@ -290,7 +334,9 @@ class WhatsAppService
 
             return [
                 'success' => $res->successful(),
-                'message' => $res->json('message') ?? ($res->successful() ? 'Device berhasil logout.' : 'Gagal logout device.'),
+                'message' => $res->successful()
+                    ? ($res->json('message') ?? 'Device berhasil logout.')
+                    : $this->extractErrorMessage($res, 'Gagal logout device.'),
             ];
         } catch (\Throwable $e) {
             return [
@@ -425,7 +471,7 @@ class WhatsAppService
             return [
                 'success' => false,
                 'message_id' => null,
-                'message' => $res->json('message') ?? "Gagal mengirim pesan (HTTP {$res->status()})",
+                'message' => $this->extractErrorMessage($res, 'Gagal mengirim pesan WhatsApp.'),
                 'raw' => $res->json(),
             ];
         } catch (\Throwable $e) {
@@ -525,6 +571,8 @@ class WhatsAppService
                 ? Carbon::parse($booking->return_date)->format('d/m/Y').($booking->return_time ? ' '.substr($booking->return_time, 0, 5) : '')
                 : '-';
 
+            $durasi = self::calculateDuration($booking);
+
             $pickupLocation = $booking->pickup_location ?: '-';
             $dropoffLocation = $booking->dropoff_location ?: '-';
             $marketingName = $booking->user?->name ?? auth()->user()?->name ?? 'System';
@@ -544,6 +592,7 @@ class WhatsAppService
                 ."--- Waktu Sewa ---\n"
                 ."Mulai: {$mulai}\n"
                 ."Selesai: {$selesai}\n"
+                ."Durasi: {$durasi}\n"
                 ."Lokasi Pengambilan: {$pickupLocation}\n"
                 ."Lokasi Pengembalian: {$dropoffLocation}\n\n"
                 ."Marketing: {$marketingName}\n"
@@ -566,5 +615,79 @@ class WhatsAppService
 
             return false;
         }
+    }
+
+    /**
+     * Calculate rental duration string from booking dates and times.
+     */
+    public static function calculateDuration(Booking $booking): string
+    {
+        if (! $booking->booking_date) {
+            return '-';
+        }
+
+        $startDateStr = Carbon::parse($booking->booking_date)->format('Y-m-d');
+        $endDateStr = $booking->return_date
+            ? Carbon::parse($booking->return_date)->format('Y-m-d')
+            : $startDateStr;
+
+        $startTimeStr = $booking->pickup_time ? substr($booking->pickup_time, 0, 5) : null;
+        $endTimeStr = $booking->return_time ? substr($booking->return_time, 0, 5) : null;
+
+        if ($startTimeStr && $endTimeStr) {
+            $start = Carbon::parse("{$startDateStr} {$startTimeStr}");
+            $end = Carbon::parse("{$endDateStr} {$endTimeStr}");
+
+            if ($end->greaterThanOrEqualTo($start)) {
+                $totalMinutes = $start->diffInMinutes($end);
+                $totalHours = (int) floor($totalMinutes / 60);
+                $remainingMins = $totalMinutes % 60;
+                $days = (int) floor($totalHours / 24);
+                $remainingHours = $totalHours % 24;
+
+                if ($start->isSameDay($end)) {
+                    $hourText = $totalHours > 0 ? "{$totalHours} Jam" : '';
+                    if ($remainingMins > 0) {
+                        $hourText .= ($hourText ? ' ' : '')."{$remainingMins} Menit";
+                    }
+
+                    return $hourText ? "1 Hari ({$hourText})" : '1 Hari';
+                }
+
+                if ($days > 0 && $remainingHours === 0 && $remainingMins === 0) {
+                    return "{$days} Hari";
+                }
+
+                if ($days > 0) {
+                    $parts = ["{$days} Hari"];
+                    if ($remainingHours > 0) {
+                        $parts[] = "{$remainingHours} Jam";
+                    }
+                    if ($remainingMins > 0) {
+                        $parts[] = "{$remainingMins} Menit";
+                    }
+
+                    return implode(' ', $parts);
+                }
+
+                $hourText = $totalHours > 0 ? "{$totalHours} Jam" : '';
+                if ($remainingMins > 0) {
+                    $hourText .= ($hourText ? ' ' : '')."{$remainingMins} Menit";
+                }
+
+                return $hourText ?: '1 Hari';
+            }
+        }
+
+        $start = Carbon::parse($startDateStr);
+        $end = Carbon::parse($endDateStr);
+
+        if ($start->isSameDay($end)) {
+            return '1 Hari';
+        }
+
+        $days = $start->diffInDays($end);
+
+        return $days > 0 ? "{$days} Hari" : '1 Hari';
     }
 }

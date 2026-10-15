@@ -154,3 +154,46 @@
     }
 }
 
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 8mm 10mm;
+    }
+
+    html, body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    aside,
+    nav,
+    header,
+    [data-slot="sidebar"],
+    [data-slot="sidebar-header"],
+    .fixed.bottom-0,
+    .print\:hidden {
+        display: none !important;
+    }
+
+    [data-slot="sidebar-inset"],
+    main {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        overflow: visible !important;
+    }
+
+    .break-inside-avoid {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+    }
+}
+

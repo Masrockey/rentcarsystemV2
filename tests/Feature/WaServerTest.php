@@ -302,3 +302,51 @@ test('whatsapp booking notification includes creator name in Dibuat Oleh', funct
 
     expect($result)->toBeTrue();
 });
+
+test('whatsapp booking notification includes calculated duration', function () {
+    $setting = WaServerSetting::current();
+    $setting->update([
+        'server_url' => 'http://localhost:3000',
+        'device_id' => 'rentcars_main',
+        'target_group_jid' => '120363028192839182@g.us',
+    ]);
+
+    $customer = Customer::create([
+        'name' => 'Ibu Haji Aluh',
+        'phone' => '087758526868',
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'booking_number' => 'BK-20261015-H93NSJ',
+        'car_type' => 'Innova Reborn',
+        'rental_type' => 'With Driver',
+        'booking_date' => '2026-10-20',
+        'return_date' => '2026-10-20',
+        'pickup_time' => '07:00:00',
+        'return_time' => '22:00:00',
+        'pickup_location' => 'GARASI',
+        'dropoff_location' => 'GARASI',
+        'payment_method' => 'Cash',
+        'status' => 'Pending',
+    ]);
+
+    Http::fake([
+        '*/send/message' => function (Request $request) {
+            $data = $request->data();
+            expect($data['message'])->toContain('Durasi: 1 Hari (15 Jam)');
+            expect($data['message'])->toContain("Mulai: 20/10/2026 07:00\nSelesai: 20/10/2026 22:00\nDurasi: 1 Hari (15 Jam)");
+
+            return Http::response([
+                'status' => 200,
+                'results' => [
+                    'message_id' => 'MSG_TEST_DURASI',
+                ],
+            ], 200);
+        },
+    ]);
+
+    $result = WhatsAppService::sendNewBookingNotification($booking);
+
+    expect($result)->toBeTrue();
+});
