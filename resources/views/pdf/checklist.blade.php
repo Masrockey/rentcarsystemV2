@@ -155,61 +155,83 @@
         ];
 
         // Process documentation photos (up to 4 for clean layout)
-        $rawPhotos = $checklist['photos'] ?? [];
+        $rawPhotos = $checklistData['photos'] ?? [];
         if (empty($rawPhotos)) {
             $rawPhotos = $isDelivery
                 ? ($booking->delivery_checklist['photos'] ?? [])
-                : ($booking->return_checklist['photos'] ?? $booking->delivery_checklist['photos'] ?? []);
+                : ($booking->return_checklist['photos'] ?? []);
         }
         if (!is_array($rawPhotos)) {
             $rawPhotos = [];
         }
 
-        $embeddedPhotos = [];
-        foreach ($rawPhotos as $p) {
-            if (!is_string($p) || empty($p)) {
-                continue;
-            }
-
-            if (str_starts_with($p, 'data:image')) {
-                $embeddedPhotos[] = $p;
-                continue;
-            }
-
-            $pathCandidate = parse_url($p, PHP_URL_PATH) ?: $p;
-            $pathCandidate = ltrim($pathCandidate, '/');
-
-            $localFile = null;
-            if (str_starts_with($pathCandidate, 'storage/')) {
-                $sub = substr($pathCandidate, 8);
-                if (file_exists(storage_path('app/public/' . $sub))) {
-                    $localFile = storage_path('app/public/' . $sub);
-                } elseif (file_exists(public_path('storage/' . $sub))) {
-                    $localFile = public_path('storage/' . $sub);
+        $embedFn = function ($photoList) {
+            $result = [];
+            foreach ($photoList as $p) {
+                if (!is_string($p) || empty($p)) {
+                    continue;
                 }
-            } elseif (file_exists(public_path($pathCandidate))) {
-                $localFile = public_path($pathCandidate);
-            } elseif (file_exists($p)) {
-                $localFile = $p;
-            }
 
-            if ($localFile && file_exists($localFile)) {
-                $mime = mime_content_type($localFile) ?: 'image/jpeg';
-                $data = base64_encode(file_get_contents($localFile));
-                $embeddedPhotos[] = "data:{$mime};base64,{$data}";
-            } elseif (filter_var($p, FILTER_VALIDATE_URL)) {
-                try {
-                    $ctx = stream_context_create(['http' => ['timeout' => 3]]);
-                    $imgData = @file_get_contents($p, false, $ctx);
-                    if ($imgData) {
-                        $finfo = new \finfo(FILEINFO_MIME_TYPE);
-                        $mime = $finfo->buffer($imgData) ?: 'image/jpeg';
-                        $data = base64_encode($imgData);
-                        $embeddedPhotos[] = "data:{$mime};base64,{$data}";
+                if (str_starts_with($p, 'data:image')) {
+                    $result[] = $p;
+                    continue;
+                }
+
+                $pathCandidate = parse_url($p, PHP_URL_PATH) ?: $p;
+                $pathCandidate = ltrim($pathCandidate, '/');
+
+                $localFile = null;
+                if (str_starts_with($pathCandidate, 'storage/')) {
+                    $sub = substr($pathCandidate, 8);
+                    if (file_exists(storage_path('app/public/' . $sub))) {
+                        $localFile = storage_path('app/public/' . $sub);
+                    } elseif (file_exists(public_path('storage/' . $sub))) {
+                        $localFile = public_path('storage/' . $sub);
                     }
-                } catch (\Throwable) {}
+                } elseif (file_exists(public_path($pathCandidate))) {
+                    $localFile = public_path($pathCandidate);
+                } elseif (file_exists($p)) {
+                    $localFile = $p;
+                }
+
+                if ($localFile && file_exists($localFile)) {
+                    $mime = mime_content_type($localFile) ?: 'image/jpeg';
+                    $data = base64_encode(file_get_contents($localFile));
+                    $result[] = "data:{$mime};base64,{$data}";
+                } elseif (filter_var($p, FILTER_VALIDATE_URL)) {
+                    try {
+                        $ctx = stream_context_create(['http' => ['timeout' => 3]]);
+                        $imgData = @file_get_contents($p, false, $ctx);
+                        if ($imgData) {
+                            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+                            $mime = $finfo->buffer($imgData) ?: 'image/jpeg';
+                            $data = base64_encode($imgData);
+                            $result[] = "data:{$mime};base64,{$data}";
+                        }
+                    } catch (\Throwable) {}
+                }
+            }
+            return $result;
+        };
+
+        $embeddedPhotos = $embedFn($rawPhotos);
+
+        $rawIdPhotos = [];
+        if ($isDelivery) {
+            $rawIdPhotos = $checklistData['identity_photos'] ?? ($booking->delivery_checklist['identity_photos'] ?? []);
+            if (empty($rawIdPhotos) && !empty($booking->customer)) {
+                if (!empty($booking->customer->ktp_photo)) {
+                    $rawIdPhotos[] = $booking->customer->ktp_photo;
+                }
+                if (!empty($booking->customer->sim_photo)) {
+                    $rawIdPhotos[] = $booking->customer->sim_photo;
+                }
             }
         }
+        if (!is_array($rawIdPhotos)) {
+            $rawIdPhotos = [];
+        }
+        $embeddedIdPhotos = $embedFn($rawIdPhotos);
     @endphp
 
     {{-- KOP SURAT / HEADER --}}
@@ -532,6 +554,42 @@
                     @endphp
                     @if($remainder > 0)
                         @for($k = 0; $k < (4 - $remainder); $k++)
+                            <td style="width: 25%;"></td>
+                        @endfor
+                    @endif
+                </tr>
+            </table>
+        </div>
+    @endif
+
+    {{-- SECTION: LAMPIRAN FOTO IDENTITAS (KTP & SIM) - Hanya Saat Serah Terima Unit --}}
+    @if($isDelivery && !empty($embeddedIdPhotos))
+        <div style="margin-top: 10px; border-top: 2px solid #000; padding-top: 5px; page-break-inside: avoid;">
+            <div style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: #111; margin-bottom: 5px;">
+                Lampiran Foto Identitas Penyewa (KTP & SIM) ({{ count($embeddedIdPhotos) }} Foto)
+            </div>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    @foreach($embeddedIdPhotos as $idx => $photoSrc)
+                        <td style="width: 25%; padding: 2px 4px; vertical-align: top; text-align: center;">
+                            <div style="border: 1px solid #000; background-color: #f9fafb; padding: 2px;">
+                                <div style="height: 85px; width: 100%; overflow: hidden; text-align: center;">
+                                    <img src="{{ $photoSrc }}" style="max-height: 85px; max-width: 100%;" alt="Identitas #{{ $idx + 1 }}">
+                                </div>
+                                <div style="font-size: 7.5px; color: #4b5563; padding-top: 2px; font-weight: bold;">
+                                    Identitas #{{ $idx + 1 }}
+                                </div>
+                            </div>
+                        </td>
+                        @if(($idx + 1) % 4 === 0 && !$loop->last)
+                            </tr><tr>
+                        @endif
+                    @endforeach
+                    @php
+                        $remainderId = count($embeddedIdPhotos) % 4;
+                    @endphp
+                    @if($remainderId > 0)
+                        @for($k = 0; $k < (4 - $remainderId); $k++)
                             <td style="width: 25%;"></td>
                         @endfor
                     @endif

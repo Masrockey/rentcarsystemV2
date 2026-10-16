@@ -39,6 +39,8 @@ type Booking = {
         nik?: string | null;
         sim_number?: string | null;
         address?: string | null;
+        ktp_photo?: string | null;
+        sim_photo?: string | null;
     };
     car?: {
         name: string;
@@ -72,7 +74,7 @@ type FormFields = {
     checklist: Record<string, string>;
     km_out: number;
     fuel_out: number;
-    fuel_range_km: number;
+    fuel_range_km: number | string;
     handover_location: string;
     latitude: string;
     longitude: string;
@@ -81,6 +83,7 @@ type FormFields = {
     checkout_datetime: string;
     notes: string;
     photos: (File | string)[];
+    identity_photos: (File | string)[];
 };
 
 type Props = {
@@ -126,10 +129,44 @@ export default function BookingChecklist({ booking }: Props) {
 
     const [gaugeModel, setGaugeModel] = useState<'dial' | 'tangga' | 'kotak'>('dial');
 
-    const [photoPreviews, setPhotoPreviews] = useState<string[]>(() => {
-        const existing = isDelivery ? booking.delivery_checklist?.photos : booking.return_checklist?.photos;
-        return Array.isArray(existing) ? existing : [];
-    });
+    const deliveryPhotos = (Array.isArray(booking.delivery_checklist?.photos) ? booking.delivery_checklist.photos : []) as string[];
+
+    const initialPhotos = isDelivery
+        ? deliveryPhotos
+        : (Array.isArray(booking.return_checklist?.photos) ? (booking.return_checklist.photos as string[]) : []).filter(
+            (p: string) => !deliveryPhotos.includes(p)
+        );
+
+    const [photoPreviews, setPhotoPreviews] = useState<string[]>(initialPhotos);
+
+    const getInitialIdentityPhotos = (isDel: boolean) => {
+        if (!isDel) {
+            return [];
+        }
+        const existing = booking.delivery_checklist?.identity_photos;
+        if (Array.isArray(existing) && existing.length > 0) {
+            return existing as string[];
+        }
+        const fallback: string[] = [];
+        if (booking.customer?.ktp_photo) {
+            fallback.push(
+                booking.customer.ktp_photo.startsWith('http') || booking.customer.ktp_photo.startsWith('/')
+                    ? booking.customer.ktp_photo
+                    : `/storage/${booking.customer.ktp_photo}`
+            );
+        }
+        if (booking.customer?.sim_photo) {
+            fallback.push(
+                booking.customer.sim_photo.startsWith('http') || booking.customer.sim_photo.startsWith('/')
+                    ? booking.customer.sim_photo
+                    : `/storage/${booking.customer.sim_photo}`
+            );
+        }
+        return fallback;
+    };
+
+    const initialIdentityPhotos = getInitialIdentityPhotos(isDelivery);
+    const [idPhotoPreviews, setIdPhotoPreviews] = useState<string[]>(initialIdentityPhotos);
 
     const getCurrentDate = () => {
         const d = new Date();
@@ -169,6 +206,10 @@ export default function BookingChecklist({ booking }: Props) {
         ? (booking.delivery_longitude || booking.delivery_checklist?.longitude || '')
         : (booking.return_longitude || booking.return_checklist?.longitude || booking.delivery_longitude || booking.delivery_checklist?.longitude || '');
 
+    const cleanInitialChecklist = { ...initialChecklist };
+    delete cleanInitialChecklist.photos;
+    delete cleanInitialChecklist.identity_photos;
+
     const { data, setData, post, processing, errors, transform } = useForm<FormFields>({
         checklist: {
             kunci_kontak: initialChecklist.kunci_kontak || '',
@@ -189,11 +230,11 @@ export default function BookingChecklist({ booking }: Props) {
             body_kiri_note: initialChecklist.body_kiri_note || '',
             body_kanan_note: initialChecklist.body_kanan_note || '',
             body_atap_note: initialChecklist.body_atap_note || '',
-            ...initialChecklist,
+            ...cleanInitialChecklist,
         } as Record<string, string>,
         km_out: initialKm,
         fuel_out: initialFuel,
-        fuel_range_km: initialChecklist.fuel_range_km ?? (booking.fuel_range_km ?? 0),
+        fuel_range_km: initialChecklist.fuel_range_km ? initialChecklist.fuel_range_km : (booking.fuel_range_km ? booking.fuel_range_km : ''),
         handover_location: initialChecklist.handover_location || (isDelivery ? (booking.pickup_location || '') : (booking.dropoff_location || booking.pickup_location || '')),
         latitude: String(initialLat || ''),
         longitude: String(initialLng || ''),
@@ -201,7 +242,8 @@ export default function BookingChecklist({ booking }: Props) {
         checkout_time: (isDelivery ? booking.delivery_checklist?.checkout_time : booking.return_checklist?.checkout_time) || (isDelivery && booking.pickup_time ? booking.pickup_time.substring(0, 5) : getCurrentTime()),
         checkout_datetime: '',
         notes: isDelivery ? (booking.delivery_notes || '') : (booking.return_notes || booking.delivery_notes || ''),
-        photos: (Array.isArray(initialChecklist.photos) ? initialChecklist.photos : []) as (File | string)[],
+        photos: initialPhotos as (File | string)[],
+        identity_photos: (isDelivery ? initialIdentityPhotos : []) as (File | string)[],
     });
 
     const handleSwitchMode = (newMode: 'delivery' | 'return') => {
@@ -216,11 +258,18 @@ export default function BookingChecklist({ booking }: Props) {
                 : booking.delivery_checklist);
 
         const photos = isDel
-            ? (Array.isArray(booking.delivery_checklist?.photos) ? booking.delivery_checklist.photos : [])
-            : (Array.isArray(booking.return_checklist?.photos) && booking.return_checklist.photos.length > 0
-                ? booking.return_checklist.photos
-                : (Array.isArray(booking.delivery_checklist?.photos) ? booking.delivery_checklist.photos : []));
+            ? deliveryPhotos
+            : (Array.isArray(booking.return_checklist?.photos) ? booking.return_checklist.photos : []).filter(
+                (p: string) => !deliveryPhotos.includes(p)
+            );
         setPhotoPreviews(photos);
+
+        const idPhotos = getInitialIdentityPhotos(isDel);
+        setIdPhotoPreviews(idPhotos);
+
+        const cleanSaved = { ...(saved || {}) };
+        delete cleanSaved.photos;
+        delete cleanSaved.identity_photos;
 
         const targetKm = isDel
             ? (booking.delivery_checklist?.km_out ?? booking.rental?.km_out ?? booking.car?.last_km ?? 0)
@@ -255,11 +304,11 @@ export default function BookingChecklist({ booking }: Props) {
                 body_kiri_note: saved?.body_kiri_note || '',
                 body_kanan_note: saved?.body_kanan_note || '',
                 body_atap_note: saved?.body_atap_note || '',
-                ...(saved || {}),
+                ...cleanSaved,
             } as Record<string, string>,
             km_out: targetKm,
             fuel_out: targetFuel,
-            fuel_range_km: saved?.fuel_range_km ?? (booking.fuel_range_km ?? 0),
+            fuel_range_km: saved?.fuel_range_km ? saved.fuel_range_km : (booking.fuel_range_km ? booking.fuel_range_km : ''),
             handover_location: (isDel ? booking.delivery_checklist?.handover_location : (booking.return_checklist?.handover_location || booking.delivery_checklist?.handover_location)) || (isDel ? (booking.pickup_location || '') : (booking.dropoff_location || booking.pickup_location || '')),
             latitude: String(targetLat || ''),
             longitude: String(targetLng || ''),
@@ -268,6 +317,7 @@ export default function BookingChecklist({ booking }: Props) {
             checkout_datetime: '',
             notes: isDel ? (booking.delivery_notes || '') : (booking.return_notes || booking.delivery_notes || ''),
             photos: photos,
+            identity_photos: idPhotos,
         });
     };
 
@@ -361,6 +411,27 @@ export default function BookingChecklist({ booking }: Props) {
         setPhotoPreviews(updatedPreviews);
     };
 
+    const handleIdPhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (isFilled || !e.target.files) return;
+        const files = Array.from(e.target.files);
+        const newObjectURLs = files.map((file) => URL.createObjectURL(file));
+        setIdPhotoPreviews((prev) => [...prev, ...newObjectURLs]);
+        setData('identity_photos', [...((data.identity_photos || []) as (File | string)[]), ...files]);
+    };
+
+    const handleIdPhotoRemove = (index: number) => {
+        const currentPhotos = [...((data.identity_photos || []) as (File | string)[])];
+        currentPhotos.splice(index, 1);
+        setData('identity_photos', currentPhotos);
+
+        const updatedPreviews = [...idPhotoPreviews];
+        const removedUrl = updatedPreviews.splice(index, 1)[0];
+        if (removedUrl && removedUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(removedUrl);
+        }
+        setIdPhotoPreviews(updatedPreviews);
+    };
+
     const handleItemToggle = (key: string, status: ItemStatus) => {
         setData('checklist', {
             ...data.checklist,
@@ -394,18 +465,37 @@ export default function BookingChecklist({ booking }: Props) {
             }
         });
 
-        // 3. Form Input Utama
-        if (!data.handover_location || !data.handover_location.trim()) {
-            uncompleted.push(isDelivery ? 'Lokasi Penyerahan' : 'Lokasi Pengembalian');
-        }
-        if (!data.checkout_date) {
-            uncompleted.push(isDelivery ? 'Tanggal Keluar / Masuk' : 'Tanggal Masuk');
-        }
-        if (!data.checkout_time) {
-            uncompleted.push(isDelivery ? 'Jam Keluar / Masuk' : 'Jam Masuk');
-        }
+        // 3. Form Input Utama (Detail Unit - Semua Wajib Diisi)
         if (data.km_out === undefined || data.km_out === null || String(data.km_out).trim() === '') {
-            uncompleted.push(isDelivery ? 'KM Speedometer Keluar' : 'KM Speedometer Masuk');
+            uncompleted.push(isDelivery ? 'Detail Unit: Range Odometer (KM Keluar)' : 'Detail Unit: Range Odometer (KM Masuk)');
+        }
+        if (!data.checkout_time || !data.checkout_time.trim()) {
+            uncompleted.push(isDelivery ? 'Detail Unit: Jam Keluar' : 'Detail Unit: Jam Masuk');
+        }
+        if (!data.checkout_date || !data.checkout_date.trim()) {
+            uncompleted.push(isDelivery ? 'Detail Unit: Tanggal Keluar' : 'Detail Unit: Tanggal Masuk');
+        }
+        if (!data.handover_location || !data.handover_location.trim()) {
+            uncompleted.push(isDelivery ? 'Detail Unit: Lokasi Penyerahan' : 'Detail Unit: Lokasi Pengembalian');
+        }
+        if (!data.latitude || !data.longitude || !String(data.latitude).trim() || !String(data.longitude).trim()) {
+            uncompleted.push('Detail Unit: Peta & Titik GPS (Wajib klik tombol "Check-in Lokasi")');
+        }
+        if (data.fuel_out === undefined || data.fuel_out === null || String(data.fuel_out).trim() === '') {
+            uncompleted.push('Detail Unit: Indicator Fuel (Level BBM)');
+        }
+        if (data.fuel_range_km === undefined || data.fuel_range_km === null || String(data.fuel_range_km).trim() === '' || Number(data.fuel_range_km) <= 0) {
+            uncompleted.push('Detail Unit: Range BBM (KM) Estimasi Jarak Tempuh');
+        }
+
+        // 4. Foto Dokumentasi Unit (Wajib Minimal 1 Foto)
+        if (!photoPreviews || photoPreviews.length === 0) {
+            uncompleted.push(isDelivery ? 'Foto Dokumentasi: Wajib upload minimal 1 foto fisik unit & serah terima' : 'Foto Dokumentasi: Wajib upload minimal 1 foto fisik unit & pengembalian');
+        }
+
+        // 5. Foto Identitas Penyewa (KTP & SIM - Hanya Wajib Saat Serah Terima / Unit Keluar)
+        if (isDelivery && (!idPhotoPreviews || idPhotoPreviews.length === 0)) {
+            uncompleted.push('Foto Identitas: Wajib upload minimal 1 foto KTP & SIM penyewa');
         }
 
         if (uncompleted.length > 0) {
@@ -482,6 +572,23 @@ export default function BookingChecklist({ booking }: Props) {
                         </Button>
                     </div>
                 </div>
+
+                {/* Validation Errors Alert */}
+                {validationErrors.length > 0 && (
+                    <div className="p-4 bg-destructive/10 border-2 border-destructive/40 rounded-xl text-destructive shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="flex items-start gap-3">
+                            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-destructive" />
+                            <div className="space-y-1">
+                                <p className="text-sm font-bold">Mohon lengkapi seluruh formulir wajib berikut sebelum menyimpan:</p>
+                                <ul className="list-disc list-inside text-xs space-y-0.5 font-medium">
+                                    {validationErrors.map((err, idx) => (
+                                        <li key={idx}>{err}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Locked Status Banner if Checklist is already filled */}
                 {isFilled && (
@@ -606,8 +713,10 @@ export default function BookingChecklist({ booking }: Props) {
                                 <CardContent className="space-y-4 pt-4 flex-1">
                                     {/* Range / KM Keluar / Masuk */}
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="km_out" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                            {isDelivery ? 'Range Odometer (KM Keluar)' : 'Range Odometer / KM Masuk (Saat Kembali)'}
+                                        <Label htmlFor="km_out" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                                            <span>
+                                                {isDelivery ? 'Range Odometer (KM Keluar)' : 'Range Odometer / KM Masuk (Saat Kembali)'} <span className="text-destructive font-bold">*</span>
+                                            </span>
                                         </Label>
                                         <div className="relative">
                                             <Input
@@ -616,8 +725,8 @@ export default function BookingChecklist({ booking }: Props) {
                                                 min={0}
                                                 disabled={isFilled}
                                                 value={data.km_out}
-                                                onChange={(e) => setData('km_out', parseInt(e.target.value) || 0)}
-                                                className="font-mono text-lg font-bold pr-12"
+                                                onChange={(e) => setData('km_out', e.target.value === '' ? ('' as any) : parseInt(e.target.value) || 0)}
+                                                className={`font-mono text-lg font-bold pr-12 ${data.km_out === undefined || data.km_out === null || String(data.km_out).trim() === '' ? 'border-destructive/60 focus:border-destructive' : ''}`}
                                                 required
                                             />
                                             <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-semibold">KM</span>
@@ -628,8 +737,9 @@ export default function BookingChecklist({ booking }: Props) {
                                     {/* Jam & Tanggal */}
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="checkout_time" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                                {isDelivery ? 'Jam Keluar' : 'Jam Masuk'}
+                                            <Label htmlFor="checkout_time" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                                <span>{isDelivery ? 'Jam Keluar' : 'Jam Masuk'}</span>
+                                                <span className="text-destructive font-bold">*</span>
                                             </Label>
                                             <Input
                                                 id="checkout_time"
@@ -637,12 +747,14 @@ export default function BookingChecklist({ booking }: Props) {
                                                 disabled={isFilled}
                                                 value={data.checkout_time}
                                                 onChange={(e) => setData('checkout_time', e.target.value)}
+                                                className={!data.checkout_time ? 'border-destructive/60 focus:border-destructive' : ''}
                                                 required
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <Label htmlFor="checkout_date" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                                {isDelivery ? 'Tanggal Keluar' : 'Tanggal Masuk'}
+                                            <Label htmlFor="checkout_date" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                                <span>{isDelivery ? 'Tanggal Keluar' : 'Tanggal Masuk'}</span>
+                                                <span className="text-destructive font-bold">*</span>
                                             </Label>
                                             <Input
                                                 id="checkout_date"
@@ -650,6 +762,7 @@ export default function BookingChecklist({ booking }: Props) {
                                                 disabled={isFilled}
                                                 value={data.checkout_date}
                                                 onChange={(e) => setData('checkout_date', e.target.value)}
+                                                className={!data.checkout_date ? 'border-destructive/60 focus:border-destructive' : ''}
                                                 required
                                             />
                                         </div>
@@ -657,8 +770,9 @@ export default function BookingChecklist({ booking }: Props) {
 
                                     {/* Lokasi Penyerahan / Pengembalian */}
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="handover_location" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                            {isDelivery ? 'Lok. Penyerahan' : 'Lok. Pengembalian'}
+                                        <Label htmlFor="handover_location" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                            <span>{isDelivery ? 'Lok. Penyerahan' : 'Lok. Pengembalian'}</span>
+                                            <span className="text-destructive font-bold">*</span>
                                         </Label>
                                         <Input
                                             id="handover_location"
@@ -666,6 +780,8 @@ export default function BookingChecklist({ booking }: Props) {
                                             value={data.handover_location}
                                             onChange={(e) => setData('handover_location', e.target.value)}
                                             placeholder="Misal: Bandara, Alamat Rumah, Garasi Unit"
+                                            className={!data.handover_location || !data.handover_location.trim() ? 'border-destructive/60 focus:border-destructive' : ''}
+                                            required
                                         />
                                     </div>
 
@@ -674,12 +790,16 @@ export default function BookingChecklist({ booking }: Props) {
                                         <div className="flex items-center justify-between gap-2">
                                             <div className="flex items-center gap-1.5">
                                                 <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                                                    Peta & Titik GPS (OpenStreetMap)
+                                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                                    Peta & Titik GPS (OpenStreetMap) <span className="text-destructive font-bold">*</span>
                                                 </span>
-                                                {data.latitude && data.longitude && (
+                                                {data.latitude && data.longitude ? (
                                                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
                                                         <Check className="h-3 w-3" /> Terkunci
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30 animate-pulse">
+                                                        Wajib Check-in
                                                     </span>
                                                 )}
                                             </div>
@@ -747,7 +867,7 @@ export default function BookingChecklist({ booking }: Props) {
                                         )}
 
                                         {/* Box Map OpenStreetMap */}
-                                        <div className="relative w-full h-56 rounded-xl border border-border overflow-hidden shadow-inner bg-muted/30 flex items-center justify-center group">
+                                        <div className={`relative w-full h-56 rounded-xl border overflow-hidden shadow-inner flex items-center justify-center group transition-colors ${!data.latitude || !data.longitude ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-muted/30'}`}>
                                             {data.latitude && data.longitude ? (
                                                 <iframe
                                                     title="OpenStreetMap Location"
@@ -757,11 +877,11 @@ export default function BookingChecklist({ booking }: Props) {
                                                 />
                                             ) : (
                                                 <div className="flex flex-col items-center justify-center p-6 text-center space-y-2">
-                                                    <div className="p-3 bg-background rounded-full border shadow-xs text-muted-foreground group-hover:scale-105 transition-transform">
-                                                        <MapPin className="h-6 w-6 text-muted-foreground" />
+                                                    <div className="p-3 bg-background rounded-full border shadow-xs text-destructive group-hover:scale-105 transition-transform">
+                                                        <MapPin className="h-6 w-6 text-destructive" />
                                                     </div>
                                                     <div>
-                                                        <p className="text-xs font-semibold text-foreground">Titik Lokasi Belum Dikunci</p>
+                                                        <p className="text-xs font-bold text-destructive">Titik Lokasi Wajib Dikunci (Check-in)</p>
                                                         <p className="text-[11px] text-muted-foreground max-w-xs mt-0.5">
                                                             Klik tombol <strong>Check-in Lokasi</strong> di atas untuk mengunci titik GPS {isDelivery ? 'serah terima' : 'pengembalian'} secara akurat.
                                                         </p>
@@ -770,10 +890,10 @@ export default function BookingChecklist({ booking }: Props) {
                                                         <Button
                                                             type="button"
                                                             size="sm"
-                                                            variant="secondary"
+                                                            variant="destructive"
                                                             onClick={handleCheckIn}
                                                             disabled={isLocating}
-                                                            className="mt-1 h-7 text-xs gap-1.5"
+                                                            className="mt-1 h-7 text-xs gap-1.5 shadow-xs"
                                                         >
                                                             {isLocating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Crosshair className="h-3.5 w-3.5" />}
                                                             Check-in Sekarang
@@ -788,7 +908,7 @@ export default function BookingChecklist({ booking }: Props) {
                                     <div className="pt-2 border-t mt-4 space-y-3">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                             <Label htmlFor="gauge_model" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                                <Fuel className="h-4 w-4 text-amber-500" /> Indicator Fuel (BBM)
+                                                <Fuel className="h-4 w-4 text-amber-500" /> Indicator Fuel (BBM) <span className="text-destructive font-bold">*</span>
                                             </Label>
                                             <div className="flex items-center gap-2">
                                                 <select
@@ -947,19 +1067,21 @@ export default function BookingChecklist({ booking }: Props) {
 
                                                 {/* Input Range BBM (KM) */}
                                                 <div className="pt-3 border-t flex items-center justify-between gap-3">
-                                                    <Label htmlFor="fuel_range_km" className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
-                                                        Range BBM (KM):
+                                                    <Label htmlFor="fuel_range_km" className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                                                        <span>Range BBM (KM):</span>
+                                                        <span className="text-destructive font-bold">*</span>
                                                     </Label>
                                                     <div className="relative w-36">
                                                         <Input
                                                             id="fuel_range_km"
                                                             type="number"
-                                                            min={0}
+                                                            min={1}
                                                             disabled={isFilled}
+                                                            required
                                                             value={data.fuel_range_km}
-                                                            onChange={(e) => setData('fuel_range_km', parseInt(e.target.value) || 0)}
+                                                            onChange={(e) => setData('fuel_range_km', e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
                                                             placeholder="Misal: 450"
-                                                            className="font-mono text-center font-bold text-sm h-8 border-amber-400 focus:border-amber-500 focus:ring-amber-500 bg-amber-50/40 dark:bg-amber-950/20 pr-10"
+                                                            className={`font-mono text-center font-bold text-sm h-8 pr-10 ${(!data.fuel_range_km || Number(data.fuel_range_km) <= 0) ? 'border-destructive focus:border-destructive focus:ring-destructive bg-destructive/5' : 'border-amber-400 focus:border-amber-500 focus:ring-amber-500 bg-amber-50/40 dark:bg-amber-950/20'}`}
                                                         />
                                                         <span className="absolute right-3 top-1.5 text-xs text-amber-600 dark:text-amber-400 font-bold">KM</span>
                                                     </div>
@@ -1384,16 +1506,25 @@ export default function BookingChecklist({ booking }: Props) {
                         </CardContent>
                     </Card>
 
-                    {/* Foto Dokumentasi Unit Card */}
-                    <Card>
+                    {/* Foto Dokumentasi Unit Card (Wajib) */}
+                    <Card className={`transition-colors ${photoPreviews.length === 0 ? 'border-destructive/40 shadow-xs' : ''}`}>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base font-bold flex items-center justify-between">
                                 <span className="flex items-center gap-2">
-                                    <Camera className="h-5 w-5 text-primary" /> Foto Dokumentasi Unit & Serah Terima
+                                    <Camera className="h-5 w-5 text-primary" />
+                                    <span>{isDelivery ? 'Foto Dokumentasi Unit & Serah Terima' : 'Foto Dokumentasi Unit & Pengembalian'}</span>
+                                    <span className="text-destructive font-bold">*</span>
                                 </span>
-                                <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
-                                    {photoPreviews.length} Foto Terpilih
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    {photoPreviews.length === 0 && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30 animate-pulse">
+                                            Wajib Diisi
+                                        </span>
+                                    )}
+                                    <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+                                        {photoPreviews.length} Foto Terpilih
+                                    </span>
+                                </div>
                             </CardTitle>
                             <CardDescription>
                                 Upload foto kondisi fisik mobil, odometer/speedometer, baret/penyok, atau foto penyerahan unit dengan penyewa.
@@ -1448,23 +1579,116 @@ export default function BookingChecklist({ booking }: Props) {
                                 !isFilled && (
                                     <Label
                                         htmlFor="photo-upload-input"
-                                        className="cursor-pointer border-2 border-dashed border-primary/30 hover:border-primary hover:bg-primary/5 rounded-xl p-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2 transition-all group shadow-2xs bg-card"
+                                        className="cursor-pointer border-2 border-dashed border-destructive/40 hover:border-destructive hover:bg-destructive/5 rounded-xl p-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2 transition-all group shadow-2xs bg-destructive/5"
                                     >
-                                        <div className="p-3 rounded-full bg-primary/10 group-hover:bg-primary/20 text-primary transition-colors">
+                                        <div className="p-3 rounded-full bg-destructive/10 group-hover:bg-destructive/20 text-destructive transition-colors">
                                             <Camera className="h-8 w-8" />
                                         </div>
-                                        <p className="font-bold text-foreground text-sm">Ambil / Upload Foto Dokumentasi Unit</p>
+                                        <p className="font-bold text-destructive text-sm">Ambil / Upload Foto Dokumentasi Unit (Wajib)</p>
                                         <p className="text-muted-foreground max-w-sm">
                                             Klik kotak ini untuk memilih foto fisik kendaraan & odometer (Bisa pilih sekaligus / buka kamera HP).
                                         </p>
-                                        <span className="text-[11px] font-medium text-primary/80 bg-primary/10 px-3 py-1 rounded-full mt-1">
-                                            Format: JPG, PNG, WebP
+                                        <span className="text-[11px] font-medium text-destructive bg-destructive/10 px-3 py-1 rounded-full mt-1 border border-destructive/20">
+                                            Format: JPG, PNG, WebP (Minimal 1 Foto)
                                         </span>
                                     </Label>
                                 )
                             )}
                         </CardContent>
                     </Card>
+
+                    {/* Foto Dokumen Identitas KTP & SIM Card (Wajib hanya saat Serah Terima / Unit Keluar) */}
+                    {isDelivery && (
+                        <Card className={`transition-colors ${idPhotoPreviews.length === 0 ? 'border-destructive/40 shadow-xs' : ''}`}>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base font-bold flex items-center justify-between">
+                                    <span className="flex items-center gap-2">
+                                        <FileText className="h-5 w-5 text-primary" />
+                                        <span>Foto Dokumen Identitas (KTP & SIM)</span>
+                                        <span className="text-destructive font-bold">*</span>
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        {idPhotoPreviews.length === 0 && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30 animate-pulse">
+                                                Wajib Diisi
+                                            </span>
+                                        )}
+                                        <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+                                            {idPhotoPreviews.length} Foto Terpilih
+                                        </span>
+                                    </div>
+                                </CardTitle>
+                                <CardDescription>
+                                    Upload foto KTP dan SIM penyewa yang masih berlaku untuk verifikasi serah terima kendaraan.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {!isFilled && (
+                                    <Input
+                                        id="id-photo-upload-input"
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={handleIdPhotoAdd}
+                                        className="hidden"
+                                    />
+                                )}
+
+                                {/* ID Photo Gallery Grid / Clickable Box */}
+                                {idPhotoPreviews.length > 0 ? (
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
+                                        {idPhotoPreviews.map((url, idx) => (
+                                            <div key={idx} className="relative group aspect-4/3 rounded-xl border bg-muted/30 overflow-hidden shadow-xs">
+                                                <img src={url} alt={`Identitas ${idx + 1}`} className="w-full h-full object-cover" />
+                                                {!isFilled && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleIdPhotoRemove(idx)}
+                                                        className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/90 text-white shadow-md hover:bg-red-700 transition-transform active:scale-95"
+                                                        title="Hapus foto identitas ini"
+                                                    >
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                )}
+                                                <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold backdrop-blur-xs">
+                                                    KTP/SIM #{idx + 1}
+                                                </span>
+                                            </div>
+                                        ))}
+
+                                        {/* Add ID Photo Card */}
+                                        {!isFilled && (
+                                            <Label
+                                                htmlFor="id-photo-upload-input"
+                                                className="cursor-pointer aspect-4/3 rounded-xl border-2 border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1.5 transition-all text-center p-2 group shadow-2xs"
+                                            >
+                                                <FileText className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
+                                                <span className="text-xs font-bold text-primary">+ Tambah KTP / SIM</span>
+                                            </Label>
+                                        )}
+                                    </div>
+                                ) : (
+                                    !isFilled && (
+                                        <Label
+                                            htmlFor="id-photo-upload-input"
+                                            className="cursor-pointer border-2 border-dashed border-destructive/40 hover:border-destructive hover:bg-destructive/5 rounded-xl p-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2 transition-all group shadow-2xs bg-destructive/5"
+                                        >
+                                            <div className="p-3 rounded-full bg-destructive/10 group-hover:bg-destructive/20 text-destructive transition-colors">
+                                                <FileText className="h-8 w-8" />
+                                            </div>
+                                            <p className="font-bold text-destructive text-sm">Ambil / Upload Foto KTP & SIM (Wajib)</p>
+                                            <p className="text-muted-foreground max-w-sm">
+                                                Klik kotak ini untuk memilih atau memotret KTP & SIM penyewa (Bisa pilih sekaligus / buka kamera HP).
+                                            </p>
+                                            <span className="text-[11px] font-medium text-destructive bg-destructive/10 px-3 py-1 rounded-full mt-1 border border-destructive/20">
+                                                Format: JPG, PNG, WebP (Minimal 1 Foto)
+                                            </span>
+                                        </Label>
+                                    )
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Inspection Notes */}
                     <Card>
@@ -1938,7 +2162,7 @@ export default function BookingChecklist({ booking }: Props) {
                 {photoPreviews && photoPreviews.length > 0 && (
                     <div className="mt-3 pt-2 border-t-2 border-black break-inside-avoid">
                         <div className="font-bold uppercase tracking-wider text-[10px] text-gray-800 mb-1.5 flex items-center justify-between">
-                            <span>Lampiran Foto Dokumentasi Serah Terima Kendaraan ({photoPreviews.length} Foto)</span>
+                            <span>Lampiran Foto Dokumentasi {isDelivery ? 'Serah Terima' : 'Pengembalian'} Kendaraan ({photoPreviews.length} Foto)</span>
                         </div>
                         <div className="grid grid-cols-4 gap-2">
                             {photoPreviews.slice(0, 4).map((photo, idx) => (
@@ -1949,6 +2173,27 @@ export default function BookingChecklist({ booking }: Props) {
                                         className="w-full h-20 object-cover"
                                     />
                                     <span className="text-[8px] text-gray-600 py-0.5">Foto #{idx + 1}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* FOTO IDENTITAS PENYEWA (KTP & SIM) - Hanya untuk Serah Terima Unit */}
+                {isDelivery && idPhotoPreviews && idPhotoPreviews.length > 0 && (
+                    <div className="mt-3 pt-2 border-t-2 border-black break-inside-avoid">
+                        <div className="font-bold uppercase tracking-wider text-[10px] text-gray-800 mb-1.5 flex items-center justify-between">
+                            <span>Lampiran Foto Identitas Penyewa (KTP & SIM) ({idPhotoPreviews.length} Foto)</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                            {idPhotoPreviews.slice(0, 4).map((photo, idx) => (
+                                <div key={idx} className="border border-black rounded-xs overflow-hidden bg-gray-50 flex flex-col items-center">
+                                    <img
+                                        src={photo}
+                                        alt={`Identitas ${idx + 1}`}
+                                        className="w-full h-20 object-cover"
+                                    />
+                                    <span className="text-[8px] text-gray-600 py-0.5">Identitas #{idx + 1}</span>
                                 </div>
                             ))}
                         </div>

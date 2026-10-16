@@ -517,6 +517,8 @@ class BookingController extends Controller
             'checkout_datetime' => ['nullable', 'date'],
             'photos' => ['nullable', 'array'],
             'photos.*' => ['nullable'],
+            'identity_photos' => ['nullable', 'array'],
+            'identity_photos.*' => ['nullable'],
         ]);
 
         $checklistData = $validated['checklist'];
@@ -548,7 +550,35 @@ class BookingController extends Controller
             }
         }
 
+        // Handle uploaded identity photos (KTP & SIM)
+        $identityPhotoPaths = [];
+        if ($request->has('identity_photos') && is_array($request->input('identity_photos'))) {
+            foreach ($request->input('identity_photos') as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $identityPhotoPaths[] = $p;
+                }
+            }
+        }
+
+        if (isset($checklistData['identity_photos']) && is_array($checklistData['identity_photos'])) {
+            foreach ($checklistData['identity_photos'] as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $identityPhotoPaths[] = $p;
+                }
+            }
+        }
+
+        if ($request->hasFile('identity_photos')) {
+            foreach ($request->file('identity_photos') as $file) {
+                if ($file && $file->isValid()) {
+                    $stored = $file->store('checklists/identities', 'public');
+                    $identityPhotoPaths[] = Storage::url($stored);
+                }
+            }
+        }
+
         $checklistData['photos'] = array_values(array_unique($photoPaths));
+        $checklistData['identity_photos'] = array_values(array_unique($identityPhotoPaths));
         $checklistData['km_out'] = $validated['km_out'];
         $checklistData['fuel_out'] = $validated['fuel_out'];
         $checklistData['fuel_range_km'] = $validated['fuel_range_km'] ?? null;
@@ -650,23 +680,23 @@ class BookingController extends Controller
             'checkout_time' => ['nullable', 'string'],
             'photos' => ['nullable', 'array'],
             'photos.*' => ['nullable'],
+            'identity_photos' => ['nullable', 'array'],
+            'identity_photos.*' => ['nullable'],
         ]);
 
         $checklistData = $validated['checklist'];
+        unset($checklistData['photos'], $checklistData['identity_photos']);
 
-        // Handle uploaded photos
+        $deliveryPhotos = $booking->delivery_checklist['photos'] ?? [];
+        if (! is_array($deliveryPhotos)) {
+            $deliveryPhotos = [];
+        }
+
+        // Handle uploaded photos strictly for return
         $photoPaths = [];
         if ($request->has('photos') && is_array($request->input('photos'))) {
             foreach ($request->input('photos') as $p) {
-                if (is_string($p) && ! empty($p)) {
-                    $photoPaths[] = $p;
-                }
-            }
-        }
-
-        if (isset($checklistData['photos']) && is_array($checklistData['photos'])) {
-            foreach ($checklistData['photos'] as $p) {
-                if (is_string($p) && ! empty($p)) {
+                if (is_string($p) && ! empty($p) && ! in_array($p, $deliveryPhotos, true)) {
                     $photoPaths[] = $p;
                 }
             }
