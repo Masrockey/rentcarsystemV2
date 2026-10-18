@@ -631,7 +631,7 @@ class WhatsAppService
                 : '-';
 
             $durasi = self::calculateDuration($booking);
-
+            $marketingPhone = $booking->user?->phone ?? auth()->user()?->phone ?? '-';
             $pickupLocation = $booking->pickup_location ?: '-';
             $dropoffLocation = $booking->dropoff_location ?: '-';
             $marketingName = $booking->user?->name ?? auth()->user()?->name ?? 'System';
@@ -654,7 +654,9 @@ class WhatsAppService
                 ."Durasi: {$durasi}\n"
                 ."Lokasi Pengambilan: {$pickupLocation}\n"
                 ."Lokasi Pengembalian: {$dropoffLocation}\n\n"
+                ."--- Marketing ---\n"
                 ."Marketing: {$marketingName}\n"
+                ."Telepon: {$marketingPhone}\n\n"
                 ."Dibuat pada: {$createdAt}\n"
                 ."Dibuat Oleh: {$createdByName}\n"
                 .'━━━━━━━━━━━━━━━━━━━━';
