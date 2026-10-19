@@ -510,7 +510,7 @@ class WhatsAppService
             }
 
             $res = $this->client($activeDeviceId)
-                ->timeout(60)
+                ->timeout(90)
                 ->connectTimeout(15)
                 ->attach('file', $contents, $name)
                 ->post('/send/file', $data);

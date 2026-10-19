@@ -84,6 +84,14 @@ type FormFields = {
     notes: string;
     photos: (File | string)[];
     identity_photos: (File | string)[];
+    ktp_photos: (File | string)[];
+    sim_photos: (File | string)[];
+    diagram_photos: (File | string)[];
+    body_kiri_photos: (File | string)[];
+    body_kanan_photos: (File | string)[];
+    body_atap_photos: (File | string)[];
+    body_depan_photos: (File | string)[];
+    body_belakang_photos: (File | string)[];
 };
 
 type Props = {
@@ -139,34 +147,82 @@ export default function BookingChecklist({ booking }: Props) {
 
     const [photoPreviews, setPhotoPreviews] = useState<string[]>(initialPhotos);
 
-    const getInitialIdentityPhotos = (isDel: boolean) => {
-        if (!isDel) {
-            return [];
-        }
-        const existing = booking.delivery_checklist?.identity_photos;
+    const getInitialKtpPhotos = (isDel: boolean) => {
+        if (!isDel) return [];
+        const existing = booking.delivery_checklist?.ktp_photos;
         if (Array.isArray(existing) && existing.length > 0) {
             return existing as string[];
         }
-        const fallback: string[] = [];
         if (booking.customer?.ktp_photo) {
-            fallback.push(
+            return [
                 booking.customer.ktp_photo.startsWith('http') || booking.customer.ktp_photo.startsWith('/')
                     ? booking.customer.ktp_photo
-                    : `/storage/${booking.customer.ktp_photo}`
-            );
+                    : `/storage/${booking.customer.ktp_photo}`,
+            ];
         }
-        if (booking.customer?.sim_photo) {
-            fallback.push(
-                booking.customer.sim_photo.startsWith('http') || booking.customer.sim_photo.startsWith('/')
-                    ? booking.customer.sim_photo
-                    : `/storage/${booking.customer.sim_photo}`
-            );
+        const idPhotos = booking.delivery_checklist?.identity_photos;
+        if (Array.isArray(idPhotos) && idPhotos.length > 0) {
+            return [idPhotos[0] as string];
         }
-        return fallback;
+        return [];
     };
 
-    const initialIdentityPhotos = getInitialIdentityPhotos(isDelivery);
-    const [idPhotoPreviews, setIdPhotoPreviews] = useState<string[]>(initialIdentityPhotos);
+    const getInitialSimPhotos = (isDel: boolean) => {
+        if (!isDel) return [];
+        const existing = booking.delivery_checklist?.sim_photos;
+        if (Array.isArray(existing) && existing.length > 0) {
+            return existing as string[];
+        }
+        if (booking.customer?.sim_photo) {
+            return [
+                booking.customer.sim_photo.startsWith('http') || booking.customer.sim_photo.startsWith('/')
+                    ? booking.customer.sim_photo
+                    : `/storage/${booking.customer.sim_photo}`,
+            ];
+        }
+        const idPhotos = booking.delivery_checklist?.identity_photos;
+        if (Array.isArray(idPhotos) && idPhotos.length > 1) {
+            return [idPhotos[1] as string];
+        }
+        return [];
+    };
+
+    const getInitialDiagramPhotos = (isDel: boolean) => {
+        const saved = isDel ? booking.delivery_checklist : booking.return_checklist;
+        if (Array.isArray(saved?.diagram_photos) && saved.diagram_photos.length > 0) {
+            return saved.diagram_photos as string[];
+        }
+        return [];
+    };
+
+    const getInitialPartPhotos = (partKey: string, isDel: boolean) => {
+        const saved = isDel ? booking.delivery_checklist : booking.return_checklist;
+        if (Array.isArray(saved?.[partKey]) && saved[partKey].length > 0) {
+            return saved[partKey] as string[];
+        }
+        return [];
+    };
+
+    const initialKtpPhotos = getInitialKtpPhotos(isDelivery);
+    const initialSimPhotos = getInitialSimPhotos(isDelivery);
+    const initialDiagramPhotos = getInitialDiagramPhotos(isDelivery);
+    const initialIdentityPhotos = [...initialKtpPhotos, ...initialSimPhotos];
+
+    const initialBodyKiriPhotos = getInitialPartPhotos('body_kiri_photos', isDelivery);
+    const initialBodyKananPhotos = getInitialPartPhotos('body_kanan_photos', isDelivery);
+    const initialBodyAtapPhotos = getInitialPartPhotos('body_atap_photos', isDelivery);
+    const initialBodyDepanPhotos = getInitialPartPhotos('body_depan_photos', isDelivery);
+    const initialBodyBelakangPhotos = getInitialPartPhotos('body_belakang_photos', isDelivery);
+
+    const [ktpPhotoPreviews, setKtpPhotoPreviews] = useState<string[]>(initialKtpPhotos);
+    const [simPhotoPreviews, setSimPhotoPreviews] = useState<string[]>(initialSimPhotos);
+    const [diagramPhotoPreviews, setDiagramPhotoPreviews] = useState<string[]>(initialDiagramPhotos);
+
+    const [bodyKiriPreviews, setBodyKiriPreviews] = useState<string[]>(initialBodyKiriPhotos);
+    const [bodyKananPreviews, setBodyKananPreviews] = useState<string[]>(initialBodyKananPhotos);
+    const [bodyAtapPreviews, setBodyAtapPreviews] = useState<string[]>(initialBodyAtapPhotos);
+    const [bodyDepanPreviews, setBodyDepanPreviews] = useState<string[]>(initialBodyDepanPhotos);
+    const [bodyBelakangPreviews, setBodyBelakangPreviews] = useState<string[]>(initialBodyBelakangPhotos);
 
     const getCurrentDate = () => {
         const d = new Date();
@@ -209,6 +265,14 @@ export default function BookingChecklist({ booking }: Props) {
     const cleanInitialChecklist = { ...initialChecklist };
     delete cleanInitialChecklist.photos;
     delete cleanInitialChecklist.identity_photos;
+    delete cleanInitialChecklist.ktp_photos;
+    delete cleanInitialChecklist.sim_photos;
+    delete cleanInitialChecklist.diagram_photos;
+    delete cleanInitialChecklist.body_kiri_photos;
+    delete cleanInitialChecklist.body_kanan_photos;
+    delete cleanInitialChecklist.body_atap_photos;
+    delete cleanInitialChecklist.body_depan_photos;
+    delete cleanInitialChecklist.body_belakang_photos;
 
     const { data, setData, post, processing, errors, transform } = useForm<FormFields>({
         checklist: {
@@ -244,6 +308,14 @@ export default function BookingChecklist({ booking }: Props) {
         notes: isDelivery ? (booking.delivery_notes || '') : (booking.return_notes || booking.delivery_notes || ''),
         photos: initialPhotos as (File | string)[],
         identity_photos: (isDelivery ? initialIdentityPhotos : []) as (File | string)[],
+        ktp_photos: (isDelivery ? initialKtpPhotos : []) as (File | string)[],
+        sim_photos: (isDelivery ? initialSimPhotos : []) as (File | string)[],
+        diagram_photos: initialDiagramPhotos as (File | string)[],
+        body_kiri_photos: initialBodyKiriPhotos as (File | string)[],
+        body_kanan_photos: initialBodyKananPhotos as (File | string)[],
+        body_atap_photos: initialBodyAtapPhotos as (File | string)[],
+        body_depan_photos: initialBodyDepanPhotos as (File | string)[],
+        body_belakang_photos: initialBodyBelakangPhotos as (File | string)[],
     });
 
     const handleSwitchMode = (newMode: 'delivery' | 'return') => {
@@ -264,12 +336,35 @@ export default function BookingChecklist({ booking }: Props) {
             );
         setPhotoPreviews(photos);
 
-        const idPhotos = getInitialIdentityPhotos(isDel);
-        setIdPhotoPreviews(idPhotos);
+        const ktpPhotos = getInitialKtpPhotos(isDel);
+        const simPhotos = getInitialSimPhotos(isDel);
+        const diagPhotos = getInitialDiagramPhotos(isDel);
+        setKtpPhotoPreviews(ktpPhotos);
+        setSimPhotoPreviews(simPhotos);
+        setDiagramPhotoPreviews(diagPhotos);
+
+        const bkPhotos = getInitialPartPhotos('body_kiri_photos', isDel);
+        const bkaPhotos = getInitialPartPhotos('body_kanan_photos', isDel);
+        const baPhotos = getInitialPartPhotos('body_atap_photos', isDel);
+        const bdPhotos = getInitialPartPhotos('body_depan_photos', isDel);
+        const bbPhotos = getInitialPartPhotos('body_belakang_photos', isDel);
+        setBodyKiriPreviews(bkPhotos);
+        setBodyKananPreviews(bkaPhotos);
+        setBodyAtapPreviews(baPhotos);
+        setBodyDepanPreviews(bdPhotos);
+        setBodyBelakangPreviews(bbPhotos);
 
         const cleanSaved = { ...(saved || {}) };
         delete cleanSaved.photos;
         delete cleanSaved.identity_photos;
+        delete cleanSaved.ktp_photos;
+        delete cleanSaved.sim_photos;
+        delete cleanSaved.diagram_photos;
+        delete cleanSaved.body_kiri_photos;
+        delete cleanSaved.body_kanan_photos;
+        delete cleanSaved.body_atap_photos;
+        delete cleanSaved.body_depan_photos;
+        delete cleanSaved.body_belakang_photos;
 
         const targetKm = isDel
             ? (booking.delivery_checklist?.km_out ?? booking.rental?.km_out ?? booking.car?.last_km ?? 0)
@@ -317,7 +412,15 @@ export default function BookingChecklist({ booking }: Props) {
             checkout_datetime: '',
             notes: isDel ? (booking.delivery_notes || '') : (booking.return_notes || booking.delivery_notes || ''),
             photos: photos,
-            identity_photos: idPhotos,
+            identity_photos: [...ktpPhotos, ...simPhotos],
+            ktp_photos: ktpPhotos,
+            sim_photos: simPhotos,
+            diagram_photos: diagPhotos,
+            body_kiri_photos: bkPhotos,
+            body_kanan_photos: bkaPhotos,
+            body_atap_photos: baPhotos,
+            body_depan_photos: bdPhotos,
+            body_belakang_photos: bbPhotos,
         });
     };
 
@@ -411,26 +514,188 @@ export default function BookingChecklist({ booking }: Props) {
         setPhotoPreviews(updatedPreviews);
     };
 
-    const handleIdPhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleKtpPhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (isFilled || !e.target.files) return;
         const files = Array.from(e.target.files);
         const newObjectURLs = files.map((file) => URL.createObjectURL(file));
-        setIdPhotoPreviews((prev) => [...prev, ...newObjectURLs]);
-        setData('identity_photos', [...((data.identity_photos || []) as (File | string)[]), ...files]);
+        const updatedPreviews = [...ktpPhotoPreviews, ...newObjectURLs];
+        const updatedKtp = [...((data.ktp_photos || []) as (File | string)[]), ...files];
+        setKtpPhotoPreviews(updatedPreviews);
+        setData((prev) => ({
+            ...prev,
+            ktp_photos: updatedKtp,
+        }));
     };
 
-    const handleIdPhotoRemove = (index: number) => {
-        const currentPhotos = [...((data.identity_photos || []) as (File | string)[])];
+    const handleKtpPhotoRemove = (index: number) => {
+        const currentPhotos = [...((data.ktp_photos || []) as (File | string)[])];
         currentPhotos.splice(index, 1);
-        setData('identity_photos', currentPhotos);
 
-        const updatedPreviews = [...idPhotoPreviews];
+        const updatedPreviews = [...ktpPhotoPreviews];
         const removedUrl = updatedPreviews.splice(index, 1)[0];
         if (removedUrl && removedUrl.startsWith('blob:')) {
             URL.revokeObjectURL(removedUrl);
         }
-        setIdPhotoPreviews(updatedPreviews);
+        setKtpPhotoPreviews(updatedPreviews);
+        setData((prev) => ({
+            ...prev,
+            ktp_photos: currentPhotos,
+        }));
     };
+
+    const handleSimPhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (isFilled || !e.target.files) return;
+        const files = Array.from(e.target.files);
+        const newObjectURLs = files.map((file) => URL.createObjectURL(file));
+        const updatedPreviews = [...simPhotoPreviews, ...newObjectURLs];
+        const updatedSim = [...((data.sim_photos || []) as (File | string)[]), ...files];
+        setSimPhotoPreviews(updatedPreviews);
+        setData((prev) => ({
+            ...prev,
+            sim_photos: updatedSim,
+        }));
+    };
+
+    const handleSimPhotoRemove = (index: number) => {
+        const currentPhotos = [...((data.sim_photos || []) as (File | string)[])];
+        currentPhotos.splice(index, 1);
+
+        const updatedPreviews = [...simPhotoPreviews];
+        const removedUrl = updatedPreviews.splice(index, 1)[0];
+        if (removedUrl && removedUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(removedUrl);
+        }
+        setSimPhotoPreviews(updatedPreviews);
+        setData((prev) => ({
+            ...prev,
+            sim_photos: currentPhotos,
+        }));
+    };
+
+    const handleDiagramPhotoAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (isFilled || !e.target.files) return;
+        const files = Array.from(e.target.files);
+        const newObjectURLs = files.map((file) => URL.createObjectURL(file));
+        setDiagramPhotoPreviews((prev) => [...prev, ...newObjectURLs]);
+        setData('diagram_photos', [...((data.diagram_photos || []) as (File | string)[]), ...files]);
+    };
+
+    const handleDiagramPhotoRemove = (index: number) => {
+        const currentPhotos = [...((data.diagram_photos || []) as (File | string)[])];
+        currentPhotos.splice(index, 1);
+        setData('diagram_photos', currentPhotos);
+
+        const updatedPreviews = [...diagramPhotoPreviews];
+        const removedUrl = updatedPreviews.splice(index, 1)[0];
+        if (removedUrl && removedUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(removedUrl);
+        }
+        setDiagramPhotoPreviews(updatedPreviews);
+    };
+
+    const handlePartPhotoAdd = (
+        field: 'body_kiri_photos' | 'body_kanan_photos' | 'body_atap_photos' | 'body_depan_photos' | 'body_belakang_photos',
+        setPreviews: React.Dispatch<React.SetStateAction<string[]>>,
+        e: React.ChangeEvent<HTMLInputElement>
+    ) => {
+        if (isFilled || !e.target.files) return;
+        const files = Array.from(e.target.files);
+        const newObjectURLs = files.map((file) => URL.createObjectURL(file));
+        setPreviews((prev) => [...prev, ...newObjectURLs]);
+        setData(field, [...((data[field] || []) as (File | string)[]), ...files]);
+    };
+
+    const handlePartPhotoRemove = (
+        field: 'body_kiri_photos' | 'body_kanan_photos' | 'body_atap_photos' | 'body_depan_photos' | 'body_belakang_photos',
+        setPreviews: React.Dispatch<React.SetStateAction<string[]>>,
+        index: number
+    ) => {
+        const currentPhotos = [...((data[field] || []) as (File | string)[])];
+        currentPhotos.splice(index, 1);
+        setData(field, currentPhotos);
+
+        setPreviews((prev) => {
+            const updated = [...prev];
+            const removed = updated.splice(index, 1)[0];
+            if (removed && removed.startsWith('blob:')) {
+                URL.revokeObjectURL(removed);
+            }
+            return updated;
+        });
+    };
+
+    const renderDiagramPhotoUploader = (
+        partKey: 'body_kiri' | 'body_kanan' | 'body_atap' | 'body_depan' | 'body_belakang',
+        field: 'body_kiri_photos' | 'body_kanan_photos' | 'body_atap_photos' | 'body_depan_photos' | 'body_belakang_photos',
+        partLabel: string,
+        previews: string[],
+        setPreviews: React.Dispatch<React.SetStateAction<string[]>>
+    ) => (
+        <div className="pt-2 border-t space-y-1.5 w-full">
+            <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Camera className="h-3.5 w-3.5 text-primary" />
+                    <span>Foto {partLabel}</span>
+                </span>
+                {previews.length > 0 && (
+                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        {previews.length} Foto
+                    </span>
+                )}
+            </div>
+
+            {!isFilled && (
+                <Input
+                    id={`photo-input-${partKey}`}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => handlePartPhotoAdd(field, setPreviews, e)}
+                    className="hidden"
+                />
+            )}
+
+            {previews.length > 0 ? (
+                <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+                    {previews.map((url, idx) => (
+                        <div key={idx} className="relative group aspect-square rounded-lg border bg-muted/30 overflow-hidden shadow-2xs">
+                            <img src={url} alt={`${partLabel} ${idx + 1}`} className="w-full h-full object-cover" />
+                            {!isFilled && (
+                                <button
+                                    type="button"
+                                    onClick={() => handlePartPhotoRemove(field, setPreviews, idx)}
+                                    className="absolute top-1 right-1 p-1 rounded-full bg-red-600 text-white shadow-xs hover:bg-red-700 transition-transform active:scale-95"
+                                    title="Hapus foto ini"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                    {!isFilled && (
+                        <Label
+                            htmlFor={`photo-input-${partKey}`}
+                            className="cursor-pointer aspect-square rounded-lg border border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1 text-center p-1 transition-all group"
+                            title="Tambah foto bodi"
+                        >
+                            <Camera className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                            <span className="text-[9px] font-bold text-primary">+ Foto</span>
+                        </Label>
+                    )}
+                </div>
+            ) : (
+                !isFilled && (
+                    <Label
+                        htmlFor={`photo-input-${partKey}`}
+                        className="cursor-pointer border border-dashed border-border hover:border-primary hover:bg-primary/5 rounded-lg py-1.5 px-2 text-center text-[10px] text-muted-foreground flex items-center justify-center gap-1.5 transition-all group bg-muted/20"
+                    >
+                        <Camera className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                        <span className="font-medium group-hover:text-primary transition-colors">+ Foto Baret / Kerusakan</span>
+                    </Label>
+                )
+            )}
+        </div>
+    );
 
     const handleItemToggle = (key: string, status: ItemStatus) => {
         setData('checklist', {
@@ -493,9 +758,14 @@ export default function BookingChecklist({ booking }: Props) {
             uncompleted.push(isDelivery ? 'Foto Dokumentasi: Wajib upload minimal 1 foto fisik unit & serah terima' : 'Foto Dokumentasi: Wajib upload minimal 1 foto fisik unit & pengembalian');
         }
 
-        // 5. Foto Identitas Penyewa (KTP & SIM - Hanya Wajib Saat Serah Terima / Unit Keluar)
-        if (isDelivery && (!idPhotoPreviews || idPhotoPreviews.length === 0)) {
-            uncompleted.push('Foto Identitas: Wajib upload minimal 1 foto KTP & SIM penyewa');
+        // 5. Foto Identitas Penyewa (KTP & SIM - Wajib Saat Serah Terima / Unit Keluar)
+        if (isDelivery) {
+            if (!ktpPhotoPreviews || ktpPhotoPreviews.length === 0) {
+                uncompleted.push('Foto KTP: Wajib upload foto KTP penyewa');
+            }
+            if (!simPhotoPreviews || simPhotoPreviews.length === 0) {
+                uncompleted.push('Foto SIM: Wajib upload foto SIM penyewa');
+            }
         }
 
         if (uncompleted.length > 0) {
@@ -1267,6 +1537,7 @@ export default function BookingChecklist({ booking }: Props) {
                                                 onChange={(e) => setData('checklist', { ...data.checklist, body_kiri_note: e.target.value })}
                                                 className="h-7 text-[11px] placeholder:text-muted-foreground/60 bg-background/80"
                                             />
+                                            {renderDiagramPhotoUploader('body_kiri', 'body_kiri_photos', 'Samping Kiri', bodyKiriPreviews, setBodyKiriPreviews)}
                                         </div>
 
                                         {/* Samping Kanan Card */}
@@ -1325,6 +1596,7 @@ export default function BookingChecklist({ booking }: Props) {
                                                 onChange={(e) => setData('checklist', { ...data.checklist, body_kanan_note: e.target.value })}
                                                 className="h-7 text-[11px] placeholder:text-muted-foreground/60 bg-background/80"
                                             />
+                                            {renderDiagramPhotoUploader('body_kanan', 'body_kanan_photos', 'Samping Kanan', bodyKananPreviews, setBodyKananPreviews)}
                                         </div>
                                     </div>
 
@@ -1384,6 +1656,7 @@ export default function BookingChecklist({ booking }: Props) {
                                                 onChange={(e) => setData('checklist', { ...data.checklist, body_atap_note: e.target.value })}
                                                 className="h-7 text-[11px] placeholder:text-muted-foreground/60 bg-background/80"
                                             />
+                                            {renderDiagramPhotoUploader('body_atap', 'body_atap_photos', 'Tampak Atas', bodyAtapPreviews, setBodyAtapPreviews)}
                                         </div>
                                     </div>
 
@@ -1443,6 +1716,7 @@ export default function BookingChecklist({ booking }: Props) {
                                                 onChange={(e) => setData('checklist', { ...data.checklist, body_depan_note: e.target.value })}
                                                 className="h-7 text-[11px] placeholder:text-muted-foreground/60 bg-background/80"
                                             />
+                                            {renderDiagramPhotoUploader('body_depan', 'body_depan_photos', 'Tampak Depan', bodyDepanPreviews, setBodyDepanPreviews)}
                                         </div>
 
                                         {/* Tampak Belakang Card */}
@@ -1499,6 +1773,7 @@ export default function BookingChecklist({ booking }: Props) {
                                                 onChange={(e) => setData('checklist', { ...data.checklist, body_belakang_note: e.target.value })}
                                                 className="h-7 text-[11px] placeholder:text-muted-foreground/60 bg-background/80"
                                             />
+                                            {renderDiagramPhotoUploader('body_belakang', 'body_belakang_photos', 'Tampak Belakang', bodyBelakangPreviews, setBodyBelakangPreviews)}
                                         </div>
                                     </div>
                                 </div>
@@ -1597,97 +1872,187 @@ export default function BookingChecklist({ booking }: Props) {
                         </CardContent>
                     </Card>
 
-                    {/* Foto Dokumen Identitas KTP & SIM Card (Wajib hanya saat Serah Terima / Unit Keluar) */}
+                    {/* Foto Dokumen Identitas: KTP dan SIM Terpisah (Wajib saat Serah Terima / Unit Keluar) */}
                     {isDelivery && (
-                        <Card className={`transition-colors ${idPhotoPreviews.length === 0 ? 'border-destructive/40 shadow-xs' : ''}`}>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-base font-bold flex items-center justify-between">
-                                    <span className="flex items-center gap-2">
-                                        <FileText className="h-5 w-5 text-primary" />
-                                        <span>Foto Dokumen Identitas (KTP & SIM)</span>
-                                        <span className="text-destructive font-bold">*</span>
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        {idPhotoPreviews.length === 0 && (
-                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30 animate-pulse">
-                                                Wajib Diisi
-                                            </span>
-                                        )}
-                                        <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
-                                            {idPhotoPreviews.length} Foto Terpilih
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Card 1: Foto KTP Penyewa */}
+                            <Card className={`transition-colors ${ktpPhotoPreviews.length === 0 ? 'border-destructive/40 shadow-xs' : ''}`}>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base font-bold flex items-center justify-between">
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-5 w-5 text-primary" />
+                                            <span>Foto KTP Penyewa</span>
+                                            <span className="text-destructive font-bold">*</span>
                                         </span>
-                                    </div>
-                                </CardTitle>
-                                <CardDescription>
-                                    Upload foto KTP dan SIM penyewa yang masih berlaku untuk verifikasi serah terima kendaraan.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                {!isFilled && (
-                                    <Input
-                                        id="id-photo-upload-input"
-                                        type="file"
-                                        accept="image/*"
-                                        multiple
-                                        onChange={handleIdPhotoAdd}
-                                        className="hidden"
-                                    />
-                                )}
-
-                                {/* ID Photo Gallery Grid / Clickable Box */}
-                                {idPhotoPreviews.length > 0 ? (
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
-                                        {idPhotoPreviews.map((url, idx) => (
-                                            <div key={idx} className="relative group aspect-4/3 rounded-xl border bg-muted/30 overflow-hidden shadow-xs">
-                                                <img src={url} alt={`Identitas ${idx + 1}`} className="w-full h-full object-cover" />
-                                                {!isFilled && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleIdPhotoRemove(idx)}
-                                                        className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/90 text-white shadow-md hover:bg-red-700 transition-transform active:scale-95"
-                                                        title="Hapus foto identitas ini"
-                                                    >
-                                                        <X className="h-3.5 w-3.5" />
-                                                    </button>
-                                                )}
-                                                <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold backdrop-blur-xs">
-                                                    KTP/SIM #{idx + 1}
+                                        <div className="flex items-center gap-2">
+                                            {ktpPhotoPreviews.length === 0 && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30 animate-pulse">
+                                                    Wajib
                                                 </span>
-                                            </div>
-                                        ))}
-
-                                        {/* Add ID Photo Card */}
-                                        {!isFilled && (
-                                            <Label
-                                                htmlFor="id-photo-upload-input"
-                                                className="cursor-pointer aspect-4/3 rounded-xl border-2 border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1.5 transition-all text-center p-2 group shadow-2xs"
-                                            >
-                                                <FileText className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
-                                                <span className="text-xs font-bold text-primary">+ Tambah KTP / SIM</span>
-                                            </Label>
-                                        )}
-                                    </div>
-                                ) : (
-                                    !isFilled && (
-                                        <Label
-                                            htmlFor="id-photo-upload-input"
-                                            className="cursor-pointer border-2 border-dashed border-destructive/40 hover:border-destructive hover:bg-destructive/5 rounded-xl p-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2 transition-all group shadow-2xs bg-destructive/5"
-                                        >
-                                            <div className="p-3 rounded-full bg-destructive/10 group-hover:bg-destructive/20 text-destructive transition-colors">
-                                                <FileText className="h-8 w-8" />
-                                            </div>
-                                            <p className="font-bold text-destructive text-sm">Ambil / Upload Foto KTP & SIM (Wajib)</p>
-                                            <p className="text-muted-foreground max-w-sm">
-                                                Klik kotak ini untuk memilih atau memotret KTP & SIM penyewa (Bisa pilih sekaligus / buka kamera HP).
-                                            </p>
-                                            <span className="text-[11px] font-medium text-destructive bg-destructive/10 px-3 py-1 rounded-full mt-1 border border-destructive/20">
-                                                Format: JPG, PNG, WebP (Minimal 1 Foto)
+                                            )}
+                                            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+                                                {ktpPhotoPreviews.length} Foto
                                             </span>
-                                        </Label>
-                                    )
-                                )}
-                            </CardContent>
-                        </Card>
+                                        </div>
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Upload atau foto KTP asli penyewa untuk verifikasi identitas serah terima.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {!isFilled && (
+                                        <Input
+                                            id="ktp-photo-upload-input"
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={handleKtpPhotoAdd}
+                                            className="hidden"
+                                        />
+                                    )}
+
+                                    {ktpPhotoPreviews.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-3 pt-1">
+                                            {ktpPhotoPreviews.map((url, idx) => (
+                                                <div key={idx} className="relative group aspect-4/3 rounded-xl border bg-muted/30 overflow-hidden shadow-xs">
+                                                    <img src={url} alt={`KTP ${idx + 1}`} className="w-full h-full object-cover" />
+                                                    {!isFilled && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleKtpPhotoRemove(idx)}
+                                                            className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/90 text-white shadow-md hover:bg-red-700 transition-transform active:scale-95"
+                                                            title="Hapus foto KTP ini"
+                                                        >
+                                                            <X className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold backdrop-blur-xs">
+                                                        KTP #{idx + 1}
+                                                    </span>
+                                                </div>
+                                            ))}
+
+                                            {!isFilled && (
+                                                <Label
+                                                    htmlFor="ktp-photo-upload-input"
+                                                    className="cursor-pointer aspect-4/3 rounded-xl border-2 border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1.5 transition-all text-center p-2 group shadow-2xs"
+                                                >
+                                                    <FileText className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
+                                                    <span className="text-xs font-bold text-primary">+ Tambah KTP</span>
+                                                </Label>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        !isFilled && (
+                                            <Label
+                                                htmlFor="ktp-photo-upload-input"
+                                                className="cursor-pointer border-2 border-dashed border-destructive/40 hover:border-destructive hover:bg-destructive/5 rounded-xl p-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2 transition-all group shadow-2xs bg-destructive/5"
+                                            >
+                                                <div className="p-3 rounded-full bg-destructive/10 group-hover:bg-destructive/20 text-destructive transition-colors">
+                                                    <FileText className="h-8 w-8" />
+                                                </div>
+                                                <p className="font-bold text-destructive text-sm">Upload Foto KTP (Wajib)</p>
+                                                <p className="text-muted-foreground max-w-xs text-[11px]">
+                                                    Klik untuk memotret atau memilih foto KTP penyewa.
+                                                </p>
+                                                <span className="text-[10px] font-medium text-destructive bg-destructive/10 px-2.5 py-0.5 rounded-full mt-1 border border-destructive/20">
+                                                    Format: JPG, PNG, WebP
+                                                </span>
+                                            </Label>
+                                        )
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Card 2: Foto SIM Penyewa */}
+                            <Card className={`transition-colors ${simPhotoPreviews.length === 0 ? 'border-destructive/40 shadow-xs' : ''}`}>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base font-bold flex items-center justify-between">
+                                        <span className="flex items-center gap-2">
+                                            <FileText className="h-5 w-5 text-primary" />
+                                            <span>Foto SIM Penyewa</span>
+                                            <span className="text-destructive font-bold">*</span>
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {simPhotoPreviews.length === 0 && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/30 animate-pulse">
+                                                    Wajib
+                                                </span>
+                                            )}
+                                            <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+                                                {simPhotoPreviews.length} Foto
+                                            </span>
+                                        </div>
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Upload atau foto SIM asli penyewa yang masih aktif/berlaku.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {!isFilled && (
+                                        <Input
+                                            id="sim-photo-upload-input"
+                                            type="file"
+                                            accept="image/*"
+                                            multiple
+                                            onChange={handleSimPhotoAdd}
+                                            className="hidden"
+                                        />
+                                    )}
+
+                                    {simPhotoPreviews.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-3 pt-1">
+                                            {simPhotoPreviews.map((url, idx) => (
+                                                <div key={idx} className="relative group aspect-4/3 rounded-xl border bg-muted/30 overflow-hidden shadow-xs">
+                                                    <img src={url} alt={`SIM ${idx + 1}`} className="w-full h-full object-cover" />
+                                                    {!isFilled && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleSimPhotoRemove(idx)}
+                                                            className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/90 text-white shadow-md hover:bg-red-700 transition-transform active:scale-95"
+                                                            title="Hapus foto SIM ini"
+                                                        >
+                                                            <X className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold backdrop-blur-xs">
+                                                        SIM #{idx + 1}
+                                                    </span>
+                                                </div>
+                                            ))}
+
+                                            {!isFilled && (
+                                                <Label
+                                                    htmlFor="sim-photo-upload-input"
+                                                    className="cursor-pointer aspect-4/3 rounded-xl border-2 border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1.5 transition-all text-center p-2 group shadow-2xs"
+                                                >
+                                                    <FileText className="h-6 w-6 text-primary group-hover:scale-110 transition-transform" />
+                                                    <span className="text-xs font-bold text-primary">+ Tambah SIM</span>
+                                                </Label>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        !isFilled && (
+                                            <Label
+                                                htmlFor="sim-photo-upload-input"
+                                                className="cursor-pointer border-2 border-dashed border-destructive/40 hover:border-destructive hover:bg-destructive/5 rounded-xl p-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-2 transition-all group shadow-2xs bg-destructive/5"
+                                            >
+                                                <div className="p-3 rounded-full bg-destructive/10 group-hover:bg-destructive/20 text-destructive transition-colors">
+                                                    <FileText className="h-8 w-8" />
+                                                </div>
+                                                <p className="font-bold text-destructive text-sm">Upload Foto SIM (Wajib)</p>
+                                                <p className="text-muted-foreground max-w-xs text-[11px]">
+                                                    Klik untuk memotret atau memilih foto SIM penyewa.
+                                                </p>
+                                                <span className="text-[10px] font-medium text-destructive bg-destructive/10 px-2.5 py-0.5 rounded-full mt-1 border border-destructive/20">
+                                                    Format: JPG, PNG, WebP
+                                                </span>
+                                            </Label>
+                                        )
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
                     )}
 
                     {/* Inspection Notes */}
@@ -2112,9 +2477,27 @@ export default function BookingChecklist({ booking }: Props) {
                     </p>
                 </div>
 
-                {/* KLAUSUL PERNYATAAN BAST */}
-                <div className="p-1 px-2 border border-gray-400 rounded-xs bg-gray-50 mb-2.5 text-[8.5px] leading-tight text-gray-700 break-inside-avoid">
-                    <strong>Pernyataan Bersama:</strong> Pihak Penyewa menyatakan telah memeriksa dan menerima unit kendaraan beserta kelengkapannya dalam kondisi fisik dan teknis sebagaimana tertulis pada Berita Acara ini. Pihak Penyewa bertanggung jawab penuh atas penggunaan unit kendaraan selama masa sewa sesuai ketentuan sewa menyewa PT. Cahaya Auto Nusantara.
+                {/* PERJANJIAN SURAT MENYURAT / KETENTUAN SEWA */}
+                <div className="border border-black rounded-xs p-2 mb-2 text-[8px] bg-white break-inside-avoid leading-normal">
+                    <div className="font-bold uppercase tracking-wider text-[8.5px] text-black mb-1 border-b border-black pb-0.5">
+                        Surat Perjanjian & Ketentuan Sewa Kendaraan
+                    </div>
+                    <p className="font-bold text-black mb-1">
+                        Dengan Ini menyatakan bahwa saya :
+                    </p>
+                    <ol className="list-decimal pl-4 space-y-0.5 text-gray-900">
+                        <li>Bersedia untuk di Survei dan menyerahkan identitas asli yaitu KTP Asli, Kartu Keluarga Asli, NPWP Asli, atau Pasport Asli (Untuk WNA) atau Jaminan Sertifikat.</li>
+                        <li>Tidak boleh mengendarai mobil secara ugal-ugalan/kebut-kebutan.</li>
+                        <li>Bersedia membayar sewa di depan saat menerima kunci mobil.</li>
+                        <li>Jika melebihi waktu sewa maka akan dikenakan biaya tambahan Rp.50.000/Jam.</li>
+                        <li>Bersedia menjaga &amp; Merawat mobil.</li>
+                        <li>Tidak menggunakan mobil untuk sesuatu yang melanggar hukum seperti : kejahatan, Narkoba, Buronan &amp; Teroris.</li>
+                        <li>Tidak boleh memindah tangankan mobil Seperti menggadaikan mobil, Menjual atau melakukan perbuatan-perbuatan lain yang akan merugikan pihak perusahaan.</li>
+                        <li>Jika terjadi kecelakaan dan kehilangan pada saat masa sewa, maka saya tidak akan menuntut tentang asuransi dan bersedia untuk bertanggung jawab atas kerusakan dan kehilangan unit dan tidak akan memperbaiki di bengkel manapun selain di KRIDA TOYOTA/SESUAI DENGAN MERK MOBIL/ DEALER RESMI atau bengkel yang ditunjuk oleh PT. CAHAYA AUTO NUSANTARA.</li>
+                        <li>Saya bersedia untuk bertanggung jawab untuk membayar sewa unit selama masa perbaikan sesuai dengan harga sewa dan mengganti kerugian sebesar Rp.500.000/ Panel.</li>
+                        <li>Pada saat pengembalian unit mobil, kondisi kendaraan dan bahan bakar harus sama pada posisi awal seperti saat Pertama kali mengambil mobil.</li>
+                        <li>Kendaraan hanya bisa digunakan di area pulau Lombok Pihak PT. CAHAYA AUTO NUSANTARA melarang penyewa untuk membawa kendaraan keluar pulau Lombok.</li>
+                    </ol>
                 </div>
 
                 {/* KOLOM TANDA TANGAN (3 PIHAK) */}
@@ -2158,47 +2541,72 @@ export default function BookingChecklist({ booking }: Props) {
                     </div>
                 </div>
 
-                {/* FOTO DOKUMENTASI (JIKA ADA) */}
-                {photoPreviews && photoPreviews.length > 0 && (
-                    <div className="mt-3 pt-2 border-t-2 border-black break-inside-avoid">
-                        <div className="font-bold uppercase tracking-wider text-[10px] text-gray-800 mb-1.5 flex items-center justify-between">
-                            <span>Lampiran Foto Dokumentasi {isDelivery ? 'Serah Terima' : 'Pengembalian'} Kendaraan ({photoPreviews.length} Foto)</span>
-                        </div>
-                        <div className="grid grid-cols-4 gap-2">
-                            {photoPreviews.slice(0, 4).map((photo, idx) => (
-                                <div key={idx} className="border border-black rounded-xs overflow-hidden bg-gray-50 flex flex-col items-center">
-                                    <img
-                                        src={photo}
-                                        alt={`Dokumentasi ${idx + 1}`}
-                                        className="w-full h-20 object-cover"
-                                    />
-                                    <span className="text-[8px] text-gray-600 py-0.5">Foto #{idx + 1}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* LAMPIRAN SEMUA FOTO (KESAMPING DALAM SATU GRID) */}
+                {(() => {
+                    const allPrintPhotos: { src: string; label: string }[] = [];
 
-                {/* FOTO IDENTITAS PENYEWA (KTP & SIM) - Hanya untuk Serah Terima Unit */}
-                {isDelivery && idPhotoPreviews && idPhotoPreviews.length > 0 && (
-                    <div className="mt-3 pt-2 border-t-2 border-black break-inside-avoid">
-                        <div className="font-bold uppercase tracking-wider text-[10px] text-gray-800 mb-1.5 flex items-center justify-between">
-                            <span>Lampiran Foto Identitas Penyewa (KTP & SIM) ({idPhotoPreviews.length} Foto)</span>
+                    if (photoPreviews && photoPreviews.length > 0) {
+                        photoPreviews.forEach((photo, idx) => {
+                            allPrintPhotos.push({
+                                src: photo,
+                                label: photoPreviews.length > 1 ? `Foto Unit #${idx + 1}` : 'Dokumentasi Unit',
+                            });
+                        });
+                    }
+
+                    if (isDelivery && ktpPhotoPreviews && ktpPhotoPreviews.length > 0) {
+                        ktpPhotoPreviews.forEach((photo, idx) => {
+                            allPrintPhotos.push({
+                                src: photo,
+                                label: ktpPhotoPreviews.length > 1 ? `KTP #${idx + 1}` : 'KTP Penyewa',
+                            });
+                        });
+                    }
+
+                    if (isDelivery && simPhotoPreviews && simPhotoPreviews.length > 0) {
+                        simPhotoPreviews.forEach((photo, idx) => {
+                            allPrintPhotos.push({
+                                src: photo,
+                                label: simPhotoPreviews.length > 1 ? `SIM #${idx + 1}` : 'SIM Penyewa',
+                            });
+                        });
+                    }
+
+                    if (diagramPhotoPreviews && diagramPhotoPreviews.length > 0) {
+                        diagramPhotoPreviews.forEach((photo, idx) => {
+                            allPrintPhotos.push({
+                                src: photo,
+                                label: diagramPhotoPreviews.length > 1 ? `Bodi #${idx + 1}` : 'Bodi Mobil',
+                            });
+                        });
+                    }
+
+                    if (allPrintPhotos.length === 0) {
+                        return null;
+                    }
+
+                    return (
+                        <div className="mt-3 pt-2 border-t-2 border-black break-inside-avoid">
+                            <div className="font-bold uppercase tracking-wider text-[10px] text-gray-800 mb-1.5 flex items-center justify-between">
+                                <span>Lampiran Foto Dokumentasi &amp; Identitas ({allPrintPhotos.length} Foto)</span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                                {allPrintPhotos.map((item, idx) => (
+                                    <div key={idx} className="border border-black rounded-xs overflow-hidden bg-gray-50 flex flex-col items-center">
+                                        <img
+                                            src={item.src}
+                                            alt={item.label}
+                                            className="w-full h-20 object-cover"
+                                        />
+                                        <span className="text-[8px] text-gray-700 font-semibold py-0.5 truncate max-w-full px-1">
+                                            {item.label}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                        <div className="grid grid-cols-4 gap-2">
-                            {idPhotoPreviews.slice(0, 4).map((photo, idx) => (
-                                <div key={idx} className="border border-black rounded-xs overflow-hidden bg-gray-50 flex flex-col items-center">
-                                    <img
-                                        src={photo}
-                                        alt={`Identitas ${idx + 1}`}
-                                        className="w-full h-20 object-cover"
-                                    />
-                                    <span className="text-[8px] text-gray-600 py-0.5">Identitas #{idx + 1}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                    );
+                })()}
             </div>
         </>
     );

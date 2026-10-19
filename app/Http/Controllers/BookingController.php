@@ -587,6 +587,22 @@ class BookingController extends Controller
             'photos.*' => ['nullable'],
             'identity_photos' => ['nullable', 'array'],
             'identity_photos.*' => ['nullable'],
+            'ktp_photos' => ['nullable', 'array'],
+            'ktp_photos.*' => ['nullable'],
+            'sim_photos' => ['nullable', 'array'],
+            'sim_photos.*' => ['nullable'],
+            'diagram_photos' => ['nullable', 'array'],
+            'diagram_photos.*' => ['nullable'],
+            'body_kiri_photos' => ['nullable', 'array'],
+            'body_kiri_photos.*' => ['nullable'],
+            'body_kanan_photos' => ['nullable', 'array'],
+            'body_kanan_photos.*' => ['nullable'],
+            'body_atap_photos' => ['nullable', 'array'],
+            'body_atap_photos.*' => ['nullable'],
+            'body_depan_photos' => ['nullable', 'array'],
+            'body_depan_photos.*' => ['nullable'],
+            'body_belakang_photos' => ['nullable', 'array'],
+            'body_belakang_photos.*' => ['nullable'],
         ]);
 
         $checklistData = $validated['checklist'];
@@ -645,8 +661,120 @@ class BookingController extends Controller
             }
         }
 
+        // Handle separate KTP photos
+        $ktpPhotoPaths = [];
+        if ($request->has('ktp_photos') && is_array($request->input('ktp_photos'))) {
+            foreach ($request->input('ktp_photos') as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $ktpPhotoPaths[] = $p;
+                }
+            }
+        }
+        if (isset($checklistData['ktp_photos']) && is_array($checklistData['ktp_photos'])) {
+            foreach ($checklistData['ktp_photos'] as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $ktpPhotoPaths[] = $p;
+                }
+            }
+        }
+        if ($request->hasFile('ktp_photos')) {
+            foreach ($request->file('ktp_photos') as $file) {
+                if ($file && $file->isValid()) {
+                    $stored = $file->store('checklists/identities', 'public');
+                    $ktpPhotoPaths[] = Storage::url($stored);
+                }
+            }
+        }
+
+        // Handle separate SIM photos
+        $simPhotoPaths = [];
+        if ($request->has('sim_photos') && is_array($request->input('sim_photos'))) {
+            foreach ($request->input('sim_photos') as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $simPhotoPaths[] = $p;
+                }
+            }
+        }
+        if (isset($checklistData['sim_photos']) && is_array($checklistData['sim_photos'])) {
+            foreach ($checklistData['sim_photos'] as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $simPhotoPaths[] = $p;
+                }
+            }
+        }
+        if ($request->hasFile('sim_photos')) {
+            foreach ($request->file('sim_photos') as $file) {
+                if ($file && $file->isValid()) {
+                    $stored = $file->store('checklists/identities', 'public');
+                    $simPhotoPaths[] = Storage::url($stored);
+                }
+            }
+        }
+
+        // Handle uploaded diagram photos
+        $diagramPhotoPaths = [];
+        if ($request->has('diagram_photos') && is_array($request->input('diagram_photos'))) {
+            foreach ($request->input('diagram_photos') as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $diagramPhotoPaths[] = $p;
+                }
+            }
+        }
+        if (isset($checklistData['diagram_photos']) && is_array($checklistData['diagram_photos'])) {
+            foreach ($checklistData['diagram_photos'] as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $diagramPhotoPaths[] = $p;
+                }
+            }
+        }
+        if ($request->hasFile('diagram_photos')) {
+            foreach ($request->file('diagram_photos') as $file) {
+                if ($file && $file->isValid()) {
+                    $stored = $file->store('checklists/diagrams', 'public');
+                    $diagramPhotoPaths[] = Storage::url($stored);
+                }
+            }
+        }
+
+        $diagramParts = ['body_kiri', 'body_kanan', 'body_atap', 'body_depan', 'body_belakang'];
+        foreach ($diagramParts as $part) {
+            $partKey = "{$part}_photos";
+            $partPaths = [];
+            if ($request->has($partKey) && is_array($request->input($partKey))) {
+                foreach ($request->input($partKey) as $p) {
+                    if (is_string($p) && ! empty($p)) {
+                        $partPaths[] = $p;
+                    }
+                }
+            }
+            if (isset($checklistData[$partKey]) && is_array($checklistData[$partKey])) {
+                foreach ($checklistData[$partKey] as $p) {
+                    if (is_string($p) && ! empty($p)) {
+                        $partPaths[] = $p;
+                    }
+                }
+            }
+            if ($request->hasFile($partKey)) {
+                foreach ($request->file($partKey) as $file) {
+                    if ($file && $file->isValid()) {
+                        $stored = $file->store('checklists/diagrams', 'public');
+                        $partPaths[] = Storage::url($stored);
+                    }
+                }
+            }
+            $partPaths = array_values(array_unique($partPaths));
+            $checklistData[$partKey] = $partPaths;
+            $diagramPhotoPaths = array_merge($diagramPhotoPaths, $partPaths);
+        }
+
+        $allIdentityPhotos = (! empty($ktpPhotoPaths) || ! empty($simPhotoPaths))
+            ? array_values(array_unique(array_merge($ktpPhotoPaths, $simPhotoPaths)))
+            : array_values(array_unique($identityPhotoPaths));
         $checklistData['photos'] = array_values(array_unique($photoPaths));
-        $checklistData['identity_photos'] = array_values(array_unique($identityPhotoPaths));
+        $checklistData['identity_photos'] = $allIdentityPhotos;
+        $checklistData['ktp_photos'] = array_values(array_unique($ktpPhotoPaths));
+        $checklistData['sim_photos'] = array_values(array_unique($simPhotoPaths));
+        $checklistData['diagram_photos'] = array_values(array_unique($diagramPhotoPaths));
         $checklistData['km_out'] = $validated['km_out'];
         $checklistData['fuel_out'] = $validated['fuel_out'];
         $checklistData['fuel_range_km'] = $validated['fuel_range_km'] ?? null;
@@ -750,6 +878,18 @@ class BookingController extends Controller
             'photos.*' => ['nullable'],
             'identity_photos' => ['nullable', 'array'],
             'identity_photos.*' => ['nullable'],
+            'diagram_photos' => ['nullable', 'array'],
+            'diagram_photos.*' => ['nullable'],
+            'body_kiri_photos' => ['nullable', 'array'],
+            'body_kiri_photos.*' => ['nullable'],
+            'body_kanan_photos' => ['nullable', 'array'],
+            'body_kanan_photos.*' => ['nullable'],
+            'body_atap_photos' => ['nullable', 'array'],
+            'body_atap_photos.*' => ['nullable'],
+            'body_depan_photos' => ['nullable', 'array'],
+            'body_depan_photos.*' => ['nullable'],
+            'body_belakang_photos' => ['nullable', 'array'],
+            'body_belakang_photos.*' => ['nullable'],
         ]);
 
         $checklistData = $validated['checklist'];
@@ -779,7 +919,57 @@ class BookingController extends Controller
             }
         }
 
+        // Handle uploaded diagram photos
+        $diagramPhotoPaths = [];
+        if ($request->has('diagram_photos') && is_array($request->input('diagram_photos'))) {
+            foreach ($request->input('diagram_photos') as $p) {
+                if (is_string($p) && ! empty($p)) {
+                    $diagramPhotoPaths[] = $p;
+                }
+            }
+        }
+        if ($request->hasFile('diagram_photos')) {
+            foreach ($request->file('diagram_photos') as $file) {
+                if ($file && $file->isValid()) {
+                    $stored = $file->store('checklists/diagrams', 'public');
+                    $diagramPhotoPaths[] = Storage::url($stored);
+                }
+            }
+        }
+
+        $diagramParts = ['body_kiri', 'body_kanan', 'body_atap', 'body_depan', 'body_belakang'];
+        foreach ($diagramParts as $part) {
+            $partKey = "{$part}_photos";
+            $partPaths = [];
+            if ($request->has($partKey) && is_array($request->input($partKey))) {
+                foreach ($request->input($partKey) as $p) {
+                    if (is_string($p) && ! empty($p)) {
+                        $partPaths[] = $p;
+                    }
+                }
+            }
+            if (isset($checklistData[$partKey]) && is_array($checklistData[$partKey])) {
+                foreach ($checklistData[$partKey] as $p) {
+                    if (is_string($p) && ! empty($p)) {
+                        $partPaths[] = $p;
+                    }
+                }
+            }
+            if ($request->hasFile($partKey)) {
+                foreach ($request->file($partKey) as $file) {
+                    if ($file && $file->isValid()) {
+                        $stored = $file->store('checklists/diagrams', 'public');
+                        $partPaths[] = Storage::url($stored);
+                    }
+                }
+            }
+            $partPaths = array_values(array_unique($partPaths));
+            $checklistData[$partKey] = $partPaths;
+            $diagramPhotoPaths = array_merge($diagramPhotoPaths, $partPaths);
+        }
+
         $checklistData['photos'] = array_values(array_unique($photoPaths));
+        $checklistData['diagram_photos'] = array_values(array_unique($diagramPhotoPaths));
         $checklistData['km_out'] = $validated['km_out'] ?? null;
         $checklistData['fuel_out'] = $validated['fuel_out'] ?? null;
         $checklistData['fuel_range_km'] = $validated['fuel_range_km'] ?? null;

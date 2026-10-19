@@ -194,21 +194,49 @@
                     $localFile = $p;
                 }
 
+                $rawContent = null;
                 if ($localFile && file_exists($localFile)) {
-                    $mime = mime_content_type($localFile) ?: 'image/jpeg';
-                    $data = base64_encode(file_get_contents($localFile));
-                    $result[] = "data:{$mime};base64,{$data}";
+                    $rawContent = @file_get_contents($localFile);
                 } elseif (filter_var($p, FILTER_VALIDATE_URL)) {
                     try {
                         $ctx = stream_context_create(['http' => ['timeout' => 3]]);
-                        $imgData = @file_get_contents($p, false, $ctx);
-                        if ($imgData) {
-                            $finfo = new \finfo(FILEINFO_MIME_TYPE);
-                            $mime = $finfo->buffer($imgData) ?: 'image/jpeg';
-                            $data = base64_encode($imgData);
-                            $result[] = "data:{$mime};base64,{$data}";
-                        }
+                        $rawContent = @file_get_contents($p, false, $ctx);
                     } catch (\Throwable) {}
+                }
+
+                if ($rawContent) {
+                    $finalBytes = $rawContent;
+                    $mime = 'image/jpeg';
+
+                    if (extension_loaded('gd') && function_exists('imagecreatefromstring')) {
+                        try {
+                            $src = @imagecreatefromstring($rawContent);
+                            if ($src) {
+                                $w = imagesx($src);
+                                $h = imagesy($src);
+                                $maxW = 600;
+                                if ($w > $maxW) {
+                                    $newW = $maxW;
+                                    $newH = (int) round(($h / $w) * $newW);
+                                    $dst = imagecreatetruecolor($newW, $newH);
+                                    imagefill($dst, 0, 0, imagecolorallocate($dst, 255, 255, 255));
+                                    imagecopyresampled($dst, $src, 0, 0, 0, 0, $newW, $newH, $w, $h);
+                                    imagedestroy($src);
+                                    $src = $dst;
+                                }
+                                ob_start();
+                                imagejpeg($src, null, 75);
+                                $compressed = ob_get_clean();
+                                imagedestroy($src);
+                                if ($compressed && strlen($compressed) > 0) {
+                                    $finalBytes = $compressed;
+                                }
+                            }
+                        } catch (\Throwable) {}
+                    }
+
+                    $data = base64_encode($finalBytes);
+                    $result[] = "data:{$mime};base64,{$data}";
                 }
             }
             return $result;
@@ -216,22 +244,42 @@
 
         $embeddedPhotos = $embedFn($rawPhotos);
 
-        $rawIdPhotos = [];
+        $rawKtpPhotos = [];
+        $rawSimPhotos = [];
+        $embeddedIdPhotos = [];
+
         if ($isDelivery) {
-            $rawIdPhotos = $checklistData['identity_photos'] ?? ($booking->delivery_checklist['identity_photos'] ?? []);
-            if (empty($rawIdPhotos) && !empty($booking->customer)) {
+            $rawKtpPhotos = $checklistData['ktp_photos'] ?? ($booking->delivery_checklist['ktp_photos'] ?? []);
+            if (!is_array($rawKtpPhotos)) {
+                $rawKtpPhotos = [];
+            }
+
+            $rawSimPhotos = $checklistData['sim_photos'] ?? ($booking->delivery_checklist['sim_photos'] ?? []);
+            if (!is_array($rawSimPhotos)) {
+                $rawSimPhotos = [];
+            }
+
+            // Fallback to customer photos if neither was uploaded during checklist
+            if (empty($rawKtpPhotos) && empty($rawSimPhotos) && !empty($booking->customer)) {
                 if (!empty($booking->customer->ktp_photo)) {
-                    $rawIdPhotos[] = $booking->customer->ktp_photo;
+                    $rawKtpPhotos[] = $booking->customer->ktp_photo;
                 }
                 if (!empty($booking->customer->sim_photo)) {
-                    $rawIdPhotos[] = $booking->customer->sim_photo;
+                    $rawSimPhotos[] = $booking->customer->sim_photo;
+                }
+            }
+
+            // Fallback to legacy identity_photos array only if ktp_photos & sim_photos are empty
+            if (empty($rawKtpPhotos) && empty($rawSimPhotos)) {
+                $legacyId = $checklistData['identity_photos'] ?? ($booking->delivery_checklist['identity_photos'] ?? []);
+                if (is_array($legacyId) && !empty($legacyId)) {
+                    $embeddedIdPhotos = $embedFn(array_values(array_unique($legacyId)));
                 }
             }
         }
-        if (!is_array($rawIdPhotos)) {
-            $rawIdPhotos = [];
-        }
-        $embeddedIdPhotos = $embedFn($rawIdPhotos);
+
+        $embeddedKtpPhotos = $embedFn($rawKtpPhotos);
+        $embeddedSimPhotos = $embedFn($rawSimPhotos);
     @endphp
 
     {{-- KOP SURAT / HEADER --}}
@@ -477,9 +525,27 @@
         </div>
     </div>
 
-    {{-- KLAUSUL PERNYATAAN BAST --}}
-    <div style="border: 1px solid #9ca3af; background-color: #f9fafb; padding: 4px 6px; font-size: 8px; line-height: 1.2; color: #374151; margin-bottom: 6px;">
-        <strong>Pernyataan Bersama:</strong> Pihak Penyewa menyatakan telah memeriksa dan menerima unit kendaraan beserta kelengkapannya dalam kondisi fisik dan teknis sebagaimana tertulis pada Berita Acara ini. Pihak Penyewa bertanggung jawab penuh atas penggunaan unit kendaraan selama masa sewa sesuai ketentuan sewa menyewa PT. Cahaya Auto Nusantara.
+    {{-- SURAT PERJANJIAN & KETENTUAN SEWA MENYEWA --}}
+    <div class="section-box" style="padding: 4px 6px; font-size: 7px; line-height: 1.25; margin-bottom: 5px; page-break-inside: avoid;">
+        <div style="font-size: 8px; font-weight: bold; text-transform: uppercase; color: #000; border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 3px;">
+            Surat Perjanjian & Ketentuan Sewa Kendaraan
+        </div>
+        <div style="font-weight: bold; margin-bottom: 2px; color: #000;">
+            Dengan Ini menyatakan bahwa saya :
+        </div>
+        <ol style="margin: 0; padding-left: 14px; color: #111;">
+            <li style="margin-bottom: 1.5px;">Bersedia untuk di Survei dan menyerahkan identitas asli yaitu KTP Asli, Kartu Keluarga Asli, NPWP Asli, atau Pasport Asli (Untuk WNA) atau Jaminan Sertifikat.</li>
+            <li style="margin-bottom: 1.5px;">Tidak boleh mengendarai mobil secara ugal-ugalan/kebut-kebutan.</li>
+            <li style="margin-bottom: 1.5px;">Bersedia membayar sewa di depan saat menerima kunci mobil.</li>
+            <li style="margin-bottom: 1.5px;">Jika melebihi waktu sewa maka akan dikenakan biaya tambahan Rp.50.000/Jam.</li>
+            <li style="margin-bottom: 1.5px;">Bersedia menjaga &amp; Merawat mobil.</li>
+            <li style="margin-bottom: 1.5px;">Tidak menggunakan mobil untuk sesuatu yang melanggar hukum seperti : kejahatan, Narkoba, Buronan &amp; Teroris.</li>
+            <li style="margin-bottom: 1.5px;">Tidak boleh memindah tangankan mobil Seperti menggadaikan mobil, Menjual atau melakukan perbuatan-perbuatan lain yang akan merugikan pihak perusahaan.</li>
+            <li style="margin-bottom: 1.5px;">Jika terjadi kecelakaan dan kehilangan pada saat masa sewa, maka saya tidak akan menuntut tentang asuransi dan bersedia untuk bertanggung jawab atas kerusakan dan kehilangan unit dan tidak akan memperbaiki di bengkel manapun selain di KRIDA TOYOTA/SESUAI DENGAN MERK MOBIL/ DEALER RESMI atau bengkel yang ditunjuk oleh PT. CAHAYA AUTO NUSANTARA.</li>
+            <li style="margin-bottom: 1.5px;">Saya bersedia untuk bertanggung jawab untuk membayar sewa unit selama masa perbaikan sesuai dengan harga sewa dan mengganti kerugian sebesar Rp.500.000/ Panel.</li>
+            <li style="margin-bottom: 1.5px;">Pada saat pengembalian unit mobil, kondisi kendaraan dan bahan bakar harus sama pada posisi awal seperti saat Pertama kali mengambil mobil.</li>
+            <li style="margin-bottom: 1.5px;">Kendaraan hanya bisa digunakan di area pulau Lombok Pihak PT. CAHAYA AUTO NUSANTARA melarang penyewa untuk membawa kendaraan keluar pulau Lombok.</li>
+        </ol>
     </div>
 
     {{-- KOLOM TANDA TANGAN 3 PIHAK --}}
@@ -526,22 +592,58 @@
         </tr>
     </table>
 
-    {{-- SECTION: LAMPIRAN FOTO DOKUMENTASI --}}
-    @if(!empty($embeddedPhotos))
+    {{-- SECTION: LAMPIRAN FOTO DOKUMENTASI & IDENTITAS (KESAMPING) --}}
+    @php
+        $allAttachmentPhotos = [];
+        if (!empty($embeddedPhotos)) {
+            foreach ($embeddedPhotos as $idx => $photoSrc) {
+                $allAttachmentPhotos[] = [
+                    'src' => $photoSrc,
+                    'label' => count($embeddedPhotos) > 1 ? 'Foto Unit #' . ($idx + 1) : 'Dokumentasi Unit',
+                ];
+            }
+        }
+        if ($isDelivery && !empty($embeddedKtpPhotos)) {
+            foreach ($embeddedKtpPhotos as $idx => $photoSrc) {
+                $allAttachmentPhotos[] = [
+                    'src' => $photoSrc,
+                    'label' => count($embeddedKtpPhotos) > 1 ? 'KTP #' . ($idx + 1) : 'Foto KTP',
+                ];
+            }
+        }
+        if ($isDelivery && !empty($embeddedSimPhotos)) {
+            foreach ($embeddedSimPhotos as $idx => $photoSrc) {
+                $allAttachmentPhotos[] = [
+                    'src' => $photoSrc,
+                    'label' => count($embeddedSimPhotos) > 1 ? 'SIM #' . ($idx + 1) : 'Foto SIM',
+                ];
+            }
+        }
+        if ($isDelivery && !empty($embeddedIdPhotos)) {
+            foreach ($embeddedIdPhotos as $idx => $photoSrc) {
+                $allAttachmentPhotos[] = [
+                    'src' => $photoSrc,
+                    'label' => count($embeddedIdPhotos) > 1 ? 'Identitas #' . ($idx + 1) : 'Foto Identitas',
+                ];
+            }
+        }
+    @endphp
+
+    @if(!empty($allAttachmentPhotos))
         <div style="margin-top: 10px; border-top: 2px solid #000; padding-top: 5px; page-break-inside: avoid;">
             <div style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: #111; margin-bottom: 5px;">
-                Lampiran Foto Dokumentasi {{ $isDelivery ? 'Serah Terima' : 'Pengembalian' }} Kendaraan ({{ count($embeddedPhotos) }} Foto)
+                Lampiran Foto Dokumentasi &amp; Identitas ({{ count($allAttachmentPhotos) }} Foto)
             </div>
             <table style="width: 100%; border-collapse: collapse;">
                 <tr>
-                    @foreach($embeddedPhotos as $idx => $photoSrc)
+                    @foreach($allAttachmentPhotos as $idx => $item)
                         <td style="width: 25%; padding: 2px 4px; vertical-align: top; text-align: center;">
                             <div style="border: 1px solid #000; background-color: #f9fafb; padding: 2px;">
                                 <div style="height: 85px; width: 100%; overflow: hidden; text-align: center;">
-                                    <img src="{{ $photoSrc }}" style="max-height: 85px; max-width: 100%;" alt="Foto #{{ $idx + 1 }}">
+                                    <img src="{{ $item['src'] }}" style="max-height: 85px; max-width: 100%;" alt="{{ $item['label'] }}">
                                 </div>
-                                <div style="font-size: 7.5px; color: #4b5563; padding-top: 2px; font-weight: bold;">
-                                    Foto #{{ $idx + 1 }}
+                                <div style="font-size: 7.5px; color: #1f2937; padding-top: 2px; font-weight: bold;">
+                                    {{ $item['label'] }}
                                 </div>
                             </div>
                         </td>
@@ -550,46 +652,10 @@
                         @endif
                     @endforeach
                     @php
-                        $remainder = count($embeddedPhotos) % 4;
+                        $remainder = count($allAttachmentPhotos) % 4;
                     @endphp
                     @if($remainder > 0)
                         @for($k = 0; $k < (4 - $remainder); $k++)
-                            <td style="width: 25%;"></td>
-                        @endfor
-                    @endif
-                </tr>
-            </table>
-        </div>
-    @endif
-
-    {{-- SECTION: LAMPIRAN FOTO IDENTITAS (KTP & SIM) - Hanya Saat Serah Terima Unit --}}
-    @if($isDelivery && !empty($embeddedIdPhotos))
-        <div style="margin-top: 10px; border-top: 2px solid #000; padding-top: 5px; page-break-inside: avoid;">
-            <div style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: #111; margin-bottom: 5px;">
-                Lampiran Foto Identitas Penyewa (KTP & SIM) ({{ count($embeddedIdPhotos) }} Foto)
-            </div>
-            <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                    @foreach($embeddedIdPhotos as $idx => $photoSrc)
-                        <td style="width: 25%; padding: 2px 4px; vertical-align: top; text-align: center;">
-                            <div style="border: 1px solid #000; background-color: #f9fafb; padding: 2px;">
-                                <div style="height: 85px; width: 100%; overflow: hidden; text-align: center;">
-                                    <img src="{{ $photoSrc }}" style="max-height: 85px; max-width: 100%;" alt="Identitas #{{ $idx + 1 }}">
-                                </div>
-                                <div style="font-size: 7.5px; color: #4b5563; padding-top: 2px; font-weight: bold;">
-                                    Identitas #{{ $idx + 1 }}
-                                </div>
-                            </div>
-                        </td>
-                        @if(($idx + 1) % 4 === 0 && !$loop->last)
-                            </tr><tr>
-                        @endif
-                    @endforeach
-                    @php
-                        $remainderId = count($embeddedIdPhotos) % 4;
-                    @endphp
-                    @if($remainderId > 0)
-                        @for($k = 0; $k < (4 - $remainderId); $k++)
                             <td style="width: 25%;"></td>
                         @endfor
                     @endif
