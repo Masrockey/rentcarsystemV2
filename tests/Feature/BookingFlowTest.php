@@ -30,6 +30,10 @@ test('full rent car booking workflow', function () {
         'dropoff_location' => 'Garasi',
         'payment_method' => 'DP',
         'payment_status' => 'Down Payment',
+        'price' => 500000,
+        'duration_type' => 'Hari',
+        'duration_days' => 3,
+        'delivery_fee' => 0,
         'amount' => 1500000,
     ];
 
@@ -149,6 +153,10 @@ test('marketing can create booking with new customer on the fly', function () {
         'dropoff_location' => 'Bandara',
         'payment_method' => 'Cash',
         'payment_status' => 'Paid',
+        'price' => 600000,
+        'duration_type' => '24 Jam',
+        'duration_days' => 3,
+        'delivery_fee' => 200000,
         'amount' => 2000000,
     ];
 
@@ -330,6 +338,10 @@ test('admin sees bookings created by marketing', function () {
         'pickup_location' => 'Bandara',
         'dropoff_location' => 'Bandara',
         'payment_method' => 'Cash',
+        'price' => 600000,
+        'duration_type' => 'Hari',
+        'duration_days' => 2,
+        'delivery_fee' => 0,
         'amount' => 1200000,
     ]);
     $response->assertRedirect('/bookings');
@@ -450,4 +462,96 @@ test('server-side booking search finds data across pages and passes filters prop
         ->where('bookings.data.0.id', $targetBooking->id)
         ->where('filters.status', 'Confirmed')
     );
+});
+
+test('can render dedicated booking create page', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    Customer::create([
+        'name' => 'Alice Customer',
+        'phone' => '08123456789',
+        'address' => 'Jl. Merdeka 10',
+    ]);
+
+    $response = $this->actingAs($admin)->get('/bookings/create');
+
+    $response->assertOk();
+    $response->assertInertia(fn ($page) => $page
+        ->component('bookings/create')
+        ->has('customers')
+        ->has('carTypes')
+        ->has('marketingUsers')
+    );
+});
+
+test('can create booking with With Driver and driver fee', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $customer = Customer::create([
+        'name' => 'Driver User',
+        'phone' => '089988776655',
+    ]);
+
+    $response = $this->actingAs($admin)->post('/bookings', [
+        'user_id' => $admin->id,
+        'customer_id' => $customer->id,
+        'car_type' => 'Alphard',
+        'rental_type' => 'With Driver',
+        'price' => 1500000,
+        'duration_type' => 'Hari',
+        'duration_days' => 2,
+        'delivery_fee' => 50000,
+        'driver_fee' => 300000,
+        'booking_date' => '2026-10-25',
+        'return_date' => '2026-10-27',
+        'pickup_time' => '09:00',
+        'return_time' => '09:00',
+        'pickup_location' => 'Bandara',
+        'dropoff_location' => 'Hotel',
+        'payment_method' => 'DP',
+        'payment_status' => 'Down Payment',
+    ]);
+
+    $response->assertRedirect('/bookings');
+
+    $booking = Booking::where('customer_id', $customer->id)->first();
+    expect($booking)->not->toBeNull();
+    expect($booking->rental_type)->toBe('With Driver');
+    expect((float) $booking->driver_fee)->toBe(300000.0);
+    // (1500000 * 2) + 50000 + 300000 = 3350000
+    expect((float) $booking->amount)->toBe(3350000.0);
+});
+
+test('can create booking with DP payment method and dp_amount', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $customer = Customer::create([
+        'name' => 'DP Customer',
+        'phone' => '087711223344',
+    ]);
+
+    $response = $this->actingAs($admin)->post('/bookings', [
+        'user_id' => $admin->id,
+        'customer_id' => $customer->id,
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'price' => 350000,
+        'duration_type' => 'Hari',
+        'duration_days' => 1,
+        'delivery_fee' => 0,
+        'booking_date' => '2026-10-25',
+        'return_date' => '2026-10-26',
+        'pickup_time' => '10:00',
+        'return_time' => '10:00',
+        'pickup_location' => 'Kantor',
+        'dropoff_location' => 'Kantor',
+        'payment_method' => 'DP',
+        'dp_amount' => 100000,
+    ]);
+
+    $response->assertRedirect('/bookings');
+
+    $booking = Booking::where('customer_id', $customer->id)->first();
+    expect($booking)->not->toBeNull();
+    expect($booking->payment_method)->toBe('DP');
+    expect($booking->payment_status)->toBe('Down Payment');
+    expect((float) $booking->dp_amount)->toBe(100000.0);
+    expect((float) $booking->amount)->toBe(350000.0);
 });

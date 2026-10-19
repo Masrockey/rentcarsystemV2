@@ -209,9 +209,9 @@ test('whatsapp booking notification masks last 5 digits of customer phone number
         '*/send/message' => function (Request $request) {
             $data = $request->data();
             expect($data['phone'])->toBe('120363028192839182@g.us');
-            expect($data['message'])->toContain('Telepon: 0877603XXXXX');
+            expect($data['message'])->toContain('*Telepon:* 0877603XXXXX');
             expect($data['message'])->not->toContain('087760365455');
-            expect($data['message'])->toContain('Dibuat Oleh:');
+            expect($data['message'])->toContain('*Dibuat Oleh:*');
 
             return Http::response([
                 'status' => 200,
@@ -284,9 +284,9 @@ test('whatsapp booking notification includes creator name in Dibuat Oleh', funct
     Http::fake([
         '*/send/message' => function (Request $request) {
             $data = $request->data();
-            expect($data['message'])->toContain('Marketing: Marketing Budi');
-            expect($data['message'])->toContain('Dibuat Oleh: Admin Testing');
-            expect($data['message'])->toContain('Dibuat pada:');
+            expect($data['message'])->toContain('*Marketing:* Marketing Budi');
+            expect($data['message'])->toContain('*Dibuat Oleh:* Admin Testing');
+            expect($data['message'])->toContain('*Dibuat pada:*');
 
             return Http::response([
                 'status' => 200,
@@ -335,13 +335,71 @@ test('whatsapp booking notification includes calculated duration', function () {
     Http::fake([
         '*/send/message' => function (Request $request) {
             $data = $request->data();
-            expect($data['message'])->toContain('Durasi: 1 Hari (15 Jam)');
-            expect($data['message'])->toContain("Mulai: 20/10/2026 07:00\nSelesai: 20/10/2026 22:00\nDurasi: 1 Hari (15 Jam)");
+            expect($data['message'])->toContain('*Durasi:* 1 Hari (15 Jam)');
+            expect($data['message'])->toContain("*Mulai:* 20/10/2026 07:00\n*Selesai:* 20/10/2026 22:00\n*Durasi:* 1 Hari (15 Jam)");
 
             return Http::response([
                 'status' => 200,
                 'results' => [
                     'message_id' => 'MSG_TEST_DURASI',
+                ],
+            ], 200);
+        },
+    ]);
+
+    $result = WhatsAppService::sendNewBookingNotification($booking);
+
+    expect($result)->toBeTrue();
+});
+
+test('whatsapp booking notification formats rincian biaya and pembayaran properly', function () {
+    $setting = WaServerSetting::current();
+    $setting->update([
+        'server_url' => 'http://localhost:3000',
+        'device_id' => 'rentcars_main',
+        'target_group_jid' => '120363028192839182@g.us',
+    ]);
+
+    $customer = Customer::create([
+        'name' => 'Pak Budi',
+        'phone' => '081234567890',
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'booking_number' => 'BK-20261019-RINCI1',
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-10-20',
+        'return_date' => '2026-10-21',
+        'price' => 225000,
+        'duration_type' => 'Hari',
+        'duration_days' => 1,
+        'delivery_fee' => 0,
+        'amount' => 225000,
+        'payment_method' => 'Cash',
+        'payment_status' => 'Pending',
+        'status' => 'Pending',
+    ]);
+
+    Http::fake([
+        '*/send/message' => function (Request $request) {
+            $data = $request->data();
+            $expectedRincian = "*--- Rincian Biaya ---*\n"
+                ."1 hari x Rp 225.000 = Rp 225.000\n"
+                ."─────────────────────\n"
+                ."*TOTAL TAGIHAN =* Rp 225.000\n\n"
+                ."*--- Pembayaran ---*\n"
+                ."*Total Bayar =* Rp 0\n"
+                ."*Sisa =* Rp 225.000\n"
+                .'*Status:* Belum Bayar';
+
+            expect($data['message'])->toContain($expectedRincian);
+
+            return Http::response([
+                'status' => 200,
+                'results' => [
+                    'message_id' => 'MSG_TEST_RINCIAN',
                 ],
             ], 200);
         },
@@ -463,20 +521,20 @@ test('whatsapp delivery notification sends formatted text and pdf attachment', f
         '*/send/message' => function (Request $request) use (&$sentMessage) {
             $data = $request->data();
             expect($data['phone'])->toBe('120363028192839182@g.us');
-            expect($data['message'])->toContain('Serah Terima Unit / Unit Keluar');
-            expect($data['message'])->toContain('No. Booking: BK-20261005-NWG4CE');
-            expect($data['message'])->toContain('Customer: Bang Iskandar');
-            expect($data['message'])->toContain('Telepon: 0877603XXXXX');
+            expect($data['message'])->toContain('*Serah Terima Unit / Unit Keluar*');
+            expect($data['message'])->toContain('*No. Booking:* BK-20261005-NWG4CE');
+            expect($data['message'])->toContain('*Customer:* Bang Iskandar');
+            expect($data['message'])->toContain('*Telepon:* 0877603XXXXX');
             expect($data['message'])->not->toContain('087760365455');
-            expect($data['message'])->toContain('Type: Lepas Kunci');
-            expect($data['message'])->toContain('Nama Kendaraan: CR-V');
-            expect($data['message'])->toContain('No. Polisi: DR 1234 XY');
-            expect($data['message'])->toContain('Lokasi Antar: garasi');
-            expect($data['message'])->toContain('KM Keluar (Awal): 50000');
-            expect($data['message'])->toContain('Peluncur: Budi Peluncur');
-            expect($data['message'])->toContain('Diantar pada: 05/10/2026 22:24');
-            expect($data['message'])->toContain('Marketing: INGGAR SANJAYA');
-            expect($data['message'])->toContain('Dibuat Oleh: Admin Operasional');
+            expect($data['message'])->toContain('*Type:* Lepas Kunci');
+            expect($data['message'])->toContain('*Nama Kendaraan:* CR-V');
+            expect($data['message'])->toContain('*No. Polisi:* DR 1234 XY');
+            expect($data['message'])->toContain('*Lokasi Antar:* garasi');
+            expect($data['message'])->toContain('*KM Keluar (Awal):* 50000');
+            expect($data['message'])->toContain('*Peluncur:* Budi Peluncur');
+            expect($data['message'])->toContain('*Diantar pada:* 05/10/2026 22:24');
+            expect($data['message'])->toContain('*Marketing:* INGGAR SANJAYA');
+            expect($data['message'])->toContain('*Dibuat Oleh:* Admin Operasional');
 
             $sentMessage = true;
 
@@ -552,20 +610,20 @@ test('whatsapp return notification sends formatted text and pdf attachment', fun
         '*/send/message' => function (Request $request) use (&$sentMessage) {
             $data = $request->data();
             expect($data['phone'])->toBe('120363028192839182@g.us');
-            expect($data['message'])->toContain('Pengembalian Unit / Unit Masuk');
-            expect($data['message'])->toContain('No. Booking: BK-20261005-NWG4CE');
-            expect($data['message'])->toContain('Customer: Bang Iskandar');
-            expect($data['message'])->toContain('Telepon: 0877603XXXXX');
+            expect($data['message'])->toContain('*Pengembalian Unit / Unit Masuk*');
+            expect($data['message'])->toContain('*No. Booking:* BK-20261005-NWG4CE');
+            expect($data['message'])->toContain('*Customer:* Bang Iskandar');
+            expect($data['message'])->toContain('*Telepon:* 0877603XXXXX');
             expect($data['message'])->not->toContain('087760365455');
-            expect($data['message'])->toContain('Type: Lepas Kunci');
-            expect($data['message'])->toContain('Nama Kendaraan: CR-V');
-            expect($data['message'])->toContain('No. Polisi: DR 1234 XY');
-            expect($data['message'])->toContain('Lokasi Antar: garasi');
-            expect($data['message'])->toContain('KM Masuk (Kembali): 50350');
-            expect($data['message'])->toContain('Peluncur: Budi Peluncur');
-            expect($data['message'])->toContain('Diantar pada: 05/10/2026 22:24');
-            expect($data['message'])->toContain('Marketing: INGGAR SANJAYA');
-            expect($data['message'])->toContain('Dibuat Oleh: Petugas Lapangan');
+            expect($data['message'])->toContain('*Type:* Lepas Kunci');
+            expect($data['message'])->toContain('*Nama Kendaraan:* CR-V');
+            expect($data['message'])->toContain('*No. Polisi:* DR 1234 XY');
+            expect($data['message'])->toContain('*Lokasi Antar:* garasi');
+            expect($data['message'])->toContain('*KM Masuk (Kembali):* 50350');
+            expect($data['message'])->toContain('*Peluncur:* Budi Peluncur');
+            expect($data['message'])->toContain('*Diantar pada:* 05/10/2026 22:24');
+            expect($data['message'])->toContain('*Marketing:* INGGAR SANJAYA');
+            expect($data['message'])->toContain('*Dibuat Oleh:* Petugas Lapangan');
 
             $sentMessage = true;
 

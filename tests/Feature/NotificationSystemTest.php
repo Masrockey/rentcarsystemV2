@@ -61,6 +61,8 @@ test('marketing creating a booking notifies admins and super admins', function (
         'dropoff_location' => 'Kantor',
         'payment_method' => 'Cash',
         'payment_status' => 'Pending',
+        'price' => 250000,
+        'duration_type' => 'Hari',
         'amount' => 500000,
     ]);
 

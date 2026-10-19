@@ -198,6 +198,29 @@ class BookingController extends Controller
     }
 
     /**
+     * Show the form for creating a new resource.
+     */
+    public function create(Request $request): Response
+    {
+        $user = $request->user();
+
+        $customerQuery = Customer::orderBy('name');
+        if (! ($user->isAdmin() || $user->isPeluncur())) {
+            $customerQuery->where('user_id', $user->id);
+        }
+
+        return Inertia::render('bookings/create', [
+            'customers' => $customerQuery->get(),
+            'carTypes' => CarType::orderBy('name')->get(),
+            'marketingUsers' => User::where(function ($q) {
+                $q->whereJsonContains('roles', 'Marketing')
+                    ->orWhereJsonContains('roles', 'Admin')
+                    ->orWhereJsonContains('roles', 'Super Admin');
+            })->orderBy('name')->get(),
+        ]);
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request): RedirectResponse
@@ -218,6 +241,11 @@ class BookingController extends Controller
             'new_customer_selfie_photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'car_type' => ['required', 'string', 'max:255'],
             'rental_type' => ['required', Rule::in(['Lepas Kunci', 'With Driver'])],
+            'price' => ['required', 'numeric', 'min:0'],
+            'duration_type' => ['required', Rule::in(['Hari', '24 Jam'])],
+            'duration_days' => ['nullable', 'integer', 'min:1'],
+            'delivery_fee' => ['nullable', 'numeric', 'min:0'],
+            'driver_fee' => ['nullable', 'numeric', 'min:0'],
             'booking_date' => ['required', 'date'],
             'return_date' => ['required', 'date', 'after_or_equal:booking_date'],
             'pickup_time' => ['required', 'string', 'max:20'],
@@ -225,6 +253,7 @@ class BookingController extends Controller
             'pickup_location' => ['required', 'string', 'max:255'],
             'dropoff_location' => ['required', 'string', 'max:255'],
             'payment_method' => ['required', Rule::in(['Cash', 'Transfer', 'DP'])],
+            'dp_amount' => ['nullable', 'numeric', 'min:0'],
             'payment_status' => ['nullable', Rule::in(['Pending', 'Paid', 'Down Payment'])],
             'amount' => ['nullable', 'numeric', 'min:0'],
         ], [
@@ -232,6 +261,8 @@ class BookingController extends Controller
             'user_id.exists' => 'Marketing yang dipilih tidak valid.',
             'car_type.required' => 'Tipe mobil yang dipesan wajib diisi.',
             'rental_type.required' => 'Type sewa wajib dipilih.',
+            'price.required' => 'Kolom harga wajib diisi.',
+            'duration_type.required' => 'Pilihan hari atau 24 jam wajib dipilih.',
             'booking_date.required' => 'Tanggal sewa wajib diisi.',
             'return_date.required' => 'Tanggal balik wajib diisi.',
             'return_date.after_or_equal' => 'Tanggal balik harus sama atau setelah tanggal sewa.',
@@ -286,12 +317,29 @@ class BookingController extends Controller
             $customerId = $validated['customer_id'];
         }
 
+        $price = (float) $validated['price'];
+        $durationDays = max(1, (int) ($validated['duration_days'] ?? 1));
+        $deliveryFee = (float) ($validated['delivery_fee'] ?? 0);
+        $driverFee = ($validated['rental_type'] === 'With Driver') ? (float) ($validated['driver_fee'] ?? 0) : 0;
+        $calculatedAmount = ($price * $durationDays) + $deliveryFee + $driverFee;
+        $amount = (! empty($validated['amount']) && (float) $validated['amount'] > 0)
+            ? (float) $validated['amount']
+            : $calculatedAmount;
+
+        $dpAmount = ($validated['payment_method'] === 'DP') ? (float) ($validated['dp_amount'] ?? 0) : 0;
+        $paymentStatus = ($validated['payment_method'] === 'DP') ? 'Down Payment' : ($validated['payment_status'] ?? 'Pending');
+
         $bookingNumber = 'BK-'.date('Ymd').'-'.strtoupper(Str::random(6));
         $booking = Booking::create([
             'user_id' => $userId,
             'customer_id' => $customerId,
             'car_type' => $validated['car_type'],
             'rental_type' => $validated['rental_type'] ?? 'Lepas Kunci',
+            'price' => $price,
+            'duration_type' => $validated['duration_type'],
+            'duration_days' => $durationDays,
+            'delivery_fee' => $deliveryFee,
+            'driver_fee' => $driverFee,
             'booking_date' => $validated['booking_date'],
             'return_date' => $validated['return_date'] ?? null,
             'pickup_time' => $validated['pickup_time'] ?? null,
@@ -299,8 +347,9 @@ class BookingController extends Controller
             'pickup_location' => $validated['pickup_location'] ?? null,
             'dropoff_location' => $validated['dropoff_location'] ?? null,
             'payment_method' => $validated['payment_method'],
-            'payment_status' => $validated['payment_status'] ?? 'Pending',
-            'amount' => $validated['amount'] ?? 0,
+            'payment_status' => $paymentStatus,
+            'dp_amount' => $dpAmount,
+            'amount' => $amount,
             'booking_number' => $bookingNumber,
             'status' => 'Pending',
         ]);
@@ -361,6 +410,11 @@ class BookingController extends Controller
             'customer_id' => ['nullable', 'exists:customers,id'],
             'car_type' => ['nullable', 'string', 'max:255'],
             'rental_type' => ['nullable', Rule::in(['Lepas Kunci', 'With Driver'])],
+            'price' => ['nullable', 'numeric', 'min:0'],
+            'duration_type' => ['nullable', Rule::in(['Hari', '24 Jam'])],
+            'duration_days' => ['nullable', 'integer', 'min:1'],
+            'delivery_fee' => ['nullable', 'numeric', 'min:0'],
+            'driver_fee' => ['nullable', 'numeric', 'min:0'],
             'booking_date' => ['nullable', 'date'],
             'return_date' => ['nullable', 'date', 'after_or_equal:booking_date'],
             'pickup_time' => ['nullable', 'string', 'max:20'],
@@ -368,6 +422,7 @@ class BookingController extends Controller
             'pickup_location' => ['nullable', 'string', 'max:255'],
             'dropoff_location' => ['nullable', 'string', 'max:255'],
             'payment_method' => ['nullable', Rule::in(['Cash', 'Transfer', 'DP'])],
+            'dp_amount' => ['nullable', 'numeric', 'min:0'],
             'car_id' => ['nullable', 'exists:cars,id'],
             'driver_id' => ['nullable', 'exists:drivers,id'],
             'peluncur_id' => ['nullable', 'exists:users,id'],
@@ -379,6 +434,19 @@ class BookingController extends Controller
         ]);
 
         $updateData = array_filter($validated, fn ($val) => $val !== null);
+
+        if (isset($updateData['payment_method']) && $updateData['payment_method'] === 'DP' && ! isset($updateData['payment_status'])) {
+            $updateData['payment_status'] = 'Down Payment';
+        }
+
+        if (isset($updateData['price']) && ! isset($updateData['amount'])) {
+            $price = (float) $updateData['price'];
+            $days = (int) ($updateData['duration_days'] ?? $booking->duration_days ?? 1);
+            $fee = (float) ($updateData['delivery_fee'] ?? $booking->delivery_fee ?? 0);
+            $rentalType = $updateData['rental_type'] ?? $booking->rental_type;
+            $driverFee = ($rentalType === 'With Driver') ? (float) ($updateData['driver_fee'] ?? $booking->driver_fee ?? 0) : 0;
+            $updateData['amount'] = ($price * $days) + $fee + $driverFee;
+        }
 
         // Only Super Admin can manually override booking status from edit booking form
         if (! $request->user()->isSuperAdmin()) {

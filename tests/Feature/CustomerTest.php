@@ -132,6 +132,8 @@ test('creating customer inline in booking associates with the booking user', fun
         'dropoff_location' => 'Garasi',
         'payment_method' => 'Cash',
         'payment_status' => 'Paid',
+        'price' => 500000,
+        'duration_type' => 'Hari',
     ]);
 
     $response->assertRedirect(route('bookings.index'));
@@ -317,6 +319,8 @@ test('booking cannot be created with duplicate inline customer and displays mark
         'pickup_location' => 'Garasi',
         'dropoff_location' => 'Garasi',
         'payment_method' => 'Cash',
+        'price' => 500000,
+        'duration_type' => 'Hari',
     ])->assertSessionHasErrors(['new_customer_name' => 'Nama customer sudah terdaftar untuk customer lain dengan marketing Agus Marketing. Silakan hubungi admin atau marketing yang bersangkutan.']);
 
     $this->post(route('bookings.store'), [
@@ -331,6 +335,8 @@ test('booking cannot be created with duplicate inline customer and displays mark
         'pickup_location' => 'Garasi',
         'dropoff_location' => 'Garasi',
         'payment_method' => 'Cash',
+        'price' => 500000,
+        'duration_type' => 'Hari',
     ])->assertSessionHasErrors(['new_customer_nik' => 'NIK sudah terdaftar untuk customer lain dengan marketing Agus Marketing. Silakan hubungi admin atau marketing yang bersangkutan.']);
 });
 

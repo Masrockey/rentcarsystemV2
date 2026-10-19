@@ -24,6 +24,10 @@ test('marketing user can create booking with inline new customer via API', funct
         'pickup_location' => 'Bandara Soekarno Hatta',
         'dropoff_location' => 'Hotel Indonesia',
         'payment_method' => 'Transfer',
+        'price' => 500000,
+        'duration_type' => 'Hari',
+        'duration_days' => 3,
+        'delivery_fee' => 0,
         'amount' => 1500000,
     ]);
 

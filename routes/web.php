@@ -46,7 +46,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Bookings & Workflows
     Route::get('bookings/export', [BookingController::class, 'export'])->name('bookings.export');
-    Route::resource('bookings', BookingController::class)->only(['index', 'store', 'update', 'destroy']);
+    Route::resource('bookings', BookingController::class)->only(['index', 'create', 'store', 'update', 'destroy']);
     Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel');
     Route::get('bookings/{booking}/checklist', [BookingController::class, 'showChecklist'])->name('bookings.checklist');
     Route::post('bookings/{booking}/delivery', [BookingController::class, 'submitDelivery'])->name('bookings.delivery');

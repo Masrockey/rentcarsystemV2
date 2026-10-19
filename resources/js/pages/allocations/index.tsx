@@ -903,9 +903,11 @@ export default function AllocationsIndex({
                                                 <div>
                                                     <span className="font-semibold text-foreground">Nama Marketing:</span> {b.user?.name ?? 'Admin / System'}
                                                 </div>
-                                                <div>
-                                                    <span className="font-semibold text-foreground">Staf:</span> Supir: {b.driver?.name ?? '-'}, Peluncur: {b.peluncur?.name ?? '-'}, Cuci: {b.petugas_cuci?.name ?? '-'}
-                                                </div>
+                                                {b.rental_type === 'With Driver' && (
+                                                    <div>
+                                                        <span className="font-semibold text-foreground">Supir:</span> {b.driver?.name ?? <span className="text-red-500 font-semibold italic">Belum Dialokasi</span>}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="flex items-center justify-end gap-2 pt-2 border-t mt-1">
                                                 {!b.car_id ? (
@@ -1014,20 +1016,14 @@ export default function AllocationsIndex({
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-4 text-xs space-y-0.5">
-                                                        {b.rental_type === 'With Driver' && (
+                                                        {b.rental_type === 'With Driver' ? (
                                                             <div>
                                                                 <span className="font-medium text-muted-foreground">Supir:</span>{' '}
                                                                 {b.driver ? <span className="font-semibold">{b.driver.name}</span> : <span className="text-red-500 font-bold italic">Belum Dialokasi</span>}
                                                             </div>
+                                                        ) : (
+                                                            <span className="text-muted-foreground italic">Lepas Kunci</span>
                                                         )}
-                                                        <div>
-                                                            <span className="font-medium text-muted-foreground">Peluncur:</span>{' '}
-                                                            {b.peluncur ? b.peluncur.name : <span className="text-muted-foreground italic">Belum ada</span>}
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium text-muted-foreground">Petugas Cuci:</span>{' '}
-                                                            {b.petugas_cuci ? b.petugas_cuci.name : <span className="text-muted-foreground italic">Belum ada</span>}
-                                                        </div>
                                                     </td>
                                                     <td className="px-4 py-4 text-xs">
                                                         <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground">
@@ -1327,50 +1323,19 @@ export default function AllocationsIndex({
                                     </div>
                                 )}
 
-                                <div className="space-y-1">
-                                    <Label htmlFor="peluncur_id">Penugasan Petugas Peluncur (Serah Terima)</Label>
-                                    <Select
-                                        value={assignData.peluncur_id}
-                                        onValueChange={(val) => setAssignData('peluncur_id', val)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Pilih Petugas Peluncur" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {peluncurOfficers.map((p) => (
-                                                <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+
 
                                 <div className="space-y-1">
                                     <Label htmlFor="assign_amount">Harga / Tarif Sewa (Rp)</Label>
                                     <Input
                                         id="assign_amount"
                                         type="number"
-                                        min={0}
                                         value={assignData.amount}
-                                        onChange={(e) => setAssignData('amount', e.target.value)}
-                                        placeholder="Masukkan harga/tarif sewa..."
+                                        readOnly
+                                        disabled
+                                        className="bg-muted text-muted-foreground cursor-not-allowed select-none font-medium"
+                                        placeholder="Harga/tarif sewa..."
                                     />
-                                </div>
-
-                                <div className="space-y-1">
-                                    <Label htmlFor="petugas_cuci_id">Penugasan Petugas Cuci (Pasca Kembali)</Label>
-                                    <Select
-                                        value={assignData.petugas_cuci_id}
-                                        onValueChange={(val) => setAssignData('petugas_cuci_id', val)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Pilih Petugas Cuci" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {washOfficers.map((w) => (
-                                                <SelectItem key={w.id} value={w.id.toString()}>{w.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
                                 </div>
 
                                 <DialogFooter className="pt-4">

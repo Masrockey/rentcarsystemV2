@@ -608,7 +608,7 @@ class WhatsAppService
                 return false;
             }
 
-            $booking->loadMissing(['customer', 'user', 'car']);
+            $booking->loadMissing(['customer', 'user', 'car', 'payment']);
 
             $customerName = $booking->customer?->name ?? '-';
             $rawPhone = trim($booking->customer?->phone ?? '');
@@ -638,27 +638,96 @@ class WhatsAppService
             $createdByName = auth()->user()?->name ?? $booking->user?->name ?? 'System';
             $createdAt = $booking->created_at ? $booking->created_at->format('d/m/Y H:i') : now()->format('d/m/Y H:i');
 
+            // Format Rincian Biaya & Pembayaran
+            $durationDays = max(1, (int) ($booking->duration_days ?: 1));
+            $durationType = $booking->duration_type ?? 'Hari';
+            $unitLabel = ($durationType === '24 Jam') ? 'x 24 jam' : 'hari';
+
+            $price = (float) ($booking->price ?? 0);
+            $deliveryFee = (float) ($booking->delivery_fee ?? 0);
+            $driverFee = (float) ($booking->driver_fee ?? 0);
+
+            if ($price <= 0 && (float) ($booking->amount ?? 0) > 0) {
+                $calculatedSubtotal = max(0, (float) $booking->amount - $deliveryFee - $driverFee);
+                $price = $durationDays > 0 ? ($calculatedSubtotal / $durationDays) : $calculatedSubtotal;
+            }
+
+            $subtotal = $price * $durationDays;
+            $totalTagihan = ($booking->amount && (float) $booking->amount > 0)
+                ? (float) $booking->amount
+                : ($subtotal + $deliveryFee + $driverFee);
+
+            $formattedPrice = number_format($price, 0, ',', '.');
+            $formattedSubtotal = number_format($subtotal, 0, ',', '.');
+            $formattedTotalTagihan = number_format($totalTagihan, 0, ',', '.');
+
+            $totalBayar = 0;
+            if ($booking->payment) {
+                if ($booking->payment->status === 'Lunas') {
+                    $totalBayar = $totalTagihan;
+                } elseif ($booking->payment->status === 'DP Dibayar') {
+                    $totalBayar = (float) $booking->payment->dp_amount;
+                }
+            } elseif ($booking->payment_status === 'Paid') {
+                $totalBayar = $totalTagihan;
+            } elseif ($booking->dp_amount && (float) $booking->dp_amount > 0) {
+                $totalBayar = (float) $booking->dp_amount;
+            }
+
+            $sisa = max(0, $totalTagihan - $totalBayar);
+            $formattedTotalBayar = number_format($totalBayar, 0, ',', '.');
+            $formattedSisa = number_format($sisa, 0, ',', '.');
+
+            $statusBayar = match ($booking->payment?->status ?? $booking->payment_status) {
+                'Lunas', 'Paid' => 'Lunas',
+                'DP Dibayar', 'Down Payment' => 'DP Dibayar',
+                default => ($totalBayar > 0 ? 'DP Dibayar' : 'Belum Bayar'),
+            };
+
+            $rincianBiayaText = "*--- Rincian Biaya ---*\n"
+                ."{$durationDays} {$unitLabel} x Rp {$formattedPrice} = Rp {$formattedSubtotal}\n";
+
+            if ($deliveryFee > 0) {
+                $formattedDeliveryFee = number_format($deliveryFee, 0, ',', '.');
+                $rincianBiayaText .= "*Fee Pengantaran =* Rp {$formattedDeliveryFee}\n";
+            }
+
+            if ($driverFee > 0) {
+                $formattedDriverFee = number_format($driverFee, 0, ',', '.');
+                $rincianBiayaText .= "*Fee Driver =* Rp {$formattedDriverFee}\n";
+            }
+
+            $rincianBiayaText .= "─────────────────────\n"
+                ."*TOTAL TAGIHAN =* Rp {$formattedTotalTagihan}\n\n";
+
+            $pembayaranText = "*--- Pembayaran ---*\n"
+                ."*Total Bayar =* Rp {$formattedTotalBayar}\n"
+                ."*Sisa =* Rp {$formattedSisa}\n"
+                ."*Status:* {$statusBayar}\n\n";
+
             $message = "━━━━━━━━━━━━━━━━━━━━\n"
-                ."PT. Cahaya Auto Nusantara\n"
-                ."DETAIL BOOKING\n"
+                ."*PT. Cahaya Auto Nusantara*\n"
+                ."*DETAIL BOOKING*\n"
                 ."━━━━━━━━━━━━━━━━━━━━\n"
-                ."No. Booking: {$booking->booking_number}\n"
-                ."Customer: {$customerName}\n"
-                ."Telepon: {$customerPhone}\n"
-                ."Type: {$rentalType}\n\n"
-                ."--- Kendaraan ---\n"
-                ."Mobil: {$carType}\n\n"
-                ."--- Waktu Sewa ---\n"
-                ."Mulai: {$mulai}\n"
-                ."Selesai: {$selesai}\n"
-                ."Durasi: {$durasi}\n"
-                ."Lokasi Pengambilan: {$pickupLocation}\n"
-                ."Lokasi Pengembalian: {$dropoffLocation}\n\n"
-                ."--- Marketing ---\n"
-                ."Marketing: {$marketingName}\n"
-                ."Telepon: {$marketingPhone}\n\n"
-                ."Dibuat pada: {$createdAt}\n"
-                ."Dibuat Oleh: {$createdByName}\n"
+                ."*No. Booking:* {$booking->booking_number}\n"
+                ."*Customer:* {$customerName}\n"
+                ."*Telepon:* {$customerPhone}\n"
+                ."*Type:* {$rentalType}\n\n"
+                ."*--- Kendaraan ---*\n"
+                ."*Mobil:* {$carType}\n\n"
+                ."*--- Waktu Sewa ---*\n"
+                ."*Mulai:* {$mulai}\n"
+                ."*Selesai:* {$selesai}\n"
+                ."*Durasi:* {$durasi}\n"
+                ."*Lokasi Pengambilan:* {$pickupLocation}\n"
+                ."*Lokasi Pengembalian:* {$dropoffLocation}\n\n"
+                .$rincianBiayaText
+                .$pembayaranText
+                ."*--- Marketing ---*\n"
+                ."*Marketing:* {$marketingName}\n"
+                ."*Telepon:* {$marketingPhone}\n\n"
+                ."*Dibuat pada:* {$createdAt}\n"
+                ."*Dibuat Oleh:* {$createdByName}\n"
                 .'━━━━━━━━━━━━━━━━━━━━';
 
             $waService = new self($setting);
@@ -768,23 +837,23 @@ class WhatsAppService
             $dibuatOleh = $officerName ?? auth()->user()?->name ?? 'Petugas';
 
             $message = "━━━━━━━━━━━━━━━━━━━━\n"
-                ."PT. Cahaya Auto Nusantara\n"
-                ."Serah Terima Unit / Unit Keluar\n"
+                ."*PT. Cahaya Auto Nusantara*\n"
+                ."*Serah Terima Unit / Unit Keluar*\n"
                 ."━━━━━━━━━━━━━━━━━━━━\n"
-                ."No. Booking: {$booking->booking_number}\n"
-                ."Customer: {$customerName}\n"
-                ."Telepon: {$customerPhone}\n"
-                ."Type: {$rentalType}\n\n"
-                ."--- Kendaraan ---\n"
-                ."Nama Kendaraan: {$carName}\n"
-                ."No. Polisi: {$plateNumber}\n"
-                ."Lokasi Antar: {$lokasiAntar}\n"
-                ."KM Keluar (Awal): {$kmKeluar}\n\n"
-                ."--- Petugas ---\n"
-                ."Peluncur: {$peluncurName}\n"
-                ."Diantar pada: {$diantarPada}\n\n"
-                ."Marketing: {$marketingName}\n"
-                ."Dibuat Oleh: {$dibuatOleh}\n"
+                ."*No. Booking:* {$booking->booking_number}\n"
+                ."*Customer:* {$customerName}\n"
+                ."*Telepon:* {$customerPhone}\n"
+                ."*Type:* {$rentalType}\n\n"
+                ."*--- Kendaraan ---*\n"
+                ."*Nama Kendaraan:* {$carName}\n"
+                ."*No. Polisi:* {$plateNumber}\n"
+                ."*Lokasi Antar:* {$lokasiAntar}\n"
+                ."*KM Keluar (Awal):* {$kmKeluar}\n\n"
+                ."*--- Petugas ---*\n"
+                ."*Peluncur:* {$peluncurName}\n"
+                ."*Diantar pada:* {$diantarPada}\n\n"
+                ."*Marketing:* {$marketingName}\n"
+                ."*Dibuat Oleh:* {$dibuatOleh}\n"
                 .'━━━━━━━━━━━━━━━━━━━━';
 
             $waService = new self($setting);
@@ -877,23 +946,23 @@ class WhatsAppService
             $dibuatOleh = $officerName ?? auth()->user()?->name ?? 'Petugas';
 
             $message = "━━━━━━━━━━━━━━━━━━━━\n"
-                ."PT. Cahaya Auto Nusantara\n"
-                ."Pengembalian Unit / Unit Masuk\n"
+                ."*PT. Cahaya Auto Nusantara*\n"
+                ."*Pengembalian Unit / Unit Masuk*\n"
                 ."━━━━━━━━━━━━━━━━━━━━\n"
-                ."No. Booking: {$booking->booking_number}\n"
-                ."Customer: {$customerName}\n"
-                ."Telepon: {$customerPhone}\n"
-                ."Type: {$rentalType}\n\n"
-                ."--- Kendaraan ---\n"
-                ."Nama Kendaraan: {$carName}\n"
-                ."No. Polisi: {$plateNumber}\n"
-                ."Lokasi Antar: {$lokasiAntar}\n"
-                ."KM Masuk (Kembali): {$kmMasuk}\n\n"
-                ."--- Petugas ---\n"
-                ."Peluncur: {$peluncurName}\n"
-                ."Diantar pada: {$diantarPada}\n\n"
-                ."Marketing: {$marketingName}\n"
-                ."Dibuat Oleh: {$dibuatOleh}\n"
+                ."*No. Booking:* {$booking->booking_number}\n"
+                ."*Customer:* {$customerName}\n"
+                ."*Telepon:* {$customerPhone}\n"
+                ."*Type:* {$rentalType}\n\n"
+                ."*--- Kendaraan ---*\n"
+                ."*Nama Kendaraan:* {$carName}\n"
+                ."*No. Polisi:* {$plateNumber}\n"
+                ."*Lokasi Antar:* {$lokasiAntar}\n"
+                ."*KM Masuk (Kembali):* {$kmMasuk}\n\n"
+                ."*--- Petugas ---*\n"
+                ."*Peluncur:* {$peluncurName}\n"
+                ."*Diantar pada:* {$diantarPada}\n\n"
+                ."*Marketing:* {$marketingName}\n"
+                ."*Dibuat Oleh:* {$dibuatOleh}\n"
                 .'━━━━━━━━━━━━━━━━━━━━';
 
             $waService = new self($setting);

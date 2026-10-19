@@ -95,6 +95,12 @@ type Booking = {
     dropoff_location?: string | null;
     payment_method: 'Cash' | 'Transfer' | 'DP';
     payment_status: 'Pending' | 'Paid' | 'Down Payment';
+    price?: number | null;
+    duration_type?: 'Hari' | '24 Jam' | string;
+    duration_days?: number | null;
+    delivery_fee?: number | null;
+    driver_fee?: number | null;
+    dp_amount?: number | null;
     amount: number;
     status: 'Pending' | 'Confirmed' | 'On Trip' | 'Returned' | 'Completed' | 'Cancelled';
     cancellation_reason?: string | null;
@@ -167,15 +173,12 @@ export default function BookingsIndex({
         only: ['bookings', 'readyCars', 'readyDrivers'],
     });
 
-    const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isAssignOpen, setIsAssignOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [deleteBookingId, setDeleteBookingId] = useState<number | null>(null);
     const [cancelBooking, setCancelBooking] = useState<Booking | null>(null);
     const [cancelReason, setCancelReason] = useState('');
     const [isCancelling, setIsCancelling] = useState(false);
-    const [isNewCustomer, setIsNewCustomer] = useState(false);
-    const [isCustomCarType, setIsCustomCarType] = useState(false);
     const [washConfirmId, setWashConfirmId] = useState<number | null>(null);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [tripLogBooking, setTripLogBooking] = useState<Booking | null>(null);
@@ -365,22 +368,16 @@ export default function BookingsIndex({
         }));
     }, [carTypes]);
 
-    const { data: createData, setData: setCreateData, post: postCreate, reset: resetCreate, processing: processingCreate, errors: errorsCreate } = useForm({
+    const { data: editData, setData: setEditData, put: putEdit, processing: processingEdit, errors: errorsEdit, transform: transformEdit } = useForm({
         user_id: '',
         customer_id: '',
-        new_customer_name: '',
-        new_customer_nik: '',
-        new_customer_phone: '',
-        new_customer_email: '',
-        new_customer_emergency_contact: '',
-        new_customer_address: '',
-        new_customer_sim_number: '',
-        new_customer_sim_expiry: '',
-        new_customer_ktp_photo: null as File | null,
-        new_customer_sim_photo: null as File | null,
-        new_customer_selfie_photo: null as File | null,
         car_type: '',
         rental_type: 'Lepas Kunci' as 'Lepas Kunci' | 'With Driver',
+        price: '',
+        duration_type: 'Hari' as 'Hari' | '24 Jam',
+        duration_days: '1',
+        delivery_fee: '',
+        driver_fee: '',
         booking_date: '',
         return_date: '',
         pickup_time: '',
@@ -388,22 +385,7 @@ export default function BookingsIndex({
         pickup_location: '',
         dropoff_location: '',
         payment_method: 'Cash',
-        payment_status: 'Pending',
-        amount: '0',
-    });
-
-    const { data: editData, setData: setEditData, put: putEdit, processing: processingEdit, errors: errorsEdit } = useForm({
-        user_id: '',
-        customer_id: '',
-        car_type: '',
-        rental_type: 'Lepas Kunci' as 'Lepas Kunci' | 'With Driver',
-        booking_date: '',
-        return_date: '',
-        pickup_time: '',
-        return_time: '',
-        pickup_location: '',
-        dropoff_location: '',
-        payment_method: 'Cash',
+        dp_amount: '',
         payment_status: 'Pending',
         amount: '0',
         status: 'Pending',
@@ -418,16 +400,59 @@ export default function BookingsIndex({
         amount: '',
     });
 
-    const openCreateDialog = () => {
-        resetCreate();
-        setIsNewCustomer(false);
-        setIsCustomCarType(false);
-        setCreateData((prev) => ({
-            ...prev,
-            user_id: '',
-            customer_id: customers.length > 0 ? customers[0].id.toString() : '',
-        }));
-        setIsCreateOpen(true);
+    const handleEditBookingDateChange = (val: string) => {
+        const days = parseInt(editData.duration_days, 10) || 1;
+        if (val) {
+            const start = new Date(val);
+            const end = new Date(start);
+            end.setDate(start.getDate() + days);
+            const yyyy = end.getFullYear();
+            const mm = String(end.getMonth() + 1).padStart(2, '0');
+            const dd = String(end.getDate()).padStart(2, '0');
+            setEditData((prev) => ({
+                ...prev,
+                booking_date: val,
+                return_date: `${yyyy}-${mm}-${dd}`,
+            }));
+        } else {
+            setEditData('booking_date', val);
+        }
+    };
+
+    const handleEditReturnDateChange = (val: string) => {
+        if (editData.booking_date && val) {
+            const start = new Date(editData.booking_date);
+            const end = new Date(val);
+            const diffMs = end.getTime() - start.getTime();
+            const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+            const calculatedDays = diffDays <= 0 ? 1 : diffDays;
+            setEditData((prev) => ({
+                ...prev,
+                return_date: val,
+                duration_days: calculatedDays.toString(),
+            }));
+        } else {
+            setEditData('return_date', val);
+        }
+    };
+
+    const handleEditDurationDaysChange = (val: string) => {
+        const days = parseInt(val, 10);
+        if (!isNaN(days) && days > 0 && editData.booking_date) {
+            const start = new Date(editData.booking_date);
+            const end = new Date(start);
+            end.setDate(start.getDate() + days);
+            const yyyy = end.getFullYear();
+            const mm = String(end.getMonth() + 1).padStart(2, '0');
+            const dd = String(end.getDate()).padStart(2, '0');
+            setEditData((prev) => ({
+                ...prev,
+                duration_days: val,
+                return_date: `${yyyy}-${mm}-${dd}`,
+            }));
+        } else {
+            setEditData('duration_days', val);
+        }
     };
 
     const openEditDialog = (booking: Booking) => {
@@ -437,6 +462,11 @@ export default function BookingsIndex({
             customer_id: booking.customer_id ? booking.customer_id.toString() : '',
             car_type: booking.car_type || '',
             rental_type: (booking.rental_type as any) || 'Lepas Kunci',
+            price: booking.price ? booking.price.toString() : (booking.amount ? booking.amount.toString() : ''),
+            duration_type: (booking.duration_type as any) || 'Hari',
+            duration_days: booking.duration_days ? booking.duration_days.toString() : '1',
+            delivery_fee: booking.delivery_fee ? booking.delivery_fee.toString() : '0',
+            driver_fee: booking.driver_fee ? booking.driver_fee.toString() : '0',
             booking_date: booking.booking_date || '',
             return_date: booking.return_date || '',
             pickup_time: booking.pickup_time ? booking.pickup_time.substring(0, 5) : '',
@@ -444,6 +474,7 @@ export default function BookingsIndex({
             pickup_location: booking.pickup_location || '',
             dropoff_location: booking.dropoff_location || '',
             payment_method: booking.payment_method || 'Cash',
+            dp_amount: booking.dp_amount ? booking.dp_amount.toString() : '0',
             payment_status: booking.payment_status || 'Pending',
             amount: booking.amount ? booking.amount.toString() : '0',
             status: booking.status || 'Pending',
@@ -467,22 +498,25 @@ export default function BookingsIndex({
     const handleEditSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (selectedBooking) {
+            transformEdit((data) => {
+                const p = parseFloat(data.price) || 0;
+                const d = parseInt(data.duration_days, 10) || 1;
+                const f = parseFloat(data.delivery_fee) || 0;
+                const df = data.rental_type === 'With Driver' ? (parseFloat(data.driver_fee) || 0) : 0;
+                return {
+                    ...data,
+                    amount: p > 0 ? ((p * d) + f + df).toString() : data.amount,
+                    driver_fee: data.rental_type === 'With Driver' ? data.driver_fee : '0',
+                    dp_amount: data.payment_method === 'DP' ? data.dp_amount : '0',
+                    payment_status: data.payment_method === 'DP' ? 'Down Payment' : data.payment_status,
+                };
+            });
             putEdit(`/bookings/${selectedBooking.id}`, {
                 onSuccess: () => {
                     setIsEditOpen(false);
                 },
             });
         }
-    };
-
-    const handleCreateSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        postCreate('/bookings', {
-            onSuccess: () => {
-                setIsCreateOpen(false);
-                resetCreate();
-            },
-        });
     };
 
     const handleAssignSubmit = (e: React.FormEvent) => {
@@ -743,8 +777,10 @@ export default function BookingsIndex({
                             Export Excel (.xlsx)
                         </Button>
                         {(hasRole('Marketing') || hasRole('Admin')) && (
-                            <Button onClick={openCreateDialog} className="flex items-center gap-1 h-9">
-                                <Plus className="h-4 w-4" /> Tambah Booking
+                            <Button asChild className="flex items-center gap-1 h-9">
+                                <Link href="/bookings/create">
+                                    <Plus className="h-4 w-4" /> Tambah Booking
+                                </Link>
                             </Button>
                         )}
                     </div>
@@ -1016,13 +1052,19 @@ export default function BookingsIndex({
                                                         <span className="font-semibold text-foreground">Lokasi:</span> {booking.pickup_location ? `Jemput: ${booking.pickup_location}` : ''} {booking.dropoff_location ? `| Antar: ${booking.dropoff_location}` : ''}
                                                     </div>
                                                 )}
-                                                <div><span className="font-semibold text-foreground">Pembayaran:</span> {formatCurrency(booking.amount)} ({booking.payment_status} via {booking.payment_method})</div>
                                                 <div>
-                                                    <span className="font-semibold text-foreground">Penugasan Staf:</span> Peluncur: {booking.peluncur?.name ?? 'Belum ada'}, Wash: {booking.petugas_cuci?.name ?? 'Belum ada'}
-                                                    {booking.rental_type === 'With Driver' && (
-                                                        <span>, Supir: {booking.driver?.name ?? <span className="text-red-500 font-semibold italic">Belum Dialokasi</span>}</span>
+                                                    <span className="font-semibold text-foreground">Pembayaran:</span> {formatCurrency(booking.amount)} ({booking.payment_status} via {booking.payment_method})
+                                                    {booking.payment_method === 'DP' && Number(booking.dp_amount) > 0 && (
+                                                        <span className="text-amber-600 dark:text-amber-400 ml-1 font-medium">
+                                                            [DP: {formatCurrency(Number(booking.dp_amount))}]
+                                                        </span>
                                                     )}
                                                 </div>
+                                                {booking.rental_type === 'With Driver' && (
+                                                    <div>
+                                                        <span className="font-semibold text-foreground">Supir:</span> {booking.driver?.name ?? <span className="text-red-500 font-semibold italic">Belum Dialokasi</span>}
+                                                    </div>
+                                                )}
                                                 {(hasRole('Admin') || hasRole('Super Admin')) && (
                                                     <div><span className="font-semibold text-foreground">Marketing:</span> <span className="font-medium text-foreground">{booking.user?.name ?? 'Admin / System'}</span></div>
                                                 )}
@@ -1194,15 +1236,20 @@ export default function BookingsIndex({
                                                         <Badge variant="outline" className={`mt-1 text-[10px] ${getPaymentStatusColor(booking.payment_status)}`}>
                                                             {booking.payment_status} ({booking.payment_method})
                                                         </Badge>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-xs">
-                                                        {booking.rental_type === 'With Driver' && (
-                                                            <div className="mb-1 font-medium">
-                                                                Supir: {booking.driver ? <span className="font-semibold text-foreground">{booking.driver.name}</span> : <span className="text-red-500 italic font-semibold">Belum Dialokasi</span>}
+                                                        {booking.payment_method === 'DP' && Number(booking.dp_amount) > 0 && (
+                                                            <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
+                                                                DP: {formatCurrency(Number(booking.dp_amount))}
                                                             </div>
                                                         )}
-                                                        <div>Peluncur: {booking.peluncur ? booking.peluncur.name : <span className="text-muted-foreground italic">Belum ada</span>}</div>
-                                                        <div className="mt-1">Wash: {booking.petugas_cuci ? booking.petugas_cuci.name : <span className="text-muted-foreground italic">Belum ada</span>}</div>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-xs">
+                                                        {booking.rental_type === 'With Driver' ? (
+                                                            <div className="font-medium">
+                                                                Supir: {booking.driver ? <span className="font-semibold text-foreground">{booking.driver.name}</span> : <span className="text-red-500 italic font-semibold">Belum Dialokasi</span>}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-muted-foreground italic">Lepas Kunci</span>
+                                                        )}
                                                     </td>
                                                     {(hasRole('Admin') || hasRole('Super Admin')) && (
                                                         <td className="px-4 py-4 text-xs">
@@ -1333,425 +1380,6 @@ export default function BookingsIndex({
                     </CardContent>
                 </Card>
 
-                {/* CREATE BOOKING DIALOG */}
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogContent className={isNewCustomer ? "max-w-xl max-h-[90vh] overflow-y-auto" : "max-w-md"}>
-                        <DialogHeader>
-                            <h2 className="text-lg font-semibold">Tambah Booking Sewa</h2>
-                        </DialogHeader>
-                        <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
-                            {hasRole('Admin') && (
-                                <div className="space-y-1">
-                                    <Label htmlFor="create_user_id" className="text-xs font-semibold">
-                                        Nama Marketing <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                        value={createData.user_id}
-                                        onValueChange={(val) => setCreateData('user_id', val)}
-                                    >
-                                        <SelectTrigger id="create_user_id" className={`h-9 ${errorsCreate.user_id ? 'border-destructive' : ''}`}>
-                                            <SelectValue placeholder="Pilih Marketing..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {marketingUsers.map((m) => (
-                                                <SelectItem key={m.id} value={m.id.toString()}>
-                                                    {m.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {errorsCreate.user_id && (
-                                        <p className="text-xs text-destructive font-medium">{errorsCreate.user_id}</p>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="customer_id" className="text-xs font-semibold">
-                                        {isNewCustomer ? 'Customer Baru' : 'Pilih Customer'} <span className="text-red-500">*</span>
-                                    </Label>
-                                    <button
-                                        type="button"
-                                        className="text-xs text-primary hover:underline font-medium focus:outline-none"
-                                        onClick={() => {
-                                            const nextState = !isNewCustomer;
-                                            setIsNewCustomer(nextState);
-                                            if (nextState) {
-                                                setCreateData('customer_id', '');
-                                            } else {
-                                                setCreateData('new_customer_name', '');
-                                                setCreateData('new_customer_nik', '');
-                                                setCreateData('new_customer_phone', '');
-                                                setCreateData('new_customer_email', '');
-                                                setCreateData('new_customer_emergency_contact', '');
-                                                setCreateData('new_customer_address', '');
-                                                setCreateData('new_customer_sim_number', '');
-                                                setCreateData('new_customer_sim_expiry', '');
-                                                setCreateData('new_customer_ktp_photo', null);
-                                                setCreateData('new_customer_sim_photo', null);
-                                                setCreateData('new_customer_selfie_photo', null);
-                                                if (customers.length > 0) {
-                                                    setCreateData('customer_id', customers[0].id.toString());
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        {isNewCustomer ? '← Pilih Customer Terdaftar' : '+ Tambah Customer Baru'}
-                                    </button>
-                                </div>
-
-                                {!isNewCustomer ? (
-                                    <SearchableSelect
-                                        options={customerOptions}
-                                        value={createData.customer_id}
-                                        onValueChange={(val) => setCreateData('customer_id', val)}
-                                        placeholder="Pilih customer terdaftar..."
-                                        searchPlaceholder="Cari nama / HP customer..."
-                                        emptyText="Customer tidak ditemukan."
-                                    />
-                                ) : (
-                                    <div className="p-3.5 border rounded-lg bg-muted/20 space-y-4">
-                                        {/* Data Pribadi */}
-                                        <div>
-                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
-                                                Data Pribadi
-                                            </p>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_name" className="text-xs font-semibold">Nama Lengkap <span className="text-red-500">*</span></Label>
-                                                    <Input
-                                                        id="new_customer_name"
-                                                        type="text"
-                                                        placeholder="Masukkan nama lengkap..."
-                                                        value={createData.new_customer_name}
-                                                        onChange={(e) => setCreateData('new_customer_name', e.target.value)}
-                                                        required={isNewCustomer}
-                                                    />
-                                                    {errorsCreate.new_customer_name && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_name}</p>}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_nik" className="text-xs">NIK (KTP)</Label>
-                                                    <Input
-                                                        id="new_customer_nik"
-                                                        type="text"
-                                                        placeholder="Masukkan 16 digit NIK..."
-                                                        value={createData.new_customer_nik}
-                                                        onChange={(e) => setCreateData('new_customer_nik', e.target.value)}
-                                                    />
-                                                    {errorsCreate.new_customer_nik && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_nik}</p>}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_phone" className="text-xs">No. HP</Label>
-                                                    <Input
-                                                        id="new_customer_phone"
-                                                        type="text"
-                                                        placeholder="081234567890..."
-                                                        value={createData.new_customer_phone}
-                                                        onChange={(e) => setCreateData('new_customer_phone', e.target.value)}
-                                                    />
-                                                    {errorsCreate.new_customer_phone && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_phone}</p>}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_email" className="text-xs">Email</Label>
-                                                    <Input
-                                                        id="new_customer_email"
-                                                        type="email"
-                                                        placeholder="email@example.com..."
-                                                        value={createData.new_customer_email}
-                                                        onChange={(e) => setCreateData('new_customer_email', e.target.value)}
-                                                    />
-                                                    {errorsCreate.new_customer_email && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_email}</p>}
-                                                </div>
-
-                                                <div className="space-y-1 md:col-span-2">
-                                                    <Label htmlFor="new_customer_emergency_contact" className="text-xs">Kontak Darurat (Opsional)</Label>
-                                                    <Input
-                                                        id="new_customer_emergency_contact"
-                                                        type="text"
-                                                        placeholder="Nama & No HP kontak darurat..."
-                                                        value={createData.new_customer_emergency_contact}
-                                                        onChange={(e) => setCreateData('new_customer_emergency_contact', e.target.value)}
-                                                    />
-                                                    {errorsCreate.new_customer_emergency_contact && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_emergency_contact}</p>}
-                                                </div>
-
-                                                <div className="space-y-1 md:col-span-2">
-                                                    <Label htmlFor="new_customer_address" className="text-xs">Alamat Lengkap</Label>
-                                                    <Input
-                                                        id="new_customer_address"
-                                                        type="text"
-                                                        placeholder="Alamat lengkap domisili..."
-                                                        value={createData.new_customer_address}
-                                                        onChange={(e) => setCreateData('new_customer_address', e.target.value)}
-                                                    />
-                                                    {errorsCreate.new_customer_address && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_address}</p>}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Data SIM */}
-                                        <div className="pt-2 border-t">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
-                                                Data SIM
-                                            </p>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_sim_number" className="text-xs">No. SIM</Label>
-                                                    <Input
-                                                        id="new_customer_sim_number"
-                                                        type="text"
-                                                        placeholder="Nomor SIM A..."
-                                                        value={createData.new_customer_sim_number}
-                                                        onChange={(e) => setCreateData('new_customer_sim_number', e.target.value)}
-                                                    />
-                                                    {errorsCreate.new_customer_sim_number && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_sim_number}</p>}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_sim_expiry" className="text-xs">Masa Berlaku SIM</Label>
-                                                    <Input
-                                                        id="new_customer_sim_expiry"
-                                                        type="date"
-                                                        value={createData.new_customer_sim_expiry}
-                                                        onChange={(e) => setCreateData('new_customer_sim_expiry', e.target.value)}
-                                                    />
-                                                    {errorsCreate.new_customer_sim_expiry && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_sim_expiry}</p>}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Upload Dokumen */}
-                                        <div className="pt-2 border-t">
-                                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2.5">
-                                                Upload Dokumen Identitas
-                                            </p>
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_ktp_photo" className="text-xs">Foto KTP</Label>
-                                                    <Input
-                                                        id="new_customer_ktp_photo"
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="text-xs h-9 cursor-pointer"
-                                                        onChange={(e) => setCreateData('new_customer_ktp_photo', e.target.files ? e.target.files[0] : null)}
-                                                    />
-                                                    {errorsCreate.new_customer_ktp_photo && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_ktp_photo}</p>}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_sim_photo" className="text-xs">Foto SIM</Label>
-                                                    <Input
-                                                        id="new_customer_sim_photo"
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="text-xs h-9 cursor-pointer"
-                                                        onChange={(e) => setCreateData('new_customer_sim_photo', e.target.files ? e.target.files[0] : null)}
-                                                    />
-                                                    {errorsCreate.new_customer_sim_photo && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_sim_photo}</p>}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <Label htmlFor="new_customer_selfie_photo" className="text-xs">Foto Selfie (Opsional)</Label>
-                                                    <Input
-                                                        id="new_customer_selfie_photo"
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="text-xs h-9 cursor-pointer"
-                                                        onChange={(e) => setCreateData('new_customer_selfie_photo', e.target.files ? e.target.files[0] : null)}
-                                                    />
-                                                    {errorsCreate.new_customer_selfie_photo && <p className="text-[11px] text-red-500">{errorsCreate.new_customer_selfie_photo}</p>}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                {errorsCreate.customer_id && <p className="text-xs text-red-500">{errorsCreate.customer_id}</p>}
-                            </div>
-
-                            <div className="space-y-1">
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="car_type" className="text-xs font-semibold">
-                                        Tipe Mobil yang Dipesan <span className="text-red-500">*</span>
-                                    </Label>
-                                    {hasRole('Admin') && (
-                                        <button
-                                            type="button"
-                                            className="text-xs text-primary hover:underline font-medium focus:outline-none"
-                                            onClick={() => {
-                                                const nextState = !isCustomCarType;
-                                                setIsCustomCarType(nextState);
-                                                if (nextState) {
-                                                    setCreateData('car_type', '');
-                                                } else if (availableCarTypeNames.length > 0) {
-                                                    setCreateData('car_type', availableCarTypeNames[0]);
-                                                }
-                                            }}
-                                        >
-                                            {isCustomCarType ? '← Pilih Dari Daftar Type' : '+ Ketik Manual'}
-                                        </button>
-                                    )}
-                                </div>
-
-                                {!isCustomCarType ? (
-                                    <SearchableSelect
-                                        id="car_type"
-                                        options={carTypeOptions}
-                                        value={createData.car_type}
-                                        onValueChange={(val) => setCreateData('car_type', val)}
-                                        placeholder="Pilih type kendaraan..."
-                                        searchPlaceholder="Cari type kendaraan (Avanza, Innova, etc)..."
-                                        emptyText="Type kendaraan tidak ditemukan."
-                                    />
-                                ) : (
-                                    <Input
-                                        id="car_type"
-                                        type="text"
-                                        placeholder="Contoh: Avanza, Innova, Hiace..."
-                                        value={createData.car_type}
-                                        onChange={(e) => setCreateData('car_type', e.target.value)}
-                                        required
-                                    />
-                                )}
-                                {errorsCreate.car_type && <p className="text-xs text-red-500">{errorsCreate.car_type}</p>}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <Label htmlFor="booking_date" className="text-xs font-semibold">
-                                        Tanggal Sewa <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        id="booking_date"
-                                        type="date"
-                                        value={createData.booking_date}
-                                        onChange={(e) => setCreateData('booking_date', e.target.value)}
-                                        required
-                                    />
-                                    {errorsCreate.booking_date && <p className="text-[11px] text-red-500">{errorsCreate.booking_date}</p>}
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="pickup_time" className="text-xs font-semibold">
-                                        Jam Pengambilan <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        id="pickup_time"
-                                        type="time"
-                                        value={createData.pickup_time}
-                                        onChange={(e) => setCreateData('pickup_time', e.target.value)}
-                                        required
-                                    />
-                                    {errorsCreate.pickup_time && <p className="text-[11px] text-red-500">{errorsCreate.pickup_time}</p>}
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="return_date" className="text-xs font-semibold">
-                                        Tanggal Balik <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        id="return_date"
-                                        type="date"
-                                        value={createData.return_date}
-                                        onChange={(e) => setCreateData('return_date', e.target.value)}
-                                        required
-                                    />
-                                    {errorsCreate.return_date && <p className="text-[11px] text-red-500">{errorsCreate.return_date}</p>}
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="return_time" className="text-xs font-semibold">
-                                        Jam Pengembalian <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        id="return_time"
-                                        type="time"
-                                        value={createData.return_time}
-                                        onChange={(e) => setCreateData('return_time', e.target.value)}
-                                        required
-                                    />
-                                    {errorsCreate.return_time && <p className="text-[11px] text-red-500">{errorsCreate.return_time}</p>}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor="pickup_location" className="text-xs font-semibold">
-                                        Tempat Pengambilan <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        id="pickup_location"
-                                        type="text"
-                                        placeholder="Contoh: Bandara, Garasi, Alamat Customer..."
-                                        value={createData.pickup_location}
-                                        onChange={(e) => setCreateData('pickup_location', e.target.value)}
-                                        required
-                                    />
-                                    {errorsCreate.pickup_location && <p className="text-[11px] text-red-500">{errorsCreate.pickup_location}</p>}
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="dropoff_location" className="text-xs font-semibold">
-                                        Tempat Pengantaran / Pengembalian <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        id="dropoff_location"
-                                        type="text"
-                                        placeholder="Contoh: Bandara, Garasi, Alamat Customer..."
-                                        value={createData.dropoff_location}
-                                        onChange={(e) => setCreateData('dropoff_location', e.target.value)}
-                                        required
-                                    />
-                                    {errorsCreate.dropoff_location && <p className="text-[11px] text-red-500">{errorsCreate.dropoff_location}</p>}
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor="payment_method" className="text-xs font-semibold">
-                                        Metode Pembayaran <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                        value={createData.payment_method}
-                                        onValueChange={(val: any) => setCreateData('payment_method', val)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Cash">Cash</SelectItem>
-                                            <SelectItem value="Transfer">Transfer</SelectItem>
-                                            <SelectItem value="DP">DP (Down Payment)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    {errorsCreate.payment_method && <p className="text-[11px] text-red-500">{errorsCreate.payment_method}</p>}
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="rental_type" className="text-xs font-semibold">
-                                        Type Sewa <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                        value={createData.rental_type}
-                                        onValueChange={(val: any) => setCreateData('rental_type', val)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Lepas Kunci">Lepas Kunci</SelectItem>
-                                            <SelectItem value="With Driver">With Driver</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    {errorsCreate.rental_type && <p className="text-[11px] text-red-500">{errorsCreate.rental_type}</p>}
-                                </div>
-                            </div>
-                            <DialogFooter className="pt-4">
-                                <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Batal</Button>
-                                <Button type="submit" disabled={processingCreate}>Simpan Booking</Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
-
                 {/* ALLOCATION / ASSIGNMENT DIALOG */}
                 <Dialog open={isAssignOpen} onOpenChange={setIsAssignOpen}>
                     <DialogContent className="max-w-md">
@@ -1825,49 +1453,16 @@ export default function BookingsIndex({
                                 )}
 
                                 <div className="space-y-1">
-                                    <Label htmlFor="peluncur_id">Penugasan Petugas Peluncur (Serah Terima)</Label>
-                                    <Select
-                                        value={assignData.peluncur_id}
-                                        onValueChange={(val) => setAssignData('peluncur_id', val)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Pilih Petugas Peluncur" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {peluncurOfficers.map((p) => (
-                                                <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-1">
                                     <Label htmlFor="assign_amount">Harga / Tarif Sewa (Rp)</Label>
                                     <Input
                                         id="assign_amount"
                                         type="number"
-                                        min={0}
                                         value={assignData.amount}
-                                        onChange={(e) => setAssignData('amount', e.target.value)}
-                                        placeholder="Masukkan harga/tarif sewa..."
+                                        readOnly
+                                        disabled
+                                        className="bg-muted text-muted-foreground cursor-not-allowed select-none font-medium"
+                                        placeholder="Harga/tarif sewa..."
                                     />
-                                </div>
-
-                                <div className="space-y-1">
-                                    <Label htmlFor="petugas_cuci_id">Penugasan Petugas Cuci (Pasca Kembali)</Label>
-                                    <Select
-                                        value={assignData.petugas_cuci_id}
-                                        onValueChange={(val) => setAssignData('petugas_cuci_id', val)}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Pilih Petugas Cuci" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {washOfficers.map((w) => (
-                                                <SelectItem key={w.id} value={w.id.toString()}>{w.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
                                 </div>
 
                                 <DialogFooter className="pt-4">
@@ -1968,6 +1563,20 @@ export default function BookingsIndex({
                                 />
                             </div>
 
+                            <div className="space-y-1">
+                                <Label htmlFor="edit_rental_type" className="text-xs font-semibold">Type Sewa</Label>
+                                <Select
+                                    value={editData.rental_type}
+                                    onValueChange={(val: any) => setEditData('rental_type', val)}
+                                >
+                                    <SelectTrigger id="edit_rental_type"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Lepas Kunci">Lepas Kunci</SelectItem>
+                                        <SelectItem value="With Driver">With Driver</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <Label htmlFor="edit_booking_date" className="text-xs">Tanggal Sewa</Label>
@@ -1975,7 +1584,7 @@ export default function BookingsIndex({
                                         id="edit_booking_date"
                                         type="date"
                                         value={editData.booking_date}
-                                        onChange={(e) => setEditData('booking_date', e.target.value)}
+                                        onChange={(e) => handleEditBookingDateChange(e.target.value)}
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -1993,7 +1602,7 @@ export default function BookingsIndex({
                                         id="edit_return_date"
                                         type="date"
                                         value={editData.return_date}
-                                        onChange={(e) => setEditData('return_date', e.target.value)}
+                                        onChange={(e) => handleEditReturnDateChange(e.target.value)}
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -2004,6 +1613,26 @@ export default function BookingsIndex({
                                         value={editData.return_time}
                                         onChange={(e) => setEditData('return_time', e.target.value)}
                                     />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label htmlFor="edit_duration_days" className="text-xs font-semibold">
+                                    Durasi (Hari)
+                                </Label>
+                                <div className="relative">
+                                    <Input
+                                        id="edit_duration_days"
+                                        type="number"
+                                        min={1}
+                                        placeholder="1"
+                                        value={editData.duration_days}
+                                        onChange={(e) => handleEditDurationDaysChange(e.target.value)}
+                                        className="pr-14"
+                                    />
+                                    <span className="absolute right-3 top-2.5 text-xs text-muted-foreground pointer-events-none font-medium">
+                                        Hari
+                                    </span>
                                 </div>
                             </div>
 
@@ -2030,7 +1659,35 @@ export default function BookingsIndex({
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            {editData.payment_method === 'DP' ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="edit_payment_method">Metode Pembayaran</Label>
+                                        <Select
+                                            value={editData.payment_method}
+                                            onValueChange={(val) => setEditData('payment_method', val)}
+                                        >
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Cash">Cash</SelectItem>
+                                                <SelectItem value="Transfer">Transfer</SelectItem>
+                                                <SelectItem value="DP">DP</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="edit_dp_amount" className="text-xs font-semibold text-primary">Jumlah DP (Rp)</Label>
+                                        <Input
+                                            id="edit_dp_amount"
+                                            type="number"
+                                            min={0}
+                                            placeholder="Contoh: 100000"
+                                            value={editData.dp_amount}
+                                            onChange={(e) => setEditData('dp_amount', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
                                 <div className="space-y-1">
                                     <Label htmlFor="edit_payment_method">Metode Pembayaran</Label>
                                     <Select
@@ -2045,24 +1702,79 @@ export default function BookingsIndex({
                                         </SelectContent>
                                     </Select>
                                 </div>
+                            )}
+
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_rental_type">Type Sewa</Label>
+                                    <Label htmlFor="edit_price" className="text-xs font-semibold">Harga Sewa (Rp)</Label>
+                                    <Input
+                                        id="edit_price"
+                                        type="number"
+                                        min={0}
+                                        placeholder="Contoh: 350000"
+                                        value={editData.price}
+                                        onChange={(e) => setEditData('price', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_duration_type" className="text-xs font-semibold">Pilihan Tarif</Label>
                                     <Select
-                                        value={editData.rental_type}
-                                        onValueChange={(val: any) => setEditData('rental_type', val)}
+                                        value={editData.duration_type}
+                                        onValueChange={(val: any) => setEditData('duration_type', val)}
                                     >
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectTrigger id="edit_duration_type">
+                                            <SelectValue placeholder="Pilih..." />
+                                        </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Lepas Kunci">Lepas Kunci</SelectItem>
-                                            <SelectItem value="With Driver">With Driver</SelectItem>
+                                            <SelectItem value="Hari">Hari</SelectItem>
+                                            <SelectItem value="24 Jam">24 Jam</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
 
+                            {editData.rental_type === 'With Driver' ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="edit_delivery_fee" className="text-xs font-semibold">Fee Pengantaran (Rp)</Label>
+                                        <Input
+                                            id="edit_delivery_fee"
+                                            type="number"
+                                            min={0}
+                                            placeholder="0"
+                                            value={editData.delivery_fee}
+                                            onChange={(e) => setEditData('delivery_fee', e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="edit_driver_fee" className="text-xs font-semibold text-primary">Fee Driver (Rp)</Label>
+                                        <Input
+                                            id="edit_driver_fee"
+                                            type="number"
+                                            min={0}
+                                            placeholder="Contoh: 150000"
+                                            value={editData.driver_fee}
+                                            onChange={(e) => setEditData('driver_fee', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_delivery_fee" className="text-xs font-semibold">Fee Pengantaran (Rp)</Label>
+                                    <Input
+                                        id="edit_delivery_fee"
+                                        type="number"
+                                        min={0}
+                                        placeholder="0"
+                                        value={editData.delivery_fee}
+                                        onChange={(e) => setEditData('delivery_fee', e.target.value)}
+                                    />
+                                </div>
+                            )}
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
-                                    <Label htmlFor="edit_amount">Harga / Tarif Sewa (Rp)</Label>
+                                    <Label htmlFor="edit_amount">Total Tarif Sewa (Rp)</Label>
                                     <Input
                                         id="edit_amount"
                                         type="number"
