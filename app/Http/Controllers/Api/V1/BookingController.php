@@ -197,6 +197,7 @@ class BookingController extends BaseApiController
             'duration_type' => ['required', Rule::in(['Hari', '24 Jam'])],
             'duration_days' => ['nullable', 'integer', 'min:1'],
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
+            'pickup_fee' => ['nullable', 'numeric', 'min:0'],
             'driver_fee' => ['nullable', 'numeric', 'min:0'],
             'booking_date' => ['required', 'date'],
             'return_date' => ['required', 'date', 'after_or_equal:booking_date'],
@@ -259,8 +260,9 @@ class BookingController extends BaseApiController
         $price = (float) $validated['price'];
         $durationDays = max(1, (int) ($validated['duration_days'] ?? 1));
         $deliveryFee = (float) ($validated['delivery_fee'] ?? 0);
+        $pickupFee = (float) ($validated['pickup_fee'] ?? 0);
         $driverFee = ($validated['rental_type'] === 'With Driver') ? (float) ($validated['driver_fee'] ?? 0) : 0;
-        $calculatedAmount = ($price * $durationDays) + $deliveryFee + $driverFee;
+        $calculatedAmount = ($price * $durationDays) + $deliveryFee + $pickupFee + $driverFee;
         $amount = (! empty($validated['amount']) && (float) $validated['amount'] > 0)
             ? (float) $validated['amount']
             : $calculatedAmount;
@@ -278,6 +280,7 @@ class BookingController extends BaseApiController
             'duration_type' => $validated['duration_type'],
             'duration_days' => $durationDays,
             'delivery_fee' => $deliveryFee,
+            'pickup_fee' => $pickupFee,
             'driver_fee' => $driverFee,
             'booking_date' => $validated['booking_date'],
             'return_date' => $validated['return_date'] ?? null,
@@ -338,6 +341,7 @@ class BookingController extends BaseApiController
             'duration_type' => ['nullable', Rule::in(['Hari', '24 Jam'])],
             'duration_days' => ['nullable', 'integer', 'min:1'],
             'delivery_fee' => ['nullable', 'numeric', 'min:0'],
+            'pickup_fee' => ['nullable', 'numeric', 'min:0'],
             'driver_fee' => ['nullable', 'numeric', 'min:0'],
             'booking_date' => ['nullable', 'date'],
             'return_date' => ['nullable', 'date', 'after_or_equal:booking_date'],
@@ -367,9 +371,10 @@ class BookingController extends BaseApiController
             $price = (float) $updateData['price'];
             $days = (int) ($updateData['duration_days'] ?? $booking->duration_days ?? 1);
             $fee = (float) ($updateData['delivery_fee'] ?? $booking->delivery_fee ?? 0);
+            $pickupFee = (float) ($updateData['pickup_fee'] ?? $booking->pickup_fee ?? 0);
             $rentalType = $updateData['rental_type'] ?? $booking->rental_type;
             $driverFee = ($rentalType === 'With Driver') ? (float) ($updateData['driver_fee'] ?? $booking->driver_fee ?? 0) : 0;
-            $updateData['amount'] = ($price * $days) + $fee + $driverFee;
+            $updateData['amount'] = ($price * $days) + $fee + $pickupFee + $driverFee;
         }
 
         if (! $request->user()->isSuperAdmin()) {

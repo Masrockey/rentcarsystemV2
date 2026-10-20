@@ -645,17 +645,18 @@ class WhatsAppService
 
             $price = (float) ($booking->price ?? 0);
             $deliveryFee = (float) ($booking->delivery_fee ?? 0);
+            $pickupFee = (float) ($booking->pickup_fee ?? 0);
             $driverFee = (float) ($booking->driver_fee ?? 0);
 
             if ($price <= 0 && (float) ($booking->amount ?? 0) > 0) {
-                $calculatedSubtotal = max(0, (float) $booking->amount - $deliveryFee - $driverFee);
+                $calculatedSubtotal = max(0, (float) $booking->amount - $deliveryFee - $pickupFee - $driverFee);
                 $price = $durationDays > 0 ? ($calculatedSubtotal / $durationDays) : $calculatedSubtotal;
             }
 
             $subtotal = $price * $durationDays;
             $totalTagihan = ($booking->amount && (float) $booking->amount > 0)
                 ? (float) $booking->amount
-                : ($subtotal + $deliveryFee + $driverFee);
+                : ($subtotal + $deliveryFee + $pickupFee + $driverFee);
 
             $formattedPrice = number_format($price, 0, ',', '.');
             $formattedSubtotal = number_format($subtotal, 0, ',', '.');
@@ -690,6 +691,11 @@ class WhatsAppService
             if ($deliveryFee > 0) {
                 $formattedDeliveryFee = number_format($deliveryFee, 0, ',', '.');
                 $rincianBiayaText .= "*Fee Pengantaran =* Rp {$formattedDeliveryFee}\n";
+            }
+
+            if ($pickupFee > 0) {
+                $formattedPickupFee = number_format($pickupFee, 0, ',', '.');
+                $rincianBiayaText .= "*Fee Pengambilan =* Rp {$formattedPickupFee}\n";
             }
 
             if ($driverFee > 0) {

@@ -555,3 +555,39 @@ test('can create booking with DP payment method and dp_amount', function () {
     expect((float) $booking->dp_amount)->toBe(100000.0);
     expect((float) $booking->amount)->toBe(350000.0);
 });
+
+test('can create booking with pickup fee and calculate total amount', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $customer = Customer::create([
+        'name' => 'Pickup Fee Customer',
+        'phone' => '087799881122',
+    ]);
+
+    $response = $this->actingAs($admin)->post('/bookings', [
+        'user_id' => $admin->id,
+        'customer_id' => $customer->id,
+        'car_type' => 'Innova Zenix',
+        'rental_type' => 'Lepas Kunci',
+        'price' => 500000,
+        'duration_type' => 'Hari',
+        'duration_days' => 2,
+        'delivery_fee' => 50000,
+        'pickup_fee' => 75000,
+        'booking_date' => '2026-10-25',
+        'return_date' => '2026-10-27',
+        'pickup_time' => '09:00',
+        'return_time' => '09:00',
+        'pickup_location' => 'Bandara',
+        'dropoff_location' => 'Hotel',
+        'payment_method' => 'Cash',
+        'payment_status' => 'Pending',
+    ]);
+
+    $response->assertRedirect('/bookings');
+
+    $booking = Booking::where('customer_id', $customer->id)->first();
+    expect($booking)->not->toBeNull();
+    expect((float) $booking->delivery_fee)->toBe(50000.0);
+    expect((float) $booking->pickup_fee)->toBe(75000.0);
+    expect((float) $booking->amount)->toBe(1125000.0);
+});

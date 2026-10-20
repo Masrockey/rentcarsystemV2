@@ -131,6 +131,7 @@ export default function BookingCreate({ customers = [], carTypes = [], marketing
         duration_type: 'Hari' as 'Hari' | '24 Jam',
         duration_days: '1',
         delivery_fee: '',
+        pickup_fee: '',
         driver_fee: '',
         booking_date: '',
         return_date: '',
@@ -185,9 +186,10 @@ export default function BookingCreate({ customers = [], carTypes = [], marketing
         const p = parseFloat(data.price) || 0;
         const d = parseInt(data.duration_days, 10) || 1;
         const f = parseFloat(data.delivery_fee) || 0;
+        const pf = parseFloat(data.pickup_fee) || 0;
         transform((form) => ({
             ...form,
-            amount: ((p * d) + f).toString(),
+            amount: ((p * d) + f + pf).toString(),
             driver_fee: '0',
             dp_amount: form.payment_method === 'DP' ? form.dp_amount : '0',
             payment_status: form.payment_method === 'DP' ? 'Down Payment' : form.payment_status,
@@ -199,8 +201,9 @@ export default function BookingCreate({ customers = [], carTypes = [], marketing
         const p = parseFloat(data.price) || 0;
         const d = parseInt(data.duration_days, 10) || 1;
         const f = parseFloat(data.delivery_fee) || 0;
-        return (p * d) + f;
-    }, [data.price, data.duration_days, data.delivery_fee]);
+        const pf = parseFloat(data.pickup_fee) || 0;
+        return (p * d) + f + pf;
+    }, [data.price, data.duration_days, data.delivery_fee, data.pickup_fee]);
 
     return (
         <>
@@ -738,7 +741,7 @@ export default function BookingCreate({ customers = [], carTypes = [], marketing
                                 <CardTitle className="text-base font-semibold">Tarif Sewa & Pembayaran</CardTitle>
                             </div>
                             <CardDescription className="text-xs">
-                                Masukkan harga sewa, satuan tarif (Hari atau 24 Jam), fee pengantaran, dan metode pembayaran.
+                                Masukkan harga sewa, satuan tarif (Hari atau 24 Jam), fee pengantaran, fee pengambilan, dan metode pembayaran.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -855,6 +858,22 @@ export default function BookingCreate({ customers = [], carTypes = [], marketing
                                 {errors.delivery_fee && <p className="text-[11px] text-red-500">{errors.delivery_fee}</p>}
                             </div>
 
+                            {/* Kolom Fee Pengambilan */}
+                            <div className="space-y-1">
+                                <Label htmlFor="pickup_fee" className="text-xs font-semibold">
+                                    Fee Pengambilan (Rp)
+                                </Label>
+                                <Input
+                                    id="pickup_fee"
+                                    type="number"
+                                    min={0}
+                                    placeholder="0 (Opsional / kosongkan jika tanpa fee)"
+                                    value={data.pickup_fee}
+                                    onChange={(e) => setData('pickup_fee', e.target.value)}
+                                />
+                                {errors.pickup_fee && <p className="text-[11px] text-red-500">{errors.pickup_fee}</p>}
+                            </div>
+
                             {/* Live Total Estimasi Tarif Banner */}
                             <div className="p-4 bg-muted/40 rounded-lg border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
                                 <div>
@@ -862,6 +881,7 @@ export default function BookingCreate({ customers = [], carTypes = [], marketing
                                     <div className="text-xs text-muted-foreground mt-0.5">
                                         ({formatCurrency(parseFloat(data.price) || 0)} × {data.duration_type === '24 Jam' ? (Number(data.duration_days) > 1 ? `${data.duration_days || 1} x 24 Jam` : '24 Jam') : `${data.duration_days || 1} Hari`})
                                         {parseFloat(data.delivery_fee) > 0 ? ` + Fee Antar ${formatCurrency(parseFloat(data.delivery_fee))}` : ''}
+                                        {parseFloat(data.pickup_fee) > 0 ? ` + Fee Ambil ${formatCurrency(parseFloat(data.pickup_fee))}` : ''}
                                     </div>
                                     {data.payment_method === 'DP' && parseFloat(data.dp_amount) > 0 && (
                                         <div className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">

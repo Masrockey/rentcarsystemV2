@@ -410,6 +410,58 @@ test('whatsapp booking notification formats rincian biaya and pembayaran properl
     expect($result)->toBeTrue();
 });
 
+test('whatsapp booking notification formats fee pengantaran and fee pengambilan properly', function () {
+    $setting = WaServerSetting::current();
+    $setting->update([
+        'server_url' => 'http://localhost:3000',
+        'device_id' => 'rentcars_main',
+        'target_group_jid' => '120363028192839182@g.us',
+    ]);
+
+    $customer = Customer::create([
+        'name' => 'Ibu Siti',
+        'phone' => '081233445566',
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'booking_number' => 'BK-20261019-RINCI2',
+        'car_type' => 'Innova Reborn',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => '2026-10-20',
+        'return_date' => '2026-10-22',
+        'price' => 500000,
+        'duration_type' => 'Hari',
+        'duration_days' => 2,
+        'delivery_fee' => 50000,
+        'pickup_fee' => 75000,
+        'amount' => 1125000,
+        'payment_method' => 'Cash',
+        'payment_status' => 'Pending',
+        'status' => 'Pending',
+    ]);
+
+    Http::fake([
+        '*/send/message' => function (Request $request) {
+            $data = $request->data();
+            expect($data['message'])->toContain('*Fee Pengantaran =* Rp 50.000');
+            expect($data['message'])->toContain('*Fee Pengambilan =* Rp 75.000');
+            expect($data['message'])->toContain('*TOTAL TAGIHAN =* Rp 1.125.000');
+
+            return Http::response([
+                'status' => 200,
+                'results' => [
+                    'message_id' => 'MSG_TEST_FEE',
+                ],
+            ], 200);
+        },
+    ]);
+
+    $result = WhatsAppService::sendNewBookingNotification($booking);
+
+    expect($result)->toBeTrue();
+});
+
 test('generateChecklistPdf generates valid pdf binary for delivery and return', function () {
     $customer = Customer::create([
         'name' => 'Bang Iskandar',

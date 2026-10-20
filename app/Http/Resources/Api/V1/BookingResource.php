@@ -42,6 +42,7 @@ class BookingResource extends JsonResource
             'duration_type' => $this->duration_type,
             'duration_days' => $this->duration_days ? (int) $this->duration_days : 1,
             'delivery_fee' => $this->delivery_fee !== null ? (float) $this->delivery_fee : 0,
+            'pickup_fee' => $this->pickup_fee !== null ? (float) $this->pickup_fee : 0,
             'driver_fee' => $this->driver_fee !== null ? (float) $this->driver_fee : 0,
             'dp_amount' => $this->dp_amount !== null ? (float) $this->dp_amount : 0,
             'amount' => (float) $this->amount,

@@ -99,6 +99,7 @@ type Booking = {
     duration_type?: 'Hari' | '24 Jam' | string;
     duration_days?: number | null;
     delivery_fee?: number | null;
+    pickup_fee?: number | null;
     driver_fee?: number | null;
     dp_amount?: number | null;
     amount: number;
@@ -377,6 +378,7 @@ export default function BookingsIndex({
         duration_type: 'Hari' as 'Hari' | '24 Jam',
         duration_days: '1',
         delivery_fee: '',
+        pickup_fee: '',
         driver_fee: '',
         booking_date: '',
         return_date: '',
@@ -466,6 +468,7 @@ export default function BookingsIndex({
             duration_type: (booking.duration_type as any) || 'Hari',
             duration_days: booking.duration_days ? booking.duration_days.toString() : '1',
             delivery_fee: booking.delivery_fee ? booking.delivery_fee.toString() : '0',
+            pickup_fee: booking.pickup_fee ? booking.pickup_fee.toString() : '0',
             driver_fee: booking.driver_fee ? booking.driver_fee.toString() : '0',
             booking_date: booking.booking_date || '',
             return_date: booking.return_date || '',
@@ -502,10 +505,11 @@ export default function BookingsIndex({
                 const p = parseFloat(data.price) || 0;
                 const d = parseInt(data.duration_days, 10) || 1;
                 const f = parseFloat(data.delivery_fee) || 0;
+                const pf = parseFloat(data.pickup_fee) || 0;
                 const df = data.rental_type === 'With Driver' ? (parseFloat(data.driver_fee) || 0) : 0;
                 return {
                     ...data,
-                    amount: p > 0 ? ((p * d) + f + df).toString() : data.amount,
+                    amount: p > 0 ? ((p * d) + f + pf + df).toString() : data.amount,
                     driver_fee: data.rental_type === 'With Driver' ? data.driver_fee : '0',
                     dp_amount: data.payment_method === 'DP' ? data.dp_amount : '0',
                     payment_status: data.payment_method === 'DP' ? 'Down Payment' : data.payment_status,
@@ -1733,32 +1737,7 @@ export default function BookingsIndex({
                                 </div>
                             </div>
 
-                            {editData.rental_type === 'With Driver' ? (
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <Label htmlFor="edit_delivery_fee" className="text-xs font-semibold">Fee Pengantaran (Rp)</Label>
-                                        <Input
-                                            id="edit_delivery_fee"
-                                            type="number"
-                                            min={0}
-                                            placeholder="0"
-                                            value={editData.delivery_fee}
-                                            onChange={(e) => setEditData('delivery_fee', e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label htmlFor="edit_driver_fee" className="text-xs font-semibold text-primary">Fee Driver (Rp)</Label>
-                                        <Input
-                                            id="edit_driver_fee"
-                                            type="number"
-                                            min={0}
-                                            placeholder="Contoh: 150000"
-                                            value={editData.driver_fee}
-                                            onChange={(e) => setEditData('driver_fee', e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                            ) : (
+                            <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
                                     <Label htmlFor="edit_delivery_fee" className="text-xs font-semibold">Fee Pengantaran (Rp)</Label>
                                     <Input
@@ -1768,6 +1747,31 @@ export default function BookingsIndex({
                                         placeholder="0"
                                         value={editData.delivery_fee}
                                         onChange={(e) => setEditData('delivery_fee', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_pickup_fee" className="text-xs font-semibold">Fee Pengambilan (Rp)</Label>
+                                    <Input
+                                        id="edit_pickup_fee"
+                                        type="number"
+                                        min={0}
+                                        placeholder="0"
+                                        value={editData.pickup_fee}
+                                        onChange={(e) => setEditData('pickup_fee', e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {editData.rental_type === 'With Driver' && (
+                                <div className="space-y-1">
+                                    <Label htmlFor="edit_driver_fee" className="text-xs font-semibold text-primary">Fee Driver (Rp)</Label>
+                                    <Input
+                                        id="edit_driver_fee"
+                                        type="number"
+                                        min={0}
+                                        placeholder="Contoh: 150000"
+                                        value={editData.driver_fee}
+                                        onChange={(e) => setEditData('driver_fee', e.target.value)}
                                     />
                                 </div>
                             )}
