@@ -630,7 +630,7 @@ class WhatsAppService
                 ? Carbon::parse($booking->return_date)->format('d/m/Y').($booking->return_time ? ' '.substr($booking->return_time, 0, 5) : '')
                 : '-';
 
-            $durasi = $booking->duration_days ?? 'Hari';
+            $durasi = $booking->duration_days;
             $marketingPhone = $booking->user?->phone ?? auth()->user()?->phone ?? '-';
             $pickupLocation = $booking->pickup_location ?: '-';
             $dropoffLocation = $booking->dropoff_location ?: '-';
@@ -718,7 +718,7 @@ class WhatsAppService
                 ."*--- Waktu Sewa ---*\n"
                 ."*Mulai:* {$mulai}\n"
                 ."*Selesai:* {$selesai}\n"
-                ."*Durasi:* {$durasi}\n"
+                ."*Durasi:* {$durasi} Hari\n"
                 ."*Lokasi Pengambilan:* {$pickupLocation}\n"
                 ."*Lokasi Pengembalian:* {$dropoffLocation}\n\n"
                 .$rincianBiayaText
