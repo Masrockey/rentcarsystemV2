@@ -630,7 +630,7 @@ class WhatsAppService
                 ? Carbon::parse($booking->return_date)->format('d/m/Y').($booking->return_time ? ' '.substr($booking->return_time, 0, 5) : '')
                 : '-';
 
-            $durasi = $booking->duration_days;
+            $durasi = $booking->duration_days ?? 'Hari';
             $marketingPhone = $booking->user?->phone ?? auth()->user()?->phone ?? '-';
             $pickupLocation = $booking->pickup_location ?: '-';
             $dropoffLocation = $booking->dropoff_location ?: '-';
