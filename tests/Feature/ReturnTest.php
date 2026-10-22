@@ -101,11 +101,11 @@ test('submitting return checklist updates booking and car status to Ready', func
     $booking->refresh();
     $car->refresh();
 
-    expect($rental->status)->toBe('Returned');
+    expect($rental->status)->toBe('Completed');
     expect($rental->km_in)->toBe(63000);
     expect($rental->fuel_in)->toBe(70);
 
-    expect($booking->status)->toBe('Returned');
+    expect($booking->status)->toBe('Completed');
     expect($car->status)->toBe('Ready');
     expect($car->last_km)->toBe(63000);
 });

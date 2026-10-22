@@ -458,8 +458,23 @@ class BookingController extends Controller
             unset($updateData['status']);
         }
 
-        if (isset($updateData['status']) && $updateData['status'] === 'Cancelled' && ! $booking->cancelled_at) {
-            $updateData['cancelled_at'] = now();
+        if (isset($updateData['status']) && $updateData['status'] === 'Cancelled') {
+            if (! $booking->cancelled_at) {
+                $updateData['cancelled_at'] = now();
+            }
+            $updateData['car_id'] = null;
+            $updateData['driver_id'] = null;
+            $updateData['peluncur_id'] = null;
+            $updateData['petugas_cuci_id'] = null;
+
+            if ($booking->car_id) {
+                $oldCarId = $booking->car_id;
+                $booking->rentals()->where('status', 'Active')->update(['status' => 'Cancelled']);
+                $hasOtherActive = Rental::where('car_id', $oldCarId)->where('status', 'Active')->exists();
+                if (! $hasOtherActive) {
+                    Car::where('id', $oldCarId)->where('status', 'Rented')->update(['status' => 'Ready']);
+                }
+            }
         }
 
         $booking->update($updateData);
@@ -497,11 +512,27 @@ class BookingController extends Controller
             'cancellation_reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        $oldCarId = $booking->car_id;
+        $oldPeluncurId = $booking->peluncur_id;
+        $oldDriverUserId = $booking->driver?->user_id;
+
         $booking->update([
             'status' => 'Cancelled',
             'cancellation_reason' => $validated['cancellation_reason'] ?? null,
             'cancelled_at' => now(),
+            'car_id' => null,
+            'driver_id' => null,
+            'peluncur_id' => null,
+            'petugas_cuci_id' => null,
         ]);
+
+        if ($oldCarId) {
+            $booking->rentals()->where('status', 'Active')->update(['status' => 'Cancelled']);
+            $hasOtherActive = Rental::where('car_id', $oldCarId)->where('status', 'Active')->exists();
+            if (! $hasOtherActive) {
+                Car::where('id', $oldCarId)->where('status', 'Rented')->update(['status' => 'Ready']);
+            }
+        }
 
         // Send notifications
         $reasonText = ! empty($validated['cancellation_reason']) ? " (Alasan: {$validated['cancellation_reason']})" : '';
@@ -516,9 +547,9 @@ class BookingController extends Controller
             $request->user()->id
         );
 
-        if ($booking->peluncur_id && $booking->peluncur_id !== $request->user()->id) {
+        if ($oldPeluncurId && $oldPeluncurId !== $request->user()->id) {
             NotificationService::sendToUser(
-                $booking->peluncur_id,
+                $oldPeluncurId,
                 'Tugas Booking Dibatalkan',
                 "Jadwal serah terima unit untuk booking {$booking->booking_number} ({$booking->customer?->name}) telah dibatalkan.",
                 '/bookings',
@@ -527,9 +558,9 @@ class BookingController extends Controller
             );
         }
 
-        if ($booking->driver_id && $booking->driver?->user_id && $booking->driver->user_id !== $request->user()->id) {
+        if ($oldDriverUserId && $oldDriverUserId !== $request->user()->id) {
             NotificationService::sendToUser(
-                $booking->driver->user_id,
+                $oldDriverUserId,
                 'Tugas Driver Dibatalkan',
                 "Jadwal penugasan supir untuk booking {$booking->booking_number} telah dibatalkan.",
                 '/bookings',
@@ -989,7 +1020,7 @@ class BookingController extends Controller
             'return_latitude' => $validated['latitude'] ?? null,
             'return_longitude' => $validated['longitude'] ?? null,
             'return_notes' => $validated['notes'] ?? null,
-            'status' => 'Returned',
+            'status' => 'Completed',
         ]);
 
         $kmIn = $validated['km_out'] ?? ($booking->car->last_km ?? 0);
@@ -1003,12 +1034,12 @@ class BookingController extends Controller
             ]);
         }
 
-        // Automatically update rental contract record
+        // Automatically update rental contract record to Completed
         Rental::where('booking_id', $booking->id)->update([
             'km_in' => $kmIn,
             'fuel_in' => $fuelIn,
             'checkin_datetime' => now(),
-            'status' => 'Returned',
+            'status' => 'Completed',
         ]);
 
         // Send notification to Admin, Super Admin, and Petugas Cuci

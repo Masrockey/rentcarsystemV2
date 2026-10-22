@@ -180,9 +180,9 @@ test('submitting return checklist sets Booking to Returned and Car to Ready', fu
     ]);
 
     $response->assertOk()
-        ->assertJsonPath('data.status', 'Returned');
+        ->assertJsonPath('data.status', 'Completed');
 
-    expect($booking->fresh()->status)->toBe('Returned');
+    expect($booking->fresh()->status)->toBe('Completed');
     expect($car->fresh()->status)->toBe('Ready');
     expect($car->fresh()->last_km)->toBe(10200);
 });

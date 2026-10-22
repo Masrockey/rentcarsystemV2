@@ -82,7 +82,7 @@ class ReturnController extends BaseApiController
                 'km_in' => $validated['km_in'],
                 'fuel_in' => $validated['fuel_in'],
                 'fine_amount' => $validated['fine_amount'],
-                'status' => 'Returned',
+                'status' => 'Completed',
             ]);
         } else {
             $rental = Rental::create([
@@ -99,12 +99,12 @@ class ReturnController extends BaseApiController
                 'fuel_in' => $validated['fuel_in'],
                 'fine_amount' => $validated['fine_amount'],
                 'total_payment' => $booking->amount ?? 0,
-                'status' => 'Returned',
+                'status' => 'Completed',
             ]);
         }
 
         $booking->update([
-            'status' => 'Returned',
+            'status' => 'Completed',
         ]);
 
         if ($booking->car) {

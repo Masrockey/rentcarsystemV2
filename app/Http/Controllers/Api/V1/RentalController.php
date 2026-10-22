@@ -58,7 +58,7 @@ class RentalController extends BaseApiController
             'fuel_in' => ['nullable', 'integer', 'min:0', 'max:100'],
             'fine_amount' => ['required', 'numeric', 'min:0'],
             'total_payment' => ['required', 'numeric', 'min:0'],
-            'status' => ['required', 'string', Rule::in(['Active', 'Returned', 'Cancelled'])],
+            'status' => ['required', 'string', Rule::in(['Active', 'Returned', 'Completed', 'Cancelled'])],
             'tenant_signature' => ['nullable', 'string'],
             'officer_signature' => ['nullable', 'string'],
         ]);
@@ -103,7 +103,7 @@ class RentalController extends BaseApiController
             'fuel_in' => ['nullable', 'integer', 'min:0', 'max:100'],
             'fine_amount' => ['required', 'numeric', 'min:0'],
             'total_payment' => ['required', 'numeric', 'min:0'],
-            'status' => ['required', 'string', Rule::in(['Active', 'Returned', 'Cancelled'])],
+            'status' => ['required', 'string', Rule::in(['Active', 'Returned', 'Completed', 'Cancelled'])],
             'tenant_signature' => ['nullable', 'string'],
             'officer_signature' => ['nullable', 'string'],
         ]);
@@ -115,9 +115,9 @@ class RentalController extends BaseApiController
             Car::find($oldCarId)?->update(['status' => 'Ready']);
         }
 
-        if ($rental->status === 'Returned') {
+        if ($rental->status === 'Returned' || $rental->status === 'Completed') {
             $rental->car->update(['status' => 'Ready']);
-            $rental->booking->update(['status' => 'Returned']);
+            $rental->booking->update(['status' => 'Completed']);
         } elseif ($rental->status === 'Cancelled') {
             $rental->car->update(['status' => 'Ready']);
             $rental->booking->update(['status' => 'Confirmed']);

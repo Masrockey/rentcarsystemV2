@@ -19,17 +19,22 @@ class RentalController extends Controller
     /**
      * Display a listing of rental/serah terima records.
      */
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $user = $request->user();
+        $isAdminOnly = $user && $user->isAdmin() && ! $user->isSuperAdmin();
+
         return Inertia::render('rentals/index', [
             'rentals' => Rental::with(['booking.peluncur', 'car', 'customer', 'officer'])
                 ->latest()
                 ->paginate(10)
                 ->withQueryString(),
-            'confirmedBookings' => Booking::with(['customer', 'car', 'peluncur'])
-                ->where('status', 'Confirmed')
-                ->latest()
-                ->get(),
+            'confirmedBookings' => $isAdminOnly
+                ? []
+                : Booking::with(['customer', 'car', 'peluncur'])
+                    ->where('status', 'Confirmed')
+                    ->latest()
+                    ->get(),
             'bookings' => Booking::with('customer')
                 ->whereIn('status', ['Pending', 'Confirmed', 'On Trip', 'Returned'])
                 ->get(['id', 'booking_number', 'customer_id', 'car_id', 'car_type', 'booking_date', 'return_date', 'pickup_location', 'dropoff_location', 'pickup_time', 'return_time']),
@@ -62,7 +67,7 @@ class RentalController extends Controller
             'fuel_in' => ['nullable', 'integer', 'min:0', 'max:100'],
             'fine_amount' => ['required', 'numeric', 'min:0'],
             'total_payment' => ['required', 'numeric', 'min:0'],
-            'status' => ['required', 'string', Rule::in(['Active', 'Returned', 'Cancelled'])],
+            'status' => ['required', 'string', Rule::in(['Active', 'Returned', 'Completed', 'Cancelled'])],
             'tenant_signature' => ['nullable', 'string'],
             'officer_signature' => ['nullable', 'string'],
         ]);
@@ -102,7 +107,7 @@ class RentalController extends Controller
             'fuel_in' => ['nullable', 'integer', 'min:0', 'max:100'],
             'fine_amount' => ['required', 'numeric', 'min:0'],
             'total_payment' => ['required', 'numeric', 'min:0'],
-            'status' => ['required', 'string', Rule::in(['Active', 'Returned', 'Cancelled'])],
+            'status' => ['required', 'string', Rule::in(['Active', 'Returned', 'Completed', 'Cancelled'])],
             'tenant_signature' => ['nullable', 'string'],
             'officer_signature' => ['nullable', 'string'],
         ]);
@@ -115,9 +120,9 @@ class RentalController extends Controller
             Car::find($oldCarId)?->update(['status' => 'Ready']);
         }
 
-        if ($rental->status === 'Returned') {
+        if ($rental->status === 'Returned' || $rental->status === 'Completed') {
             $rental->car->update(['status' => 'Ready']);
-            $rental->booking->update(['status' => 'Returned']);
+            $rental->booking->update(['status' => 'Completed']);
         } elseif ($rental->status === 'Cancelled') {
             $rental->car->update(['status' => 'Ready']);
             $rental->booking->update(['status' => 'Confirmed']);

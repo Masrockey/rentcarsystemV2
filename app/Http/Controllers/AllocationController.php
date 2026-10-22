@@ -20,7 +20,7 @@ class AllocationController extends Controller
     /**
      * Build base query for car & staff allocations with all filters applied.
      */
-    private function buildAllocationsQuery(Request $request)
+    private function buildAllocationsQuery(Request $request, bool $applyStatusFilter = true)
     {
         $user = $request->user();
 
@@ -37,12 +37,18 @@ class AllocationController extends Controller
         }
 
         // Apply Status Filter
-        if ($request->filled('status') && $request->query('status') !== 'all') {
-            $status = $request->query('status');
-            if ($status === 'unallocated') {
-                $query->whereNull('car_id');
-            } elseif ($status === 'allocated') {
-                $query->whereNotNull('car_id');
+        if ($applyStatusFilter) {
+            if ($request->filled('status') && $request->query('status') !== 'all') {
+                $status = $request->query('status');
+                if ($status === 'unallocated') {
+                    $query->where('status', '!=', 'Cancelled')->whereNull('car_id');
+                } elseif ($status === 'allocated') {
+                    $query->where('status', '!=', 'Cancelled')->whereNotNull('car_id');
+                } elseif ($status === 'cancelled') {
+                    $query->where('status', 'Cancelled');
+                }
+            } else {
+                $query->where('status', '!=', 'Cancelled');
             }
         }
 
@@ -228,10 +234,11 @@ class AllocationController extends Controller
      */
     public function index(Request $request): Response
     {
-        $baseQuery = $this->buildAllocationsQuery($request);
+        $countQuery = $this->buildAllocationsQuery($request, false)->where('status', '!=', 'Cancelled');
+        $unallocatedCount = (clone $countQuery)->whereNull('car_id')->count();
+        $allocatedCount = (clone $countQuery)->whereNotNull('car_id')->count();
 
-        $unallocatedCount = (clone $baseQuery)->whereNull('car_id')->count();
-        $allocatedCount = (clone $baseQuery)->whereNotNull('car_id')->count();
+        $baseQuery = $this->buildAllocationsQuery($request, true);
         $bookings = $baseQuery->paginate(10)->withQueryString();
 
         return Inertia::render('allocations/index', [
@@ -260,6 +267,15 @@ class AllocationController extends Controller
      */
     public function update(Request $request, Booking $booking): RedirectResponse
     {
+        if ($booking->status === 'Cancelled') {
+            Inertia::flash('toast', [
+                'type' => 'error',
+                'message' => 'Booking yang sudah dibatalkan (Cancelled) tidak dapat dialokasikan.',
+            ]);
+
+            return back();
+        }
+
         $validated = $request->validate([
             'car_id' => ['nullable', 'exists:cars,id'],
             'driver_id' => ['nullable', 'exists:drivers,id'],

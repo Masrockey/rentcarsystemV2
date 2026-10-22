@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 
 class AllocationController extends BaseApiController
 {
-    private function buildAllocationsQuery(Request $request)
+    private function buildAllocationsQuery(Request $request, bool $applyStatusFilter = true)
     {
         $user = $request->user();
 
@@ -27,12 +27,18 @@ class AllocationController extends BaseApiController
             });
         }
 
-        if ($request->filled('status')) {
-            $status = $request->query('status');
-            if ($status === 'unallocated') {
-                $query->whereNull('car_id');
-            } elseif ($status === 'allocated') {
-                $query->whereNotNull('car_id');
+        if ($applyStatusFilter) {
+            if ($request->filled('status') && $request->query('status') !== 'all') {
+                $status = $request->query('status');
+                if ($status === 'unallocated') {
+                    $query->where('status', '!=', 'Cancelled')->whereNull('car_id');
+                } elseif ($status === 'allocated') {
+                    $query->where('status', '!=', 'Cancelled')->whereNotNull('car_id');
+                } elseif ($status === 'cancelled') {
+                    $query->where('status', 'Cancelled');
+                }
+            } else {
+                $query->where('status', '!=', 'Cancelled');
             }
         }
 
@@ -100,11 +106,11 @@ class AllocationController extends BaseApiController
      */
     public function index(Request $request): JsonResponse
     {
-        $query = $this->buildAllocationsQuery($request);
+        $countQuery = $this->buildAllocationsQuery($request, false)->where('status', '!=', 'Cancelled');
+        $unallocatedCount = (clone $countQuery)->whereNull('car_id')->count();
+        $allocatedCount = (clone $countQuery)->whereNotNull('car_id')->count();
 
-        $unallocatedCount = (clone $query)->whereNull('car_id')->count();
-        $allocatedCount = (clone $query)->whereNotNull('car_id')->count();
-
+        $query = $this->buildAllocationsQuery($request, true);
         $perPage = (int) $request->query('per_page', 10);
         $bookings = $query->paginate($perPage);
 
@@ -138,6 +144,10 @@ class AllocationController extends BaseApiController
      */
     public function update(Request $request, Booking $booking): JsonResponse
     {
+        if ($booking->status === 'Cancelled') {
+            return $this->sendError('Booking yang sudah dibatalkan tidak dapat dialokasikan.', [], 422);
+        }
+
         $validated = $request->validate([
             'car_id' => ['nullable', 'exists:cars,id'],
             'driver_id' => ['nullable', 'exists:drivers,id'],

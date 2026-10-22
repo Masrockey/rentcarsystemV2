@@ -3,6 +3,7 @@
 use App\Models\Booking;
 use App\Models\Car;
 use App\Models\Customer;
+use App\Models\Rental;
 use App\Models\User;
 
 test('admin can access dedicated allocations page and allocate vehicle', function () {
@@ -136,4 +137,104 @@ test('admin can filter allocations by preset tomorrow and date range', function 
         ->where('bookings.data.0.id', $bookingTomorrow->id)
         ->where('unallocatedCount', 1)
     );
+});
+
+test('cancelled bookings are excluded from allocations index and cannot be allocated', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $customer = Customer::create(['name' => 'Budi Cancelled']);
+    $car = Car::create([
+        'name' => 'Toyota Avanza',
+        'year' => 2023,
+        'plate_number' => 'DK 9999 CC',
+        'status' => 'Ready',
+    ]);
+
+    $activeBooking = Booking::create([
+        'customer_id' => $customer->id,
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => now()->format('Y-m-d'),
+        'payment_method' => 'Cash',
+        'status' => 'Pending',
+        'amount' => 350000,
+    ]);
+
+    $cancelledBooking = Booking::create([
+        'customer_id' => $customer->id,
+        'car_type' => 'Avanza',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => now()->format('Y-m-d'),
+        'payment_method' => 'Cash',
+        'status' => 'Cancelled',
+        'amount' => 350000,
+    ]);
+
+    // Check allocations index: cancelled booking must NOT appear in the active list
+    $response = $this->actingAs($admin)->get(route('allocations.index'));
+    $response->assertStatus(200);
+    $response->assertInertia(fn ($page) => $page
+        ->component('allocations/index')
+        ->has('bookings.data', 1)
+        ->where('bookings.data.0.id', $activeBooking->id)
+    );
+
+    // Attempting to allocate a cancelled booking must be rejected
+    $updateResponse = $this->actingAs($admin)
+        ->put(route('allocations.update', $cancelledBooking), [
+            'car_id' => $car->id,
+        ]);
+
+    $updateResponse->assertRedirect();
+    $cancelledBooking->refresh();
+    expect($cancelledBooking->car_id)->toBeNull();
+});
+
+test('cancelling a booking clears existing allocation and releases rented vehicle', function () {
+    $admin = User::factory()->create(['roles' => ['Admin']]);
+    $customer = Customer::create(['name' => 'Made Cancel']);
+    $car = Car::create([
+        'name' => 'Innova Reborn',
+        'year' => 2024,
+        'plate_number' => 'DK 8888 ZZ',
+        'status' => 'Rented',
+    ]);
+
+    $booking = Booking::create([
+        'customer_id' => $customer->id,
+        'car_id' => $car->id,
+        'car_type' => 'Innova',
+        'rental_type' => 'Lepas Kunci',
+        'booking_date' => now()->format('Y-m-d'),
+        'payment_method' => 'Cash',
+        'status' => 'Confirmed',
+        'amount' => 500000,
+    ]);
+
+    $rental = Rental::create([
+        'booking_id' => $booking->id,
+        'car_id' => $car->id,
+        'customer_id' => $customer->id,
+        'officer_id' => $admin->id,
+        'contract_number' => 'KTR-20261022-TEST01',
+        'checkout_datetime' => now(),
+        'km_out' => 10000,
+        'fuel_out' => 100,
+        'total_payment' => 1000000,
+        'status' => 'Active',
+    ]);
+
+    $this->actingAs($admin)
+        ->post(route('bookings.cancel', $booking), [
+            'cancellation_reason' => 'Customer changed plans',
+        ])
+        ->assertRedirect();
+
+    $booking->refresh();
+    $rental->refresh();
+    $car->refresh();
+
+    expect($booking->status)->toBe('Cancelled');
+    expect($booking->car_id)->toBeNull();
+    expect($rental->status)->toBe('Cancelled');
+    expect($car->status)->toBe('Ready');
 });

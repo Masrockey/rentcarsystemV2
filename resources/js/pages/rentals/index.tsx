@@ -12,7 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { useState, useMemo } from 'react';
-import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User, Calendar, Search, X, Filter, Clock, MapPin, CheckCircle2 } from 'lucide-react';
+import { Plus, Edit, Trash2, ClipboardList, Fuel, Gauge, Car, Send, FileText, CheckSquare, User, Calendar, Search, X, Filter, Clock, MapPin } from 'lucide-react';
 import { index as rentalsIndex } from '@/routes/rentals';
 import Pagination, { PaginatedData } from '@/components/pagination';
 
@@ -31,6 +31,8 @@ type BookingOption = {
     return_time?: string | null;
     pickup_location?: string | null;
     dropoff_location?: string | null;
+    delivery_checklist?: Record<string, any> | null;
+    return_checklist?: Record<string, any> | null;
     customer?: CustomerOption;
     peluncur?: OfficerOption;
 };
@@ -68,6 +70,16 @@ const getCurrentTime = () => {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
+const isDeliveryChecklistDone = (r: Rental) => {
+    if (r.booking?.delivery_checklist && Object.keys(r.booking.delivery_checklist).length > 0) {
+        return true;
+    }
+    if (r.checkout_datetime || r.status === 'Active' || r.status === 'Completed') {
+        return true;
+    }
+    return false;
+};
+
 type Props = {
     rentals: PaginatedData<Rental> | Rental[];
     confirmedBookings?: any[];
@@ -81,12 +93,12 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
     const page = usePage();
     const user = page.props.auth?.user as any;
     const roles: string[] = user?.roles || [];
-    const isSuperAdmin = roles.includes('Super Admin');
+    const isSuperAdmin = roles.includes('Super Admin') || roles.includes('super admin');
+    const isAdmin = (roles.includes('Admin') || roles.includes('admin')) && !isSuperAdmin;
 
     const rentalList = useMemo(() => Array.isArray(rentals) ? rentals : (rentals?.data || []), [rentals]);
     const [isOpen, setIsOpen] = useState(false);
     const [isReturnOpen, setIsReturnOpen] = useState(false);
-    const [washBookingId, setWashBookingId] = useState<number | null>(null);
     const [editingRental, setEditingRental] = useState<Rental | null>(null);
     const [deleteId, setDeleteId] = useState<number | null>(null);
 
@@ -405,10 +417,6 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
         }
     };
 
-    const handleWash = (bookingId: number) => {
-        setWashBookingId(bookingId);
-    };
-
     const formatCompactDateTime = (dtStr: string | null) => {
         if (!dtStr) return '-';
         const cleaned = dtStr.replace('T', ' ').replace('Z', '').split('.')[0];
@@ -596,7 +604,8 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                 </div>
 
                 {/* CONFIRMED BOOKINGS READY FOR HANDOVER (SERAH TERIMA) */}
-                <Card className="border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20">
+                {!isAdmin && (
+                    <Card className="border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20">
                     <CardHeader>
                         <CardTitle className="text-base font-semibold flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
                             <Car className="h-5 w-5 text-emerald-600" />
@@ -676,6 +685,7 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                         )}
                     </CardContent>
                 </Card>
+                )}
 
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
@@ -726,26 +736,43 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                          <div className="flex flex-wrap items-center justify-end gap-1.5 pt-2 border-t mt-1">
                                              {r.booking_id && (
                                                  <>
-                                                     <Link href={`/bookings/${r.booking_id}/checklist?type=delivery`}>
-                                                         <Button
-                                                             size="sm"
-                                                             variant="outline"
-                                                             className="border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 h-8 text-xs font-semibold px-2 flex items-center gap-1"
-                                                             title="Serah Terima Unit (Checklist Keluar)"
-                                                         >
-                                                             <Car className="h-3.5 w-3.5" /> Serah Terima
-                                                         </Button>
-                                                     </Link>
-                                                     <Link href={`/bookings/${r.booking_id}/checklist?type=return`}>
-                                                         <Button
-                                                             size="sm"
-                                                             variant="outline"
-                                                             className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-600 h-8 text-xs font-semibold px-2 flex items-center gap-1"
-                                                             title="Ambil Unit (Checklist Kembali)"
-                                                         >
-                                                             <CheckSquare className="h-3.5 w-3.5" /> Ambil Unit
-                                                         </Button>
-                                                     </Link>
+                                                     {r.status === 'Completed' ? (
+                                                         <Link href={`/bookings/${r.booking_id}/checklist`}>
+                                                             <Button
+                                                                 size="sm"
+                                                                 variant="outline"
+                                                                 className="border-blue-600 text-blue-700 bg-blue-50 hover:bg-blue-600 hover:text-white dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-700 h-8 text-xs font-semibold px-2 flex items-center gap-1 shadow-2xs"
+                                                                 title="Lihat Formulir Checklist"
+                                                             >
+                                                                 <ClipboardList className="h-3.5 w-3.5" /> Lihat Checklist
+                                                             </Button>
+                                                         </Link>
+                                                     ) : (
+                                                         <>
+                                                             {!isDeliveryChecklistDone(r) && (
+                                                                 <Link href={`/bookings/${r.booking_id}/checklist?type=delivery`}>
+                                                                     <Button
+                                                                         size="sm"
+                                                                         variant="outline"
+                                                                         className="border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                                         title="Serah Terima Unit (Checklist Keluar)"
+                                                                     >
+                                                                         <Car className="h-3.5 w-3.5" /> Serah Terima
+                                                                     </Button>
+                                                                 </Link>
+                                                             )}
+                                                             <Link href={`/bookings/${r.booking_id}/checklist?type=return`}>
+                                                                 <Button
+                                                                     size="sm"
+                                                                     variant="outline"
+                                                                     className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-600 h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                                     title="Ambil Unit (Checklist Kembali)"
+                                                                 >
+                                                                     <CheckSquare className="h-3.5 w-3.5" /> Ambil Unit
+                                                                 </Button>
+                                                             </Link>
+                                                         </>
+                                                     )}
                                                  </>
                                              )}
                                              {r.status === 'Active' && !r.booking_id && (
@@ -756,16 +783,6 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                      onClick={() => openReturn(r)}
                                                  >
                                                      Ambil Unit
-                                                 </Button>
-                                             )}
-                                             {r.booking_id && r.status === 'Returned' && (
-                                                 <Button
-                                                     size="sm"
-                                                     className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5 flex items-center gap-1.5 shadow-xs"
-                                                     onClick={() => handleWash(r.booking_id)}
-                                                     title="Selesaikan pesanan booking & kembalikan status mobil ke Ready"
-                                                 >
-                                                     <CheckCircle2 className="h-3.5 w-3.5" /> Complete Booking
                                                  </Button>
                                              )}
                                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
@@ -855,26 +872,43 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                             <td className="px-6 py-4 text-right flex items-center justify-end gap-1.5">
                                                  {r.booking_id && (
                                                      <>
-                                                         <Link href={`/bookings/${r.booking_id}/checklist?type=delivery`}>
-                                                             <Button
-                                                                 size="sm"
-                                                                 variant="outline"
-                                                                 className="border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 h-8 text-xs font-semibold px-2 flex items-center gap-1"
-                                                                 title="Serah Terima Unit (Checklist Keluar)"
-                                                             >
-                                                                 <Car className="h-3.5 w-3.5" /> Serah Terima
-                                                             </Button>
-                                                         </Link>
-                                                         <Link href={`/bookings/${r.booking_id}/checklist?type=return`}>
-                                                             <Button
-                                                                 size="sm"
-                                                                 variant="outline"
-                                                                 className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-600 h-8 text-xs font-semibold px-2 flex items-center gap-1"
-                                                                 title="Ambil Unit (Checklist Kembali)"
-                                                             >
-                                                                 <CheckSquare className="h-3.5 w-3.5" /> Ambil Unit
-                                                             </Button>
-                                                         </Link>
+                                                         {r.status === 'Completed' ? (
+                                                             <Link href={`/bookings/${r.booking_id}/checklist`}>
+                                                                 <Button
+                                                                     size="sm"
+                                                                     variant="outline"
+                                                                     className="border-blue-600 text-blue-700 bg-blue-50 hover:bg-blue-600 hover:text-white dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-700 h-8 text-xs font-semibold px-2 flex items-center gap-1 shadow-2xs"
+                                                                     title="Lihat Formulir Checklist"
+                                                                 >
+                                                                     <ClipboardList className="h-3.5 w-3.5" /> Lihat Checklist
+                                                                 </Button>
+                                                             </Link>
+                                                         ) : (
+                                                             <>
+                                                                 {!isDeliveryChecklistDone(r) && (
+                                                                     <Link href={`/bookings/${r.booking_id}/checklist?type=delivery`}>
+                                                                         <Button
+                                                                             size="sm"
+                                                                             variant="outline"
+                                                                             className="border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700 h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                                             title="Serah Terima Unit (Checklist Keluar)"
+                                                                         >
+                                                                             <Car className="h-3.5 w-3.5" /> Serah Terima
+                                                                         </Button>
+                                                                     </Link>
+                                                                 )}
+                                                                 <Link href={`/bookings/${r.booking_id}/checklist?type=return`}>
+                                                                     <Button
+                                                                         size="sm"
+                                                                         variant="outline"
+                                                                         className="border-amber-500 text-amber-800 bg-amber-50 hover:bg-amber-500 hover:text-white dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-600 h-8 text-xs font-semibold px-2 flex items-center gap-1"
+                                                                         title="Ambil Unit (Checklist Kembali)"
+                                                                     >
+                                                                         <CheckSquare className="h-3.5 w-3.5" /> Ambil Unit
+                                                                     </Button>
+                                                                 </Link>
+                                                             </>
+                                                         )}
                                                      </>
                                                  )}
                                                  {r.status === 'Active' && !r.booking_id && (
@@ -885,16 +919,6 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                                          onClick={() => openReturn(r)}
                                                      >
                                                          Ambil Unit
-                                                     </Button>
-                                                 )}
-                                                 {r.booking_id && r.status === 'Returned' && (
-                                                     <Button
-                                                         size="sm"
-                                                         className="bg-green-600 hover:bg-green-700 text-white h-8 text-xs font-semibold px-2.5 flex items-center gap-1.5 shadow-xs"
-                                                         onClick={() => handleWash(r.booking_id)}
-                                                         title="Selesaikan pesanan booking & kembalikan status mobil ke Ready"
-                                                     >
-                                                         <CheckCircle2 className="h-3.5 w-3.5" /> Complete Booking
                                                      </Button>
                                                  )}
                                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}><Edit className="h-4 w-4" /></Button>
@@ -1121,37 +1145,6 @@ export default function RentalsIndex({ rentals, confirmedBookings = [], bookings
                                 <Button type="submit" disabled={processing}>Simpan Pengembalian</Button>
                             </DialogFooter>
                         </form>
-                    </DialogContent>
-                </Dialog>
-
-                {/* CONFIRM COMPLETE BOOKING DIALOG */}
-                <Dialog open={washBookingId !== null} onOpenChange={(open) => !open && setWashBookingId(null)}>
-                    <DialogContent className="max-w-md">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2 text-green-600">
-                                <CheckCircle2 className="h-5 w-5" /> Selesaikan Booking (Complete Booking)
-                            </DialogTitle>
-                            <DialogDescription>
-                                Apakah Anda yakin ingin menyelesaikan pesanan booking ini? Status booking akan menjadi <strong className="text-foreground font-semibold">Completed</strong> dan status armada mobil akan otomatis kembali menjadi <strong className="text-foreground font-semibold">Ready</strong>.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter className="gap-2 sm:gap-0 pt-4">
-                            <Button variant="outline" onClick={() => setWashBookingId(null)}>
-                                Batal
-                            </Button>
-                            <Button
-                                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-1.5"
-                                onClick={() => {
-                                    if (washBookingId) {
-                                        router.post(`/bookings/${washBookingId}/complete`, {}, {
-                                            onSuccess: () => setWashBookingId(null),
-                                        });
-                                    }
-                                }}
-                            >
-                                <CheckCircle2 className="h-4 w-4" /> Selesaikan Booking (Set Ready)
-                            </Button>
-                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
             </div>

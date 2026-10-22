@@ -354,6 +354,9 @@ export default function AllocationsIndex({
     };
 
     const openAllocateDialog = (booking: Booking) => {
+        if (booking.status === 'Cancelled') {
+            return;
+        }
         setSelectedBooking(booking);
         setAssignData({
             car_id: booking.car_id ? booking.car_id.toString() : '',
@@ -366,6 +369,9 @@ export default function AllocationsIndex({
     };
 
     const handleStartAllocation = (booking: Booking) => {
+        if (booking.status === 'Cancelled') {
+            return;
+        }
         setCheckingBooking(booking);
         setCheckStage('checking');
         setMatchedBlacklist(null);
@@ -891,7 +897,9 @@ export default function AllocationsIndex({
                                                 <div><span className="font-semibold text-foreground">Tipe Dipesan:</span> {b.car_type}</div>
                                                 <div>
                                                     <span className="font-semibold text-foreground">Armada Mobil:</span>{' '}
-                                                    {b.car ? (
+                                                    {b.status === 'Cancelled' ? (
+                                                        <span className="font-semibold text-red-600 dark:text-red-400">Cancelled (Dibatalkan)</span>
+                                                    ) : b.car ? (
                                                         <span className="font-semibold text-green-600 dark:text-green-400">{b.car.name} ({b.car.plate_number})</span>
                                                     ) : (
                                                         <span className="text-red-500 font-bold italic">⚠️ Belum Dialokasi</span>
@@ -910,7 +918,11 @@ export default function AllocationsIndex({
                                                 )}
                                             </div>
                                             <div className="flex items-center justify-end gap-2 pt-2 border-t mt-1">
-                                                {!b.car_id ? (
+                                                {b.status === 'Cancelled' ? (
+                                                    <Badge variant="secondary" className="text-muted-foreground text-xs py-1 px-3">
+                                                        Booking Dibatalkan
+                                                    </Badge>
+                                                ) : !b.car_id ? (
                                                     <Button
                                                         size="sm"
                                                         onClick={() => handleStartAllocation(b)}
@@ -986,7 +998,11 @@ export default function AllocationsIndex({
                                                     </td>
                                                     <td className="px-4 py-4 font-medium">{b.car_type}</td>
                                                     <td className="px-4 py-4">
-                                                        {b.car ? (
+                                                        {b.status === 'Cancelled' ? (
+                                                            <Badge variant="outline" className="border-red-400 text-red-600 bg-red-50 dark:bg-red-950/40 font-semibold">
+                                                                Cancelled
+                                                            </Badge>
+                                                        ) : b.car ? (
                                                             <div className="flex flex-col">
                                                                 <span className="font-semibold text-green-600 dark:text-green-400">{b.car.name}</span>
                                                                 <span className="font-mono text-xs text-muted-foreground">{b.car.plate_number}</span>
@@ -1033,7 +1049,11 @@ export default function AllocationsIndex({
                                                     <td className="px-4 py-4 font-semibold text-xs">{formatCurrency(b.amount)}</td>
                                                     <td className="px-4 py-4 text-right">
                                                         <div className="flex items-center justify-end gap-1.5 ml-auto">
-                                                            {!b.car_id ? (
+                                                            {b.status === 'Cancelled' ? (
+                                                                <Badge variant="secondary" className="text-muted-foreground text-xs px-2.5 py-1">
+                                                                    Dibatalkan
+                                                                </Badge>
+                                                            ) : !b.car_id ? (
                                                                 <Button
                                                                     size="sm"
                                                                     onClick={() => handleStartAllocation(b)}

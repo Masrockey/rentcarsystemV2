@@ -120,7 +120,7 @@ test('full rent car booking workflow', function () {
     $booking->refresh();
     $car->refresh();
 
-    expect($booking->status)->toBe('Returned');
+    expect($booking->status)->toBe('Completed');
     expect($car->status)->toBe('Ready'); // Automatically changes to Ready
 
     // 6. Log in as Petugas Cuci to complete washing
@@ -277,10 +277,16 @@ test('admin can access allocations page and view data with blacklists', function
 
 test('admin and peluncur can access rentals page and view data', function () {
     $peluncur = User::factory()->create(['roles' => ['Peluncur']]);
-    $this->actingAs($peluncur);
+    $admin = User::factory()->create(['roles' => ['Admin']]);
 
+    $this->actingAs($peluncur);
     $response = $this->get('/rentals');
     $response->assertOk();
+
+    $this->actingAs($admin);
+    $adminResponse = $this->get('/rentals');
+    $adminResponse->assertOk()
+        ->assertInertia(fn ($page) => $page->where('confirmedBookings', []));
 });
 
 test('user can cancel booking with optional cancellation reason', function () {
