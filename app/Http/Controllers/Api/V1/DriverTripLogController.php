@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\V1\DriverTripLogResource;
 use App\Models\Booking;
 use App\Models\Driver;
@@ -10,8 +9,83 @@ use App\Models\DriverTripLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class DriverTripLogController extends Controller
+class DriverTripLogController extends BaseApiController
 {
+    /**
+     * Display all driver trip logs overview with filters and pagination.
+     */
+    public function overview(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $query = DriverTripLog::with([
+            'booking.customer:id,name,phone',
+            'booking.car:id,name,plate_number,brand,model',
+            'driver:id,name,phone,sim',
+            'user:id,name',
+        ])->latest('id');
+
+        if ($user->isDriver() && ! $user->isAdmin()) {
+            $driverId = $user->driver?->id ?? Driver::where('user_id', $user->id)->value('id') ?? ($user->phone ? Driver::where('phone', $user->phone)->value('id') : null);
+            $query->where('driver_id', $driverId ?? 0);
+        } else {
+            $driverId = $request->query('driver_id');
+            if ($driverId && $driverId !== 'all') {
+                $query->where('driver_id', $driverId);
+            }
+        }
+
+        $search = $request->query('search');
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('location_name', 'like', "%{$search}%")
+                    ->orWhere('checkin_notes', 'like', "%{$search}%")
+                    ->orWhere('checkout_notes', 'like', "%{$search}%")
+                    ->orWhereHas('driver', function ($dq) use ($search) {
+                        $dq->where('name', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('booking.customer', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('booking.car', function ($carQ) use ($search) {
+                        $carQ->where('name', 'like', "%{$search}%")
+                            ->orWhere('plate_number', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $status = $request->query('status');
+        if ($status && $status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        $startDate = $request->query('start_date');
+        if ($startDate) {
+            $query->whereDate('checkin_at', '>=', $startDate);
+        }
+
+        $endDate = $request->query('end_date');
+        if ($endDate) {
+            $query->whereDate('checkin_at', '<=', $endDate);
+        }
+
+        $perPage = (int) $request->query('per_page', 15);
+        $logs = $query->paginate($perPage);
+
+        return $this->sendResponse(
+            DriverTripLogResource::collection($logs),
+            'Daftar rekap log perjalanan supir berhasil diambil.',
+            200,
+            [
+                'current_page' => $logs->currentPage(),
+                'last_page' => $logs->lastPage(),
+                'per_page' => $logs->perPage(),
+                'total' => $logs->total(),
+            ]
+        );
+    }
+
     /**
      * Get all trip logs for a booking.
      */

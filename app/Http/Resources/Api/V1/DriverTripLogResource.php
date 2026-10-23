@@ -53,6 +53,21 @@ class DriverTripLogResource extends JsonResource
                 ? "https://www.openstreetmap.org/?mlat={$this->checkout_latitude}&mlon={$this->checkout_longitude}#map=16/{$this->checkout_latitude}/{$this->checkout_longitude}"
                 : null,
 
+            'booking' => $this->whenLoaded('booking', fn () => [
+                'id' => $this->booking->id,
+                'booking_number' => $this->booking->booking_number,
+                'status' => $this->booking->status,
+                'customer' => $this->booking->customer ? [
+                    'id' => $this->booking->customer->id,
+                    'name' => $this->booking->customer->name,
+                    'phone' => $this->booking->customer->phone,
+                ] : null,
+                'car' => $this->booking->car ? [
+                    'id' => $this->booking->car->id,
+                    'name' => $this->booking->car->name,
+                    'plate_number' => $this->booking->car->plate_number,
+                ] : null,
+            ]),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

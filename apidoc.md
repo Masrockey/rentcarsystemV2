@@ -19,15 +19,19 @@ Dokumentasi resmi REST API versi 1 (`/api/v1`) untuk **Rent Car System**. API in
    - [5.7 Tipe & Jenis Mobil (Car Types)](#57-tipe--jenis-mobil-car-types)
    - [5.8 Supir (Drivers)](#58-supir-drivers)
    - [5.9 Pemesanan & Alur Kerja (Bookings)](#59-pemesanan--alur-kerja-bookings)
-   - [5.10 Alokasi Armada & Petugas (Allocations)](#510-alokasi-armada--petugas-allocations)
-   - [5.11 Kontrak Rental (Rentals)](#511-kontrak-rental-rentals)
-   - [5.12 Pengembalian Unit (Returns)](#512-pengembalian-unit-returns)
-   - [5.13 Pembayaran & Invoice (Payments)](#513-pembayaran--invoice-payments)
-   - [5.14 Perawatan & Servis (Services)](#514-perawatan--servis-services)
-   - [5.15 Asuransi Kendaraan (Insurances)](#515-asuransi-kendaraan-insurances)
-   - [5.16 Pajak Kendaraan & STNK (Vehicle Taxes)](#516-pajak-kendaraan--stnk-vehicle-taxes)
-   - [5.17 Blacklist Konsumen](#517-blacklist-konsumen)
-   - [5.18 Laporan Bulanan (Reports)](#518-laporan-bulanan-reports)
+   - [5.10 Log Perjalanan Supir (Driver Trip Logs)](#510-log-perjalanan-supir-driver-trip-logs)
+   - [5.11 Alokasi Armada & Petugas (Allocations)](#511-alokasi-armada--petugas-allocations)
+   - [5.12 Kontrak Rental (Rentals)](#512-kontrak-rental-rentals)
+   - [5.13 Pengembalian Unit (Returns)](#513-pengembalian-unit-returns)
+   - [5.14 Pembayaran & Invoice (Payments)](#514-pembayaran--invoice-payments)
+   - [5.15 Perawatan & Servis (Services)](#515-perawatan--servis-services)
+   - [5.16 Asuransi Kendaraan (Insurances)](#516-asuransi-kendaraan-insurances)
+   - [5.17 Pajak Kendaraan & STNK (Vehicle Taxes)](#517-pajak-kendaraan--stnk-vehicle-taxes)
+   - [5.18 Blacklist Konsumen](#518-blacklist-konsumen)
+   - [5.19 Laporan Bulanan (Reports)](#519-laporan-bulanan-reports)
+   - [5.20 Log Aktivitas Audit (Activity Logs)](#520-log-aktivitas-audit-activity-logs)
+   - [5.21 Notifikasi Sistem (Notifications)](#521-notifikasi-sistem-notifications)
+   - [5.22 WhatsApp Gateway Multi-Device Server (WA Server)](#522-whatsapp-gateway-multi-device-server-wa-server)
 6. [Contoh Kode Integrasi (cURL & JavaScript / React)](#6-contoh-kode-integrasi)
 
 ---
@@ -481,6 +485,8 @@ Mendukung 2 metode:
   "return_time": "18:00",
   "pickup_location": "Bandara Lombok",
   "dropoff_location": "Hotel Senggigi",
+  "delivery_fee": 50000, // Opsional: Biaya pengantaran unit
+  "pickup_fee": 50000, // Opsional: Biaya pengambilan unit
   "payment_method": "Transfer", // "Cash", "Transfer", "DP"
   "payment_status": "Pending",
   "amount": 1800000
@@ -552,17 +558,26 @@ Mengambil data checklist keberangkatan & kepulangan unit.
   - Status Booking berubah ke `Completed`.
   - Status Mobil berubah kembali ke `Ready`.
 
-#### 5. Log Perjalanan & Check-in / Check-out Multi-Stop Driver
+---
 
-Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop destination*) secara bertahap selama melayani sewa mobil (Tempat 1, Tempat 2, Tempat 3, dst.).
+### 5.10 Log Perjalanan Supir (Driver Trip Logs)
 
-##### A. Ambil Riwayat Log Perjalanan (`GET /bookings/{id}/trip-logs`)
+Fungsi untuk mencatat, memantau, dan mengelola riwayat titik perhentian (*multi-stop destination*) supir selama melayani sewa mobil (Tempat 1, Tempat 2, Tempat 3, dst.).
+
+#### 1. Ikhtisar Log Perjalanan Seluruh Supir (`GET /driver-trip-logs`)
 - **Autentikasi**: Ya (Bearer Token)
+- **Role**: Super Admin, Admin
+- **Query Parameters**:
+  - `driver_id` (integer, opsional): Filter berdasarkan ID supir
+  - `status` (string, opsional): `Checked In` | `Checked Out`
+  - `start_date` & `end_date` (date: `YYYY-MM-DD`, opsional): Filter rentang tanggal checkin
+  - `search` (string, opsional): Cari nama lokasi, catatan, atau nama supir
+  - `page` & `per_page` (integer, default: 15): Paginasi data
 - **Response (200 OK)**:
   ```json
   {
     "success": true,
-    "message": "Daftar log perjalanan berhasil diambil.",
+    "message": "Daftar seluruh log perjalanan supir berhasil diambil.",
     "data": [
       {
         "id": 1,
@@ -585,13 +600,60 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
         "checkout_longitude": 116.2769,
         "checkout_notes": "Tamu sudah naik mobil, menuju Hotel Senggigi",
         "checkout_photo_url": "https://domain.com/storage/driver_logs/yyy.jpg",
+        "checkout_map_url": "https://www.openstreetmap.org/?mlat=-8.7585&mlon=116.2769#map=16/-8.7585/116.2769",
+        "booking": {
+          "id": 13,
+          "booking_number": "BK-202609-0013",
+          "customer_name": "Budi Santoso",
+          "car_plate": "DR 1234 AB"
+        }
+      }
+    ],
+    "meta": {
+      "current_page": 1,
+      "last_page": 1,
+      "per_page": 15,
+      "total": 1
+    }
+  }
+  ```
+
+#### 2. Ambil Riwayat Log Perjalanan Spesifik Booking (`GET /bookings/{id}/trip-logs`)
+- **Autentikasi**: Ya (Bearer Token)
+- **Response (200 OK)**:
+  ```json
+  {
+    "success": true,
+    "message": "Daftar log perjalanan berhasil diambil.",
+    "data": [
+      {
+        "id": 1,
+        "booking_id": 13,
+        "driver_id": 3,
+        "driver_name": "Agus Prasetyo",
+        "location_name": "Penjemputan Bandara Lombok",
+        "stop_order": 1,
+        "status": "Checked Out",
+        "checkin_at": "2026-09-15T09:00:00.000000Z",
+        "checkin_at_formatted": "15/09/2026 09:00",
+        "checkin_latitude": -8.7582,
+        "checkin_longitude": 116.2764",
+        "checkin_notes": "Tiba di lobi kedatangan",
+        "checkin_photo_url": "https://domain.com/storage/driver_logs/xxx.jpg",
+        "checkin_map_url": "https://www.openstreetmap.org/?mlat=-8.7582&mlon=116.2764#map=16/-8.7582/116.2764",
+        "checkout_at": "2026-09-15T10:15:00.000000Z",
+        "checkout_at_formatted": "15/09/2026 10:15",
+        "checkout_latitude": -8.7585,
+        "checkout_longitude": 116.2769,
+        "checkout_notes": "Tamu sudah naik mobil, menuju Hotel Senggigi",
+        "checkout_photo_url": "https://domain.com/storage/driver_logs/yyy.jpg",
         "checkout_map_url": "https://www.openstreetmap.org/?mlat=-8.7585&mlon=116.2769#map=16/-8.7585/116.2769"
       }
     ]
   }
   ```
 
-##### B. Driver Check-in Tiba di Lokasi Baru (`POST /bookings/{id}/trip-logs/checkin`)
+#### 3. Driver Check-in Tiba di Lokasi Baru (`POST /bookings/{id}/trip-logs/checkin`)
 - **Autentikasi**: Ya (Driver bersangkutan / Admin)
 - **Content-Type**: `multipart/form-data` (jika upload foto) atau `application/json`
 - **Body Request**:
@@ -604,7 +666,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
   - Status Booking otomatis berubah ke `On Trip` jika sebelumnya masih `Confirmed`.
   - Dibuatkan record stop baru dengan urutan `stop_order` berikutnya berstatus `Checked In`.
 
-##### C. Driver Check-out Meninggalkan Lokasi (`POST /bookings/{id}/trip-logs/{logId}/checkout`)
+#### 4. Driver Check-out Meninggalkan Lokasi (`POST /bookings/{id}/trip-logs/{logId}/checkout`)
 - **Autentikasi**: Ya (Driver bersangkutan / Admin)
 - **Body Request**:
   - `checkout_notes` (string, opsional): Catatan keterangan keberangkatan.
@@ -616,7 +678,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.10 Alokasi Armada & Petugas (Allocations)
+### 5.11 Alokasi Armada & Petugas (Allocations)
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
@@ -638,7 +700,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.11 Kontrak Rental (Rentals)
+### 5.12 Kontrak Rental (Rentals)
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
@@ -650,7 +712,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.12 Pengembalian Unit (Returns)
+### 5.13 Pengembalian Unit (Returns)
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
@@ -671,7 +733,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.13 Pembayaran & Invoice (Payments)
+### 5.14 Pembayaran & Invoice (Payments)
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
@@ -692,7 +754,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.14 Perawatan & Servis (Services)
+### 5.15 Perawatan & Servis (Services)
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
@@ -725,7 +787,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.15 Asuransi Kendaraan (Insurances)
+### 5.16 Asuransi Kendaraan (Insurances)
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
@@ -737,7 +799,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.16 Pajak Kendaraan & STNK (Vehicle Taxes)
+### 5.17 Pajak Kendaraan & STNK (Vehicle Taxes)
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
@@ -749,7 +811,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.17 Blacklist Konsumen
+### 5.18 Blacklist Konsumen
 
 | Method | Endpoint | Deskripsi |
 | :--- | :--- | :--- |
@@ -762,7 +824,7 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
 
 ---
 
-### 5.18 Laporan Bulanan (Reports)
+### 5.19 Laporan Bulanan (Reports)
 
 #### 1. Rekapitulasi Pendapatan & Booking Bulanan
 - **Method**: `GET`
@@ -787,6 +849,126 @@ Fungsi untuk supir (driver) mencatat riwayat titik perhentian (*multi-stop desti
     ]
   }
   ```
+
+---
+
+### 5.20 Log Aktivitas Audit (Activity Logs)
+
+Modul pencatatan audit log sistem untuk memantau perubahan data sensitif oleh pengguna/staf.
+
+| Method | Endpoint | Deskripsi |
+| :--- | :--- | :--- |
+| `GET` | `/activity-logs` | Mengambil riwayat log audit aktivitas (`?search=...`, `?user_id=...`, `?action=...`, `?page=1&per_page=15`) |
+| `DELETE` | `/activity-logs` | Membersihkan log audit lama (*Super Admin only*, `days`: integer default 30 hari) |
+
+#### Contoh Response Log Aktivitas (`GET /activity-logs`):
+```json
+{
+  "success": true,
+  "message": "Daftar log aktivitas berhasil diambil.",
+  "data": [
+    {
+      "id": 105,
+      "user_id": 1,
+      "user_name": "Super Admin",
+      "action": "UPDATE_BOOKING",
+      "description": "Mengubah biaya penjemputan booking BK-202610-0012",
+      "ip_address": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 ...",
+      "created_at": "2026-10-23T14:20:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 1
+  }
+}
+```
+
+---
+
+### 5.21 Notifikasi Sistem (Notifications)
+
+Modul notifikasi in-app untuk pengguna (seperti pengingat STNK jatuh tempo, reminder servis armada, booking baru).
+
+| Method | Endpoint | Deskripsi |
+| :--- | :--- | :--- |
+| `GET` | `/notifications` | Mengambil daftar notifikasi pengguna saat ini (`unread_count`, data paginasi) |
+| `POST` | `/notifications/{id}/read` | Menandai 1 notifikasi spesifik sebagai terbaca |
+| `POST` | `/notifications/mark-all-read` | Menandai seluruh notifikasi yang belum dibaca sebagai terbaca |
+| `DELETE` | `/notifications/{id}` | Menghapus data notifikasi spesifik |
+
+#### Contoh Response Notifikasi (`GET /notifications`):
+```json
+{
+  "success": true,
+  "message": "Daftar notifikasi berhasil diambil.",
+  "data": {
+    "unread_count": 2,
+    "notifications": [
+      {
+        "id": "9d8e7f6a-1234-4567-89ab-cdef01234567",
+        "type": "App\\Notifications\\ServiceDueNotification",
+        "data": {
+          "title": "Mobil Perlu Servis",
+          "message": "Mobil Toyota Innova (DR 1234 AB) telah mencapai batas KM servis.",
+          "url": "/cars/4"
+        },
+        "read_at": null,
+        "created_at": "2026-10-23T10:00:00.000000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 5.22 WhatsApp Gateway Multi-Device Server (WA Server)
+
+Modul manajemen gateway WhatsApp multi-device (Node.js Baileys/WPPConnect/API server) untuk pengiriman notifikasi otomatis invoice, surat jalan, dan update status.
+> **Role Restriction**: Hanya dapat diakses oleh **Super Admin**.
+
+| Method | Endpoint | Deskripsi |
+| :--- | :--- | :--- |
+| `GET` | `/wa-server` | Halaman info & status ringkasan koneksi server WA |
+| `PUT` | `/wa-server/settings` | Simpan URL gateway & token secret (`server_url`, `secret_key`) |
+| `GET` | `/wa-server/qr` | Mengambil QR Code pairing WhatsApp terbaru (`?device_id=...`) |
+| `POST` | `/wa-server/pair-code` | Meminta kode pairing 8-digit nomor HP WhatsApp (`phone`, `device_id`) |
+| `GET` | `/wa-server/status` | Mengecek status koneksi real-time perangkat (`connected`, `device_id`, dll) |
+| `POST` | `/wa-server/reconnect` | Meminta gateway mencoba reconnect ulang (`device_id`) |
+| `POST` | `/wa-server/logout` | Memutuskan sesi WhatsApp pada gateway (`device_id`) |
+| `POST` | `/wa-server/devices` | Mendaftarkan device/nomor WhatsApp baru ke gateway |
+| `DELETE` | `/wa-server/devices/{id}` | Menghapus device dari server gateway |
+| `GET` | `/wa-server/groups` | Mengambil daftar grup WhatsApp yang diikuti nomor gateway |
+| `POST` | `/wa-server/target-group` | Mengatur ID Grup target notifikasi sistem (`group_id`) |
+| `POST` | `/wa-server/test-message` | Mengirim pesan uji coba ke nomor tujuan atau grup (`phone`, `message`, `is_group`) |
+
+#### Contoh Body Update Pengaturan Gateway (`PUT /wa-server/settings`):
+```json
+{
+  "server_url": "https://wa.rentcars.com",
+  "secret_key": "secret-api-token-anda"
+}
+```
+
+#### Contoh Body Kirim Pesan Uji Coba (`POST /wa-server/test-message`):
+```json
+{
+  "phone": "081234567890",
+  "message": "Halo! Pesan tes dari Rent Car System berhasil dikirim.",
+  "is_group": false
+}
+```
+**Response (200 OK)**:
+```json
+{
+  "success": true,
+  "message": "Pesan berhasil dikirim ke 6281234567890."
+}
+```
 
 ---
 

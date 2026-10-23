@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\ReturnController;
 use App\Http\Controllers\Api\V1\ServiceController;
 use App\Http\Controllers\Api\V1\UserController;
 use App\Http\Controllers\Api\V1\VehicleTaxController;
+use App\Http\Controllers\Api\V1\WaServerController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -74,7 +75,8 @@ Route::prefix('v1')->group(function () {
         Route::post('bookings/{booking}/wash', [BookingController::class, 'completeWash'])->name('api.v1.bookings.wash');
         Route::post('bookings/{booking}/complete', [BookingController::class, 'completeWash'])->name('api.v1.bookings.complete');
 
-        // Driver Trip Logs (Check-in & Check-out)
+        // Driver Trip Logs (Overview & Check-in & Check-out)
+        Route::get('driver-trip-logs', [DriverTripLogController::class, 'overview'])->name('api.v1.driver-trip-logs.index');
         Route::get('bookings/{booking}/trip-logs', [DriverTripLogController::class, 'index'])->name('api.v1.bookings.trip-logs.index');
         Route::post('bookings/{booking}/trip-logs/checkin', [DriverTripLogController::class, 'checkin'])->name('api.v1.bookings.trip-logs.checkin');
         Route::post('bookings/{booking}/trip-logs/{tripLog}/checkout', [DriverTripLogController::class, 'checkout'])->name('api.v1.bookings.trip-logs.checkout');
@@ -120,5 +122,21 @@ Route::prefix('v1')->group(function () {
         Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('api.v1.notifications.read');
         Route::post('notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('api.v1.notifications.mark-all-read');
         Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])->name('api.v1.notifications.destroy');
+
+        // WA Server (WhatsApp API MultiDevice Management - Super Admin only)
+        Route::prefix('wa-server')->group(function () {
+            Route::get('/', [WaServerController::class, 'index'])->name('api.v1.wa-server.index');
+            Route::put('settings', [WaServerController::class, 'updateSettings'])->name('api.v1.wa-server.settings');
+            Route::get('qr', [WaServerController::class, 'getQr'])->name('api.v1.wa-server.qr');
+            Route::post('pair-code', [WaServerController::class, 'getPairingCode'])->name('api.v1.wa-server.pair-code');
+            Route::get('status', [WaServerController::class, 'checkStatus'])->name('api.v1.wa-server.status');
+            Route::post('reconnect', [WaServerController::class, 'reconnect'])->name('api.v1.wa-server.reconnect');
+            Route::post('logout', [WaServerController::class, 'logout'])->name('api.v1.wa-server.logout');
+            Route::post('devices', [WaServerController::class, 'addDevice'])->name('api.v1.wa-server.devices.store');
+            Route::delete('devices/{deviceId}', [WaServerController::class, 'deleteDevice'])->name('api.v1.wa-server.devices.destroy');
+            Route::get('groups', [WaServerController::class, 'getGroups'])->name('api.v1.wa-server.groups');
+            Route::post('target-group', [WaServerController::class, 'setTargetGroup'])->name('api.v1.wa-server.target-group');
+            Route::post('test-message', [WaServerController::class, 'sendTestMessage'])->name('api.v1.wa-server.test-message');
+        });
     });
 });
